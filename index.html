@@ -138,6 +138,72 @@ section{padding:clamp(60px,9vw,116px) clamp(18px,5vw,56px);position:relative;z-i
 .shead .link:hover{color:#fff;text-shadow:0 0 10px var(--slime)}
 .panel{background:rgba(12,9,7,.55);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(8px)}
 
+/* FEATURED DROP / SPOTLIGHT */
+.dropgrid{display:grid;grid-template-columns:1.25fr .85fr;gap:20px}
+@media(max-width:880px){.dropgrid{grid-template-columns:1fr}}
+.dropfeat{display:flex;gap:20px;padding:20px;align-items:center}
+@media(max-width:520px){.dropfeat{flex-direction:column;text-align:center}}
+.dropfeat .cover{width:170px;aspect-ratio:1;flex:none;background-size:cover;background-position:center;border:1px solid rgba(255,255,255,.15);box-shadow:0 0 30px rgba(141,255,43,.25)}
+.dropfeat .dmeta{flex:1;min-width:0}
+.dtag{font-family:var(--ui);font-weight:800;font-size:11px;letter-spacing:3px;color:var(--slime);text-transform:uppercase}
+.dropfeat h3{font-family:var(--disp);font-size:clamp(26px,4vw,42px);line-height:.95;margin:6px 0 4px}
+.dropfeat .dsub{color:var(--soft);font-size:13px;margin-bottom:14px}
+.smartlinks{display:flex;flex-wrap:wrap;gap:8px;justify-content:inherit}
+.smartlinks a,.smartlinks button{font-family:var(--ui);font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;padding:9px 13px;border:1px solid rgba(255,255,255,.2);color:var(--ink);background:rgba(255,255,255,.03);cursor:pointer;transition:.15s;text-decoration:none}
+.smartlinks a:hover,.smartlinks button:hover{border-color:var(--slime);color:var(--slime);box-shadow:0 0 16px rgba(141,255,43,.3)}
+.dropcard{padding:20px;display:flex;flex-direction:column;justify-content:center;gap:12px;border:1px solid rgba(155,60,255,.3)}
+.dctag{font-family:var(--ui);font-weight:800;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--alien2)}
+.dropcard h4{font-family:var(--disp);font-size:24px;line-height:1}
+.cd{display:flex;gap:10px}
+.cdu{flex:1;text-align:center;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);padding:8px 4px}
+.cdu b{display:block;font-family:var(--disp);font-size:26px;color:#fff;line-height:1}
+.cdu span{font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase}
+.cdlive{font-family:var(--disp);font-size:24px;color:var(--slime)}
+
+/* VIDEOS */
+.vidgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.vid{position:relative;cursor:pointer;border:1px solid rgba(255,255,255,.1);overflow:hidden;aspect-ratio:16/9;background:#0b0806}
+.vid img{width:100%;height:100%;object-fit:cover;transition:transform .4s,filter .3s;filter:brightness(.7)}
+.vid:hover img{transform:scale(1.06);filter:brightness(.95)}
+.vid .pp{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:34px;color:#fff;text-shadow:0 0 16px rgba(141,255,43,.8);pointer-events:none}
+.vid .vmeta{position:absolute;left:0;right:0;bottom:0;padding:12px;background:linear-gradient(0deg,rgba(0,0,0,.85),transparent)}
+.vid .vmt{font-family:var(--disp);font-size:17px;color:#fff;line-height:1}
+.vid .vms{font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--slime);text-transform:uppercase}
+.vembed{position:relative;width:100%;aspect-ratio:16/9;margin-top:6px}
+.vembed iframe{position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:4px}
+
+/* THE LAB / STEM SEQUENCER */
+.labwrap{padding:18px}
+.seq{display:flex;flex-direction:column;gap:8px}
+.trk{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center}
+@media(max-width:680px){.trk{grid-template-columns:78px 1fr}}
+.trkhead{display:flex;align-items:center;gap:8px;cursor:pointer;-webkit-user-select:none;user-select:none}
+.trkdot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--c);box-shadow:0 0 8px var(--c)}
+.trkname{font-family:var(--disp);font-size:15px;letter-spacing:.5px}
+.trk.muted{opacity:.38}
+.steps{display:grid;grid-template-columns:repeat(16,1fr);gap:3px}
+.stp{aspect-ratio:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.02);cursor:pointer;transition:background .08s,box-shadow .08s;min-height:16px}
+.stp.beat{border-left:1px solid rgba(255,255,255,.28)}
+.stp.on{background:var(--c);box-shadow:0 0 8px var(--c)}
+.stp.cur{outline:2px solid #fff;outline-offset:-2px}
+.labbar{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-top:16px}
+.labplay{font-family:var(--disp);font-size:16px;cursor:pointer;border:1px solid var(--slime);color:var(--slime);background:rgba(141,255,43,.06);padding:10px 18px;transition:.15s}
+.labplay:hover{background:var(--slime);color:#08120a;box-shadow:0 0 22px rgba(141,255,43,.5)}
+.labtempo{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--soft);letter-spacing:1px}
+.labtempo input{accent-color:var(--slime)}
+.labhint{font-size:12px;color:var(--muted);flex:1;min-width:170px}
+
+/* JOIN — email + sms */
+.joinwrap{max-width:560px;margin:22px auto 0}
+.jointitle{font-family:var(--disp);font-size:20px}
+.jointitle span{display:block;font-family:var(--ui);font-size:12px;letter-spacing:1px;color:var(--soft);font-weight:600;margin-top:3px}
+.joinrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.joinrow input{flex:1;min-width:170px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.18);color:var(--ink);padding:12px 14px;font-family:var(--ui);font-size:14px}
+.joinrow input:focus{outline:none;border-color:var(--slime)}
+.joinrow button{font-family:var(--disp);font-size:16px;padding:0 22px;border:1px solid var(--slime);background:var(--slime);color:#08120a;cursor:pointer}
+.joinnote{font-family:var(--mono);font-size:11px;letter-spacing:.5px;color:var(--muted);margin-top:8px;text-align:center}
+.joinnote.bad{color:var(--blood)}
+
 /* PLAYER */
 .playerwin{max-width:640px;margin:0 auto 30px;overflow:hidden;border:1px solid rgba(255,255,255,.18);box-shadow:0 20px 50px rgba(0,0,0,.6),0 0 40px rgba(141,255,43,.12);background:linear-gradient(180deg,#120d0a,#0a0706)}
 .pwbar{display:flex;align-items:center;gap:10px;padding:9px 12px;background:linear-gradient(180deg,#241a14,#160f0b);color:var(--ink);border-bottom:1px solid rgba(141,255,43,.3)}
@@ -254,10 +320,7 @@ section{padding:clamp(60px,9vw,116px) clamp(18px,5vw,56px);position:relative;z-i
 .contact .sbmono{width:90px;margin:0 auto 18px}
 .contact h2{font-family:var(--disp);font-size:clamp(44px,9vw,120px);letter-spacing:1px;color:var(--ink);text-shadow:3px 0 var(--blood),-3px 0 rgba(141,255,43,.8)}
 .contact .clinks{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:30px}
-.guest{max-width:420px;margin:28px auto 0;display:flex;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.3)}
-.guest input{flex:1;background:transparent;border:0;padding:14px 18px;color:#fff;font-family:var(--ui);font-size:13px;outline:none}
-.guest input::placeholder{color:var(--muted)}
-.guest button{border:0;cursor:pointer;color:#08120a;font-family:var(--disp);font-size:16px;padding:0 22px;background:var(--slime)}
+.joinrow input::placeholder{color:var(--muted)}
 .booking{margin-top:22px;font-weight:500;font-size:13px;letter-spacing:1px;color:var(--soft)}
 .booking a{color:var(--slime)}
 
@@ -409,7 +472,7 @@ body.rage .rmtag{opacity:1}
     <div class="wm">SLIME BY</div>
   </div>
   <div class="navlinks">
-    <a href="#music">music</a><a href="#visualizer">waves</a><a href="#universe">sb world</a><a href="#connect">tap in</a>
+    <a href="#drop">drop</a><a href="#music">music</a><a href="#lab">lab</a><a href="#videos">videos</a><a href="#universe">sb world</a><a href="#connect">tap in</a>
   </div>
   <button class="btnX" onclick="enterRage()">☠ rage mode</button>
   <button class="burger" id="burger" aria-label="menu" aria-expanded="false" aria-controls="nav"><span></span><span></span><span></span></button>
@@ -429,6 +492,7 @@ body.rage .rmtag{opacity:1}
     <div class="sub">delaware rage · <b>green pressure</b> · <i>venom</i></div>
     <div class="cta-row">
       <button class="bigbtn bSlime" onclick="listenNow()">▶ play</button>
+      <button class="bigbtn bBlood" onclick="document.getElementById('drop').scrollIntoView({behavior:'smooth'})">✦ the drop</button>
       <button class="bigbtn bAlien" onclick="enterRage()">☠ rage mode</button>
     </div>
     <div class="counter">slime in the building: <b id="vcount">000690</b></div>
@@ -439,6 +503,37 @@ body.rage .rmtag{opacity:1}
 <!-- MARQUEE + DRIP -->
 <div class="marquee"><div class="track" id="track"></div></div>
 <div class="drip"></div>
+
+<!-- FEATURED DROP -->
+<section id="drop">
+  <div class="reveal"><span class="kicker">✦ the drop</span></div>
+  <div class="shead reveal"><h2>out <em>now</em></h2></div>
+  <div class="dropgrid">
+    <div class="dropfeat panel reveal">
+      <div class="cover" style="background-image:url('assets/my-time-cover.jpg')"></div>
+      <div class="dmeta">
+        <div class="dtag">★ featured release</div>
+        <h3>My Time</h3>
+        <div class="dsub">album · the slime in full bloom</div>
+        <div class="smartlinks">
+          <a href="https://open.spotify.com/album/5RickWrPNRszADHSzJJYUc" target="_blank" rel="noopener noreferrer">spotify</a>
+          <a href="https://music.apple.com/us/artist/slime-by/1542729349" target="_blank" rel="noopener noreferrer">apple music</a>
+          <a href="https://youtube.com/@slimeby_" target="_blank" rel="noopener noreferrer">youtube</a>
+          <button onclick="previewFeatured()">▶ preview</button>
+        </div>
+      </div>
+    </div>
+    <div class="dropcard panel reveal d1">
+      <div class="dctag">☠ next drop</div>
+      <h4>incoming transmission</h4>
+      <div class="cd" id="cd"></div>
+      <div class="smartlinks">
+        <a href="https://open.spotify.com/artist/70LnkJjJc5yq650kELO09A" target="_blank" rel="noopener noreferrer" id="presaveBtn">✦ pre-save</a>
+        <button onclick="notifyDrop()">☠ notify me</button>
+      </div>
+    </div>
+  </div>
+</section>
 
 <!-- MUSIC -->
 <section id="music">
@@ -474,6 +569,20 @@ body.rage .rmtag{opacity:1}
   </div>
   <div class="embedwrap panel reveal">
     <iframe style="border-radius:4px" src="https://open.spotify.com/embed/artist/70LnkJjJc5yq650kELO09A?utm_source=generator&theme=0" width="100%" height="352" frameborder="0" allow="autoplay;clipboard-write;encrypted-media;fullscreen;picture-in-picture" loading="lazy"></iframe>
+  </div>
+</section>
+
+<!-- THE LAB / STEM PLAYER -->
+<section id="lab">
+  <div class="reveal"><span class="kicker">⚗ the lab</span></div>
+  <div class="shead reveal"><h2>build the <em>beat</em></h2></div>
+  <div class="labwrap panel reveal">
+    <div class="seq" id="seq"></div>
+    <div class="labbar">
+      <button class="labplay" id="labPlay">▶ run the slime</button>
+      <div class="labtempo">tempo <input type="range" id="labBpm" min="80" max="180" value="140" aria-label="tempo"><span id="labBpmV">140</span> bpm</div>
+      <div class="labhint">tap a track name to mute · tap the cells to flip steps · stack your own slime loop</div>
+    </div>
   </div>
 </section>
 
@@ -526,6 +635,13 @@ body.rage .rmtag{opacity:1}
   </div>
 </section>
 
+<!-- VIDEOS -->
+<section id="videos">
+  <div class="reveal"><span class="kicker">▶ watch</span></div>
+  <div class="shead reveal"><h2>the <em>videos</em></h2><a class="link" href="https://youtube.com/@slimeby_" target="_blank" rel="noopener noreferrer">all videos →</a></div>
+  <div class="vidgrid" id="vidgrid"></div>
+</section>
+
 <!-- MERCH -->
 <section id="merch">
   <div class="reveal"><span class="kicker">slime shop</span></div>
@@ -561,7 +677,15 @@ body.rage .rmtag{opacity:1}
       <a class="bigbtn bBlood" href="https://www.tiktok.com/@slimeby_sb" target="_blank" rel="noopener noreferrer">tiktok</a>
       <button class="bigbtn bAlien" id="shareBtn">⤴ share</button>
     </div>
-    <div class="guest reveal d2"><input id="gemail" placeholder="join the slime — your@email.com"><button onclick="signbook()">join ☠</button></div>
+    <div class="joinwrap reveal d2">
+      <div class="jointitle">join the slime ☠<span>first access to drops, merch &amp; shows — email for news, phone for SMS alerts</span></div>
+      <div class="joinrow">
+        <input id="gemail" type="email" autocomplete="email" placeholder="your@email.com">
+        <input id="gphone" type="tel" autocomplete="tel" placeholder="+1 phone (optional)">
+        <button onclick="signbook()">join ☠</button>
+      </div>
+      <div class="joinnote" id="joinnote">we never spam — just the drops ☠</div>
+    </div>
     <div class="booking reveal d2">booking & features — <a href="mailto:booking@slimeby.com">booking@slimeby.com</a></div>
   </div>
 </section>
@@ -759,7 +883,23 @@ let rageOn=false;
 function enterRage(){rageOn=!rageOn;document.body.classList.toggle('rage',rageOn);if(rageOn)ensureCtx();}
 
 /* GUESTBOOK + easter egg */
-function signbook(){const e=document.getElementById('gemail');const v=e.value.trim();if(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){try{const list=JSON.parse(localStorage.getItem('sb_list')||'[]');if(!list.includes(v)){list.push(v);localStorage.setItem('sb_list',JSON.stringify(list));}}catch(_){}e.value='';e.placeholder='✓ welcome to the slime ☠';burst(innerWidth/2,innerHeight*.7,20,'#8dff2b');snakeLunge();}else{e.value='';e.placeholder='✗ enter a valid email';}}
+/* JOIN THE SLIME — captures email + (optional) SMS number to localStorage.
+   To deliver for real, POST sb_list / sb_sms to your provider (Mailchimp/ConvertKit
+   for email, Community/SimpleTexting/Twilio for SMS) — swap the storeLocal calls below. */
+function storeLocal(key,val){try{const a=JSON.parse(localStorage.getItem(key)||'[]');if(!a.includes(val)){a.push(val);localStorage.setItem(key,JSON.stringify(a));}}catch(_){}}
+function signbook(){
+  const e=document.getElementById('gemail'),p=document.getElementById('gphone'),note=document.getElementById('joinnote');
+  const ev=e.value.trim(),pv=p.value.trim(),digits=pv.replace(/[^\d]/g,'');
+  const emailOk=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ev);
+  const phoneOk=pv===''||digits.length>=10;
+  if(!emailOk){note.textContent='✗ enter a valid email';note.classList.add('bad');e.focus();return;}
+  if(!phoneOk){note.textContent='✗ enter a valid phone, or leave it blank';note.classList.add('bad');p.focus();return;}
+  storeLocal('sb_list',ev);
+  const gotPhone=digits.length>=10;if(gotPhone)storeLocal('sb_sms',digits);
+  e.value='';p.value='';note.classList.remove('bad');
+  note.textContent=gotPhone?'✓ you in — email + SMS. welcome to the slime ☠':'✓ you in — welcome to the slime ☠';
+  burst(innerWidth/2,innerHeight*.7,20,'#8dff2b');snakeLunge();toast('☠ welcome to the slime');
+}
 let seq='';addEventListener('keydown',e=>{if(e.metaKey||e.ctrlKey||e.altKey||isTyping())return;seq=(seq+e.key.toLowerCase()).slice(-5);if(seq==='slime'){for(let i=0;i<60;i++)setTimeout(()=>burst(innerWidth*Math.random(),innerHeight,8,'#8dff2b'),i*20);stab();snakeLunge();toast('☠ SLIME UNLOCKED ☠');}});
 
 /* ===================== FLESH-OUT FEATURES ===================== */
@@ -797,6 +937,54 @@ addEventListener('keydown',e=>{if(e.key==='?'&&!isTyping()&&!modal.classList.con
 
 /* SHARE */
 document.getElementById('shareBtn').onclick=async()=>{const data={title:'SLIME BY — official',text:'Delaware rap — green pressure, venom, motion.',url:location.href};try{if(navigator.share){await navigator.share(data);}else{await navigator.clipboard.writeText(location.href);toast('link copied to clipboard ☑');}}catch(_){}};
+
+/* ===================== FEATURED DROP ===================== */
+function previewFeatured(){startAudio();toast('▶ now spinning — Man Of My Word');}
+function notifyDrop(){document.getElementById('connect').scrollIntoView({behavior:'smooth'});setTimeout(()=>{const g=document.getElementById('gemail');if(g)g.focus();},600);toast('☠ drop your email — first to know');}
+/* ← set your next release date/time (local). Until then it counts down; after, it reads OUT NOW. */
+const DROP_DATE=new Date('2026-07-04T00:00:00');
+function tickCountdown(){const el=document.getElementById('cd');if(!el)return;const d=DROP_DATE-Date.now();if(d<=0){el.innerHTML='<span class="cdlive">OUT NOW ☠</span>';return;}const u=(n,l)=>`<div class="cdu"><b>${String(n).padStart(2,'0')}</b><span>${l}</span></div>`;el.innerHTML=u(Math.floor(d/864e5),'days')+u(Math.floor(d/36e5)%24,'hrs')+u(Math.floor(d/6e4)%60,'min')+u(Math.floor(d/1e3)%60,'sec');}
+tickCountdown();setInterval(tickCountdown,1000);
+
+/* ===================== VIDEOS ===================== */
+/* ← add each clip's YouTube video ID (the part after watch?v=) to embed it in-page */
+const VIDEOS=[
+  {t:'Man Of My Word',s:'official video',img:'assets/sb-portrait.jpg',id:''},
+  {t:'My Time',s:'visualizer',img:'assets/my-time-cover.jpg',id:''},
+  {t:'Slime Szn',s:'teaser · SB',img:'assets/slime-by.jpg',id:''},
+];
+(function renderVideos(){const g=document.getElementById('vidgrid');if(!g)return;
+  g.innerHTML=VIDEOS.map((v,i)=>`<div class="vid reveal${i%3?' d'+(i%3):''}" data-i="${i}"><img loading="lazy" decoding="async" src="${v.img}" alt="${v.t}"><div class="pp">▶</div><div class="vmeta"><div class="vmt">${v.t}</div><div class="vms">${v.s}</div></div></div>`).join('');
+  g.querySelectorAll('.vid').forEach(c=>{io.observe(c);c.onclick=()=>{const v=VIDEOS[+c.dataset.i];burst(innerWidth/2,innerHeight*.5,10,'#8dff2b');
+    if(v.id){openModal(`<div class="mbody"><span class="kicker">${v.s}</span><h3>${v.t}</h3><div class="vembed"><iframe src="https://www.youtube.com/embed/${v.id}?autoplay=1&rel=0" title="${v.t}" allow="autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe></div></div>`);}
+    else{openModal(`<div class="mbody"><span class="kicker">${v.s}</span><h3>${v.t}</h3><p>Add this clip's YouTube video ID to the <code>VIDEOS</code> list to play it right here. For now, catch the full vault on YouTube.</p><div class="mcta"><a class="bigbtn bSlime" href="https://youtube.com/@slimeby_" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);}};});
+})();
+
+/* ===================== THE LAB — stem sequencer (reuses the synth engine) ===================== */
+const STEMS=[
+  {n:'808',  c:'#8dff2b', f:()=>eight0eight(), pat:[1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0]},
+  {n:'BASS', c:'#9b3cff', f:()=>sub(),         pat:[1,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0]},
+  {n:'SNARE',c:'#ff1f2e', f:()=>snare(),       pat:[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0]},
+  {n:'HATS', c:'#b6ff5a', f:()=>hat(false),    pat:[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,1]},
+  {n:'KEYS', c:'#c47bff', f:()=>pluck(392),    pat:[1,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0]},
+];
+const seqEl=document.getElementById('seq');
+if(seqEl){STEMS.forEach(s=>{
+  const trk=document.createElement('div');trk.className='trk';trk.style.setProperty('--c',s.c);
+  trk.innerHTML='<div class="trkhead"><span class="trkdot"></span><span class="trkname">'+s.n+'</span></div><div class="steps"></div>';
+  const stepsEl=trk.querySelector('.steps');
+  s.pat.forEach((on,si)=>{const cell=document.createElement('div');cell.className='stp'+(on?' on':'')+(si%4===0?' beat':'');cell.onclick=()=>{s.pat[si]=s.pat[si]?0:1;cell.classList.toggle('on');ensureCtx();if(s.pat[si])s.f();};stepsEl.appendChild(cell);});
+  trk.querySelector('.trkhead').onclick=()=>{s.muted=!s.muted;trk.classList.toggle('muted',s.muted);};
+  s._cells=stepsEl.children;seqEl.appendChild(trk);
+});}
+let labOn=false,labStep=0,labTimer=null,labBpm=140;
+function labDur(){return 60/labBpm/4*1000;}
+function labTick(){const prev=(labStep+15)%16;STEMS.forEach(s=>{if(s._cells){s._cells[prev]&&s._cells[prev].classList.remove('cur');s._cells[labStep]&&s._cells[labStep].classList.add('cur');}if(!s.muted&&s.pat[labStep])s.f();});labStep=(labStep+1)%16;}
+function labStart(){ensureCtx();if(labOn)return;labOn=true;labStep=0;labTick();labTimer=setInterval(labTick,labDur());const b=document.getElementById('labPlay');if(b)b.textContent='❚❚ stop the slime';}
+function labStop(){labOn=false;clearInterval(labTimer);const b=document.getElementById('labPlay');if(b)b.textContent='▶ run the slime';STEMS.forEach(s=>{if(s._cells)for(const c of s._cells)c.classList.remove('cur');});}
+const labPlayBtn=document.getElementById('labPlay');if(labPlayBtn)labPlayBtn.onclick=()=>labOn?labStop():labStart();
+const labBpmEl=document.getElementById('labBpm'),labBpmV=document.getElementById('labBpmV');
+if(labBpmEl)labBpmEl.oninput=()=>{labBpm=+labBpmEl.value;if(labBpmV)labBpmV.textContent=labBpm;if(labOn){clearInterval(labTimer);labTimer=setInterval(labTick,labDur());}};
 </script>
 </body>
 </html>
