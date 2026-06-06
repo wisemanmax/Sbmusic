@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>☠ SLIME BY ☠ — official</title>
-<meta name="description" content="Slime By — Delaware rap. green pressure, venom, motion. cast the enchantments, follow the snake.">
+<meta name="description" content="Slime By — Delaware rap. green pressure, venom, motion. tap in, follow the snake.">
 <meta name="theme-color" content="#8dff2b">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23060403'/%3E%3Cpath d='M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30 62 M50 16 L50 84' stroke='%238dff2b' stroke-width='8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <meta property="og:type" content="music.musician">
 <meta property="og:title" content="SLIME BY — official">
-<meta property="og:description" content="Delaware rap. green pressure, venom, motion. cast the enchantments, follow the snake.">
+<meta property="og:description" content="Delaware rap. green pressure, venom, motion. tap in, follow the snake.">
 <meta property="og:image" content="assets/sb-portrait.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="SLIME BY — official">
@@ -138,28 +138,71 @@ section{padding:clamp(60px,9vw,116px) clamp(18px,5vw,56px);position:relative;z-i
 .shead .link:hover{color:#fff;text-shadow:0 0 10px var(--slime)}
 .panel{background:rgba(12,9,7,.55);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(8px)}
 
-/* PADS */
-.padwrap{display:grid;grid-template-columns:1.4fr .9fr;gap:18px}
-@media(max-width:820px){.padwrap{grid-template-columns:1fr}}
-.padboard{padding:18px;border:1px solid rgba(141,255,43,.25)}
-.padgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.pad{position:relative;aspect-ratio:1;border:1px solid rgba(255,255,255,.15);background:linear-gradient(180deg,#15100c,#0b0806);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;transition:transform .05s,box-shadow .1s,border-color .1s;-webkit-user-select:none;user-select:none;overflow:hidden}
-.pad .pl{font-family:var(--disp);font-size:20px;color:var(--ink);text-align:center;line-height:.9}
-.pad .pk{font-family:var(--mono);font-size:10px;color:var(--muted);border:1px solid rgba(255,255,255,.2);padding:1px 6px;letter-spacing:1px}
-.pad::after{content:"";position:absolute;inset:0;opacity:0;transition:opacity .25s;background:radial-gradient(circle,var(--c,#8dff2b),transparent 70%)}
-.pad.hit{transform:scale(.94);border-color:var(--c,#8dff2b);box-shadow:0 0 26px var(--c,#8dff2b),inset 0 0 30px rgba(255,255,255,.1)}
-.pad.hit::after{opacity:.45}
-.padside{display:flex;flex-direction:column;gap:14px}
-.ragebox{padding:18px;border:1px solid rgba(255,31,46,.3);flex:1;display:flex;flex-direction:column;justify-content:center}
-.ragebox .rl{font-family:var(--ui);font-weight:700;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--blood);margin-bottom:10px}
-.ragebar{height:26px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.4);overflow:hidden;position:relative}
-.ragebar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--slime),var(--blood));transition:width .15s;box-shadow:0 0 18px rgba(255,31,46,.5)}
-.ragebar span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;letter-spacing:1px;color:#fff;mix-blend-mode:difference}
-.ragehint{font-size:12px;color:var(--soft);margin-top:12px;line-height:1.5}
-.ragehint b{color:var(--slime)}
-.splashbtn{font-family:var(--disp);font-size:18px;cursor:pointer;border:1px solid var(--slime);color:var(--slime);background:rgba(141,255,43,.06);padding:14px;text-align:center;transition:.16s;-webkit-user-select:none;user-select:none}
-.splashbtn:hover{background:var(--slime);color:#08120a;box-shadow:0 0 22px rgba(141,255,43,.5)}
-.splashbtn:active{transform:scale(.96)}
+/* FEATURED DROP / SPOTLIGHT */
+.dropgrid{display:grid;grid-template-columns:1.25fr .85fr;gap:20px}
+@media(max-width:880px){.dropgrid{grid-template-columns:1fr}}
+.dropfeat{display:flex;gap:20px;padding:20px;align-items:center}
+@media(max-width:520px){.dropfeat{flex-direction:column;text-align:center}}
+.dropfeat .cover{width:170px;aspect-ratio:1;flex:none;background-size:cover;background-position:center;border:1px solid rgba(255,255,255,.15);box-shadow:0 0 30px rgba(141,255,43,.25)}
+.dropfeat .dmeta{flex:1;min-width:0}
+.dtag{font-family:var(--ui);font-weight:800;font-size:11px;letter-spacing:3px;color:var(--slime);text-transform:uppercase}
+.dropfeat h3{font-family:var(--disp);font-size:clamp(26px,4vw,42px);line-height:.95;margin:6px 0 4px}
+.dropfeat .dsub{color:var(--soft);font-size:13px;margin-bottom:14px}
+.smartlinks{display:flex;flex-wrap:wrap;gap:8px;justify-content:inherit}
+.smartlinks a,.smartlinks button{font-family:var(--ui);font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;padding:9px 13px;border:1px solid rgba(255,255,255,.2);color:var(--ink);background:rgba(255,255,255,.03);cursor:pointer;transition:.15s;text-decoration:none}
+.smartlinks a:hover,.smartlinks button:hover{border-color:var(--slime);color:var(--slime);box-shadow:0 0 16px rgba(141,255,43,.3)}
+.dropcard{padding:20px;display:flex;flex-direction:column;justify-content:center;gap:12px;border:1px solid rgba(155,60,255,.3)}
+.dctag{font-family:var(--ui);font-weight:800;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--alien2)}
+.dropcard h4{font-family:var(--disp);font-size:24px;line-height:1}
+.cd{display:flex;gap:10px}
+.cdu{flex:1;text-align:center;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);padding:8px 4px}
+.cdu b{display:block;font-family:var(--disp);font-size:26px;color:#fff;line-height:1}
+.cdu span{font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase}
+.cdlive{font-family:var(--disp);font-size:24px;color:var(--slime)}
+
+/* VIDEOS */
+.vidgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.vid{position:relative;cursor:pointer;border:1px solid rgba(255,255,255,.1);overflow:hidden;aspect-ratio:16/9;background:#0b0806}
+.vid img{width:100%;height:100%;object-fit:cover;transition:transform .4s,filter .3s;filter:brightness(.7)}
+.vid:hover img{transform:scale(1.06);filter:brightness(.95)}
+.vid .pp{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:34px;color:#fff;text-shadow:0 0 16px rgba(141,255,43,.8);pointer-events:none}
+.vid .vmeta{position:absolute;left:0;right:0;bottom:0;padding:12px;background:linear-gradient(0deg,rgba(0,0,0,.85),transparent)}
+.vid .vmt{font-family:var(--disp);font-size:17px;color:#fff;line-height:1}
+.vid .vms{font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--slime);text-transform:uppercase}
+.vembed{position:relative;width:100%;aspect-ratio:16/9;margin-top:6px}
+.vembed iframe{position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:4px}
+
+/* THE LAB / STEM SEQUENCER */
+.labwrap{padding:18px}
+.seq{display:flex;flex-direction:column;gap:8px}
+.trk{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center}
+@media(max-width:680px){.trk{grid-template-columns:78px 1fr}}
+.trkhead{display:flex;align-items:center;gap:8px;cursor:pointer;-webkit-user-select:none;user-select:none}
+.trkdot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--c);box-shadow:0 0 8px var(--c)}
+.trkname{font-family:var(--disp);font-size:15px;letter-spacing:.5px}
+.trk.muted{opacity:.38}
+.steps{display:grid;grid-template-columns:repeat(16,1fr);gap:3px}
+.stp{aspect-ratio:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.02);cursor:pointer;transition:background .08s,box-shadow .08s;min-height:16px}
+.stp.beat{border-left:1px solid rgba(255,255,255,.28)}
+.stp.on{background:var(--c);box-shadow:0 0 8px var(--c)}
+.stp.cur{outline:2px solid #fff;outline-offset:-2px}
+.labbar{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-top:16px}
+.labplay{font-family:var(--disp);font-size:16px;cursor:pointer;border:1px solid var(--slime);color:var(--slime);background:rgba(141,255,43,.06);padding:10px 18px;transition:.15s}
+.labplay:hover{background:var(--slime);color:#08120a;box-shadow:0 0 22px rgba(141,255,43,.5)}
+.labtempo{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--soft);letter-spacing:1px}
+.labtempo input{accent-color:var(--slime)}
+.labhint{font-size:12px;color:var(--muted);flex:1;min-width:170px}
+
+/* JOIN — email + sms */
+.joinwrap{max-width:560px;margin:22px auto 0}
+.jointitle{font-family:var(--disp);font-size:20px}
+.jointitle span{display:block;font-family:var(--ui);font-size:12px;letter-spacing:1px;color:var(--soft);font-weight:600;margin-top:3px}
+.joinrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.joinrow input{flex:1;min-width:170px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.18);color:var(--ink);padding:12px 14px;font-family:var(--ui);font-size:14px}
+.joinrow input:focus{outline:none;border-color:var(--slime)}
+.joinrow button{font-family:var(--disp);font-size:16px;padding:0 22px;border:1px solid var(--slime);background:var(--slime);color:#08120a;cursor:pointer}
+.joinnote{font-family:var(--mono);font-size:11px;letter-spacing:.5px;color:var(--muted);margin-top:8px;text-align:center}
+.joinnote.bad{color:var(--blood)}
 
 /* PLAYER */
 .playerwin{max-width:640px;margin:0 auto 30px;overflow:hidden;border:1px solid rgba(255,255,255,.18);box-shadow:0 20px 50px rgba(0,0,0,.6),0 0 40px rgba(141,255,43,.12);background:linear-gradient(180deg,#120d0a,#0a0706)}
@@ -228,6 +271,21 @@ section{padding:clamp(60px,9vw,116px) clamp(18px,5vw,56px);position:relative;z-i
 .upanel:nth-child(4) .orb{background:radial-gradient(circle,var(--blood),transparent 70%)}
 .upanel:nth-child(5) .orb{background:radial-gradient(circle,var(--slime),transparent 70%)}
 .upanel:hover .orb{opacity:1;transform:scale(1.4)}
+.upanel{cursor:pointer}
+.upanel:focus-visible{outline:2px solid var(--slime);outline-offset:3px}
+.uenter{position:absolute;top:14px;right:16px;font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;opacity:0;transition:.3s}
+.upanel:hover .uenter,.upanel:focus-visible .uenter{opacity:1;color:var(--slime)}
+.uhint{font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin:-4px 0 14px}
+/* power card (modal) */
+.pcard .ptag{font-family:var(--ui);font-weight:800;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--c,#8dff2b)}
+.pcard h3{font-family:var(--disp);font-size:34px;line-height:.95;margin:4px 0 10px}
+.pcard p{color:var(--soft);line-height:1.6}
+.pmeters{margin-top:18px;display:flex;flex-direction:column;gap:10px}
+.pmeter{display:grid;grid-template-columns:84px 1fr 34px;gap:10px;align-items:center}
+.pmeter .pml{font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--muted);text-transform:uppercase}
+.pbar{height:8px;background:rgba(255,255,255,.1);overflow:hidden}
+.pbar i{display:block;height:100%;width:0;background:var(--c,#8dff2b);box-shadow:0 0 12px var(--c,#8dff2b);transition:width .8s cubic-bezier(.2,.8,.2,1)}
+.pmeter .pmv{font-family:var(--mono);font-size:11px;color:var(--ink);text-align:right}
 .upanel .idx{position:absolute;top:14px;left:18px;font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.4)}
 .upanel .ut{font-family:var(--disp);font-size:28px;color:var(--ink)}
 .upanel .ud{font-size:13px;line-height:1.6;color:var(--soft);margin-top:8px;max-width:30ch;font-weight:300}
@@ -277,10 +335,7 @@ section{padding:clamp(60px,9vw,116px) clamp(18px,5vw,56px);position:relative;z-i
 .contact .sbmono{width:90px;margin:0 auto 18px}
 .contact h2{font-family:var(--disp);font-size:clamp(44px,9vw,120px);letter-spacing:1px;color:var(--ink);text-shadow:3px 0 var(--blood),-3px 0 rgba(141,255,43,.8)}
 .contact .clinks{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:30px}
-.guest{max-width:420px;margin:28px auto 0;display:flex;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.3)}
-.guest input{flex:1;background:transparent;border:0;padding:14px 18px;color:#fff;font-family:var(--ui);font-size:13px;outline:none}
-.guest input::placeholder{color:var(--muted)}
-.guest button{border:0;cursor:pointer;color:#08120a;font-family:var(--disp);font-size:16px;padding:0 22px;background:var(--slime)}
+.joinrow input::placeholder{color:var(--muted)}
 .booking{margin-top:22px;font-weight:500;font-size:13px;letter-spacing:1px;color:var(--soft)}
 .booking a{color:var(--slime)}
 
@@ -432,7 +487,7 @@ body.rage .rmtag{opacity:1}
     <div class="wm">SLIME BY</div>
   </div>
   <div class="navlinks">
-    <a href="#enchants">enchants</a><a href="#music">music</a><a href="#visualizer">waves</a><a href="#universe">sb world</a><a href="#connect">tap in</a>
+    <a href="#drop">drop</a><a href="#music">music</a><a href="#lab">lab</a><a href="#videos">videos</a><a href="#universe">sb world</a><a href="#connect">tap in</a>
   </div>
   <button class="btnX" onclick="enterRage()">☠ rage mode</button>
   <button class="burger" id="burger" aria-label="menu" aria-expanded="false" aria-controls="nav"><span></span><span></span><span></span></button>
@@ -452,7 +507,7 @@ body.rage .rmtag{opacity:1}
     <div class="sub">delaware rage · <b>green pressure</b> · <i>venom</i></div>
     <div class="cta-row">
       <button class="bigbtn bSlime" onclick="listenNow()">▶ play</button>
-      <button class="bigbtn bBlood" onclick="document.getElementById('enchants').scrollIntoView()">✦ enchantments</button>
+      <button class="bigbtn bBlood" onclick="document.getElementById('drop').scrollIntoView({behavior:'smooth'})">✦ the drop</button>
       <button class="bigbtn bAlien" onclick="enterRage()">☠ rage mode</button>
     </div>
     <div class="counter">slime in the building: <b id="vcount">000690</b></div>
@@ -464,19 +519,33 @@ body.rage .rmtag{opacity:1}
 <div class="marquee"><div class="track" id="track"></div></div>
 <div class="drip"></div>
 
-<!-- ENCHANTMENTS -->
-<section id="enchants">
-  <div class="reveal"><span class="kicker">✦ the grimoire</span></div>
-  <div class="shead reveal"><h2>SLIME <em>enchantments</em></h2></div>
-  <div class="padwrap">
-    <div class="padboard panel reveal"><div class="padgrid" id="enchgrid"></div></div>
-    <div class="padside">
-      <div class="ragebox panel reveal d1">
-        <div class="rl">☠ venom meter</div>
-        <div class="ragebar"><i id="ragefill"></i><span id="ragepct">0%</span></div>
-        <div class="ragehint">cast the enchantments — tap them or press the <b>rune key</b> shown on each. charge the venom to <b>100%</b> and unleash full rage.</div>
+<!-- FEATURED DROP -->
+<section id="drop">
+  <div class="reveal"><span class="kicker">✦ the drop</span></div>
+  <div class="shead reveal"><h2>out <em>now</em></h2></div>
+  <div class="dropgrid">
+    <div class="dropfeat panel reveal">
+      <div class="cover" style="background-image:url('assets/my-time-cover.jpg')"></div>
+      <div class="dmeta">
+        <div class="dtag">★ featured release</div>
+        <h3>My Time</h3>
+        <div class="dsub">album · the slime in full bloom</div>
+        <div class="smartlinks">
+          <a href="https://open.spotify.com/album/5RickWrPNRszADHSzJJYUc" target="_blank" rel="noopener noreferrer">spotify</a>
+          <a href="https://music.apple.com/us/artist/slime-by/1542729349" target="_blank" rel="noopener noreferrer">apple music</a>
+          <a href="https://youtube.com/@slimeby_" target="_blank" rel="noopener noreferrer">youtube</a>
+          <button onclick="previewFeatured()">▶ preview</button>
+        </div>
       </div>
-      <div class="splashbtn reveal d2" id="splashBtn">☠ CAST THE SLIME</div>
+    </div>
+    <div class="dropcard panel reveal d1">
+      <div class="dctag">☠ next drop</div>
+      <h4>incoming transmission</h4>
+      <div class="cd" id="cd"></div>
+      <div class="smartlinks">
+        <a href="https://open.spotify.com/artist/70LnkJjJc5yq650kELO09A" target="_blank" rel="noopener noreferrer" id="presaveBtn">✦ pre-save</a>
+        <button onclick="notifyDrop()">☠ notify me</button>
+      </div>
     </div>
   </div>
 </section>
@@ -518,6 +587,20 @@ body.rage .rmtag{opacity:1}
   </div>
 </section>
 
+<!-- THE LAB / STEM PLAYER -->
+<section id="lab">
+  <div class="reveal"><span class="kicker">⚗ the lab</span></div>
+  <div class="shead reveal"><h2>build the <em>beat</em></h2></div>
+  <div class="labwrap panel reveal">
+    <div class="seq" id="seq"></div>
+    <div class="labbar">
+      <button class="labplay" id="labPlay">▶ run the slime</button>
+      <div class="labtempo">tempo <input type="range" id="labBpm" min="80" max="180" value="140" aria-label="tempo"><span id="labBpmV">140</span> bpm</div>
+      <div class="labhint">tap a track name to mute · tap the cells to flip steps · stack your own slime loop</div>
+    </div>
+  </div>
+</section>
+
 <!-- VISUALIZER -->
 <section class="viz" id="visualizer">
   <canvas id="vizCanvas"></canvas>
@@ -546,12 +629,13 @@ body.rage .rmtag{opacity:1}
 <section id="universe">
   <div class="reveal"><span class="kicker">the lore</span></div>
   <div class="shead reveal"><h2>SB <em>world</em></h2></div>
+  <div class="uhint reveal">↳ tap a force to enter the lore</div>
   <div class="upanels">
-    <div class="upanel reveal"><div class="orb"></div><div class="idx">01</div><div class="ut">the sound</div><div class="ud">melody welded to chaos. hooks that set like resin and don't let go.</div></div>
-    <div class="upanel reveal d1"><div class="orb"></div><div class="idx">02</div><div class="ut">the slime</div><div class="ud">wet, glossy, dangerous — the texture coating everything SB touches.</div></div>
-    <div class="upanel reveal d2"><div class="orb"></div><div class="idx">03</div><div class="ut">the snake</div><div class="ud">quiet, patient, lethal. movement you feel before you ever see it.</div></div>
-    <div class="upanel reveal d3"><div class="orb"></div><div class="idx">04</div><div class="ut">the motion</div><div class="ud">never static. the world bends, drips, and keeps moving forward.</div></div>
-    <div class="upanel reveal d4"><div class="orb"></div><div class="idx">05</div><div class="ut">the pressure</div><div class="ud">green pressure. diamonds or dust — there is no in between.</div></div>
+    <div class="upanel reveal" data-p="0"><div class="orb"></div><div class="idx">01</div><div class="ut">the sound</div><div class="ud">melody welded to chaos. hooks that set like resin and don't let go.</div><div class="uenter">enter ↦</div></div>
+    <div class="upanel reveal d1" data-p="1"><div class="orb"></div><div class="idx">02</div><div class="ut">the slime</div><div class="ud">wet, glossy, dangerous — the texture coating everything SB touches.</div><div class="uenter">enter ↦</div></div>
+    <div class="upanel reveal d2" data-p="2"><div class="orb"></div><div class="idx">03</div><div class="ut">the snake</div><div class="ud">quiet, patient, lethal. movement you feel before you ever see it.</div><div class="uenter">enter ↦</div></div>
+    <div class="upanel reveal d3" data-p="3"><div class="orb"></div><div class="idx">04</div><div class="ut">the motion</div><div class="ud">never static. the world bends, drips, and keeps moving forward.</div><div class="uenter">enter ↦</div></div>
+    <div class="upanel reveal d4" data-p="4"><div class="orb"></div><div class="idx">05</div><div class="ut">the pressure</div><div class="ud">green pressure. diamonds or dust — there is no in between.</div><div class="uenter">enter ↦</div></div>
   </div>
 </section>
 
@@ -565,6 +649,13 @@ body.rage .rmtag{opacity:1}
     <a class="vcard reveal d2" href="https://youtube.com/@slimeby_" target="_blank" rel="noopener noreferrer"><img loading="lazy" decoding="async" src="assets/slime-by.jpg" alt=""><div class="pico">▶</div><div class="vinfo"><div class="vt">Slime Szn</div><div class="vs">teaser · SB</div></div></a>
     <a class="vcard reveal d3" href="https://youtube.com/@slimeby_" target="_blank" rel="noopener noreferrer"><img loading="lazy" decoding="async" src="assets/sb-portrait.jpg" alt="" style="filter:hue-rotate(80deg) brightness(.7)"><div class="pico">▶</div><div class="vinfo"><div class="vt">Behind The Slime</div><div class="vs">vault · SB</div></div></a>
   </div>
+</section>
+
+<!-- VIDEOS -->
+<section id="videos">
+  <div class="reveal"><span class="kicker">▶ watch</span></div>
+  <div class="shead reveal"><h2>the <em>videos</em></h2><a class="link" href="https://youtube.com/@slimeby_" target="_blank" rel="noopener noreferrer">all videos →</a></div>
+  <div class="vidgrid" id="vidgrid"></div>
 </section>
 
 <!-- MERCH -->
@@ -602,7 +693,15 @@ body.rage .rmtag{opacity:1}
       <a class="bigbtn bBlood" href="https://www.tiktok.com/@slimeby_sb" target="_blank" rel="noopener noreferrer">tiktok</a>
       <button class="bigbtn bAlien" id="shareBtn">⤴ share</button>
     </div>
-    <div class="guest reveal d2"><input id="gemail" placeholder="join the slime — your@email.com"><button onclick="signbook()">join ☠</button></div>
+    <div class="joinwrap reveal d2">
+      <div class="jointitle">join the slime ☠<span>first access to drops, merch &amp; shows — email for news, phone for SMS alerts</span></div>
+      <div class="joinrow">
+        <input id="gemail" type="email" autocomplete="email" placeholder="your@email.com">
+        <input id="gphone" type="tel" autocomplete="tel" placeholder="+1 phone (optional)">
+        <button onclick="signbook()">join ☠</button>
+      </div>
+      <div class="joinnote" id="joinnote">we never spam — just the drops ☠</div>
+    </div>
     <div class="booking reveal d2">booking & features — <a href="mailto:booking@slimeby.com">booking@slimeby.com</a></div>
   </div>
 </section>
@@ -628,6 +727,7 @@ body.rage .rmtag{opacity:1}
   <div class="box" id="modalBox"><button class="x" id="modalX" aria-label="close">✕</button><div id="modalContent"></div></div>
 </div>
 
+<script src="cms.js"></script>
 <script>
 /* LOADER */
 window.addEventListener('load',()=>setTimeout(()=>document.getElementById('loader').classList.add('gone'),1500));
@@ -648,9 +748,7 @@ const spy=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){Objec
 Object.keys(navMap).forEach(id=>{const s=document.getElementById(id);if(s)spy.observe(s);});
 
 /* MARQUEE */
-const words=['SLIME SZN','VENOM','SNAKE PIT','★ MAN OF MY WORD','100% INDEPENDENT','SB UNIVERSE'];
-let mh='';for(let r=0;r<2;r++){words.forEach(w=>mh+=`<span>${w}</span><span>✦</span>`)}
-document.getElementById('track').innerHTML=mh;
+function renderMarquee(words){let mh='';for(let r=0;r<2;r++){(words||[]).forEach(w=>mh+=`<span>${w}</span><span>✦</span>`)}document.getElementById('track').innerHTML=mh;}
 
 /* REVEAL */
 const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.12});
@@ -659,7 +757,7 @@ document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
 /* CURSOR + EMBERS */
 const cursor=document.getElementById('cursor');
 let mx=innerWidth/2,my=innerHeight/2,cxp=mx,cyp=my;
-const hoverEls='a,button,.rel,.vcard,.upanel,.prod,.disc,.pwplay,.pad,.splashbtn,.sbmono';
+const hoverEls='a,button,.rel,.vcard,.upanel,.prod,.disc,.pwplay,.sbmono';
 addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;emit(e.clientX,e.clientY,1);
   const hx=(e.clientX/innerWidth-.5),hy=(e.clientY/innerHeight-.5);const hi=document.getElementById('heroinner');if(hi){hi.style.setProperty('--px',(hx*16)+'px');hi.style.setProperty('--py',(hy*12)+'px');}});
 document.addEventListener('mouseover',e=>{if(e.target.closest(hoverEls))cursor.classList.add('big')});
@@ -709,35 +807,12 @@ function snare(){ensureCtx();const t=actx.currentTime;const s=actx.createBufferS
 function stab(){ensureCtx();const t=actx.currentTime,ws=actx.createWaveShaper();ws.curve=distc(3);const lp=actx.createBiquadFilter();lp.type='lowpass';lp.frequency.setValueAtTime(2600,t);lp.frequency.exponentialRampToValueAtTime(500,t+.4);const g=actx.createGain();ws.connect(lp);lp.connect(g);g.connect(mix);[220,261.6,329.6].forEach(f=>{const o=actx.createOscillator();o.type='sawtooth';o.frequency.value=f;o.detune.value=(Math.random()*14-7);o.connect(ws);o.start(t);o.stop(t+.5);});env(g,t,.006,.5,.5);spike(.8);}
 function spike(amt){for(let i=0;i<levels.length;i++){levels[i]=Math.min(1,levels[i]+amt*(0.5+Math.random()*0.6));}}
 
-const ENCHANTS=[
-  {l:'VENOM',k:'Q',c:'#8dff2b',f:()=>pluck(740)},
-  {l:'OOZE',k:'W',c:'#b6ff5a',f:()=>pluck(440)},
-  {l:'QUAKE',k:'E',c:'#ff1f2e',f:()=>eight0eight()},
-  {l:'ABYSS',k:'R',c:'#ff5a45',f:()=>sub()},
-  {l:'HISS',k:'A',c:'#c47bff',f:()=>hat(false)},
-  {l:'MIST',k:'S',c:'#9b3cff',f:()=>hat(true)},
-  {l:'FANG',k:'D',c:'#ffffff',f:()=>snare()},
-  {l:'CURSE',k:'F',c:'#ff1f2e',f:()=>stab()},
-];
-const enchgrid=document.getElementById('enchgrid');const padByKey={};
-ENCHANTS.forEach(p=>{const el=document.createElement('div');el.className='pad';el.style.setProperty('--c',p.c);el.title='cast '+p.l;el.innerHTML=`<div class="pl">${p.l}</div><div class="pk">${p.k}</div>`;
-  const fire=()=>{ensureCtx();p.f();el.classList.add('hit');addRage(8);const r=el.getBoundingClientRect();burst(r.left+r.width/2,r.top+r.height/2,10,p.c);snakeLunge();setTimeout(()=>el.classList.remove('hit'),120);};
-  el.addEventListener('pointerdown',e=>{e.preventDefault();fire();});padByKey[p.k.toLowerCase()]=fire;enchgrid.appendChild(el);});
 function isTyping(){const a=document.activeElement;return a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable);}
-addEventListener('keydown',e=>{if(e.repeat||e.metaKey||e.ctrlKey||e.altKey||isTyping())return;const f=padByKey[e.key.toLowerCase()];if(f)f();});
-
-/* RAGE METER */
-let rage=0;const ragefill=document.getElementById('ragefill'),ragepct=document.getElementById('ragepct');
-function addRage(n){rage=Math.min(100,rage+n);renderRage();if(rage>=100)rageBurst();}
-function renderRage(){ragefill.style.width=rage+'%';ragepct.textContent=Math.round(rage)+'%';}
-setInterval(()=>{if(rage>0&&!document.body.classList.contains('rage')){rage=Math.max(0,rage-1.2);renderRage();}},220);
-function rageBurst(){const f=document.getElementById('flash');f.style.transition='none';f.style.opacity='.8';requestAnimationFrame(()=>{f.style.transition='opacity .6s';f.style.opacity='0';});for(let i=0;i<40;i++)setTimeout(()=>burst(innerWidth*Math.random(),innerHeight*Math.random(),6),i*8);if(!document.body.classList.contains('rage'))enterRage();rage=0;renderRage();snakeLunge();}
 
 /* SLIME SPLASH (replaces bells) */
-function slimeSplash(x,y){stab();if(x!=null)burst(x,y,18,'#8dff2b');addRage(5);snakeLunge();}
+function slimeSplash(x,y){stab();if(x!=null)burst(x,y,18,'#8dff2b');snakeLunge();}
 document.getElementById('heroMono').onclick=e=>slimeSplash(e.clientX,e.clientY);
 document.getElementById('contactMono').onclick=e=>slimeSplash(e.clientX,e.clientY);
-document.getElementById('splashBtn').onclick=e=>slimeSplash(e.clientX,e.clientY);
 
 /* ---------- INTERACTIVE SCROLL SNAKE ---------- */
 const snakeCv=document.getElementById('snake'),sctx=snakeCv.getContext('2d');
@@ -823,7 +898,23 @@ let rageOn=false;
 function enterRage(){rageOn=!rageOn;document.body.classList.toggle('rage',rageOn);if(rageOn)ensureCtx();}
 
 /* GUESTBOOK + easter egg */
-function signbook(){const e=document.getElementById('gemail');const v=e.value.trim();if(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){try{const list=JSON.parse(localStorage.getItem('sb_list')||'[]');if(!list.includes(v)){list.push(v);localStorage.setItem('sb_list',JSON.stringify(list));}}catch(_){}e.value='';e.placeholder='✓ welcome to the slime ☠';burst(innerWidth/2,innerHeight*.7,20,'#8dff2b');snakeLunge();}else{e.value='';e.placeholder='✗ enter a valid email';}}
+/* JOIN THE SLIME — captures email + (optional) SMS number to localStorage.
+   To deliver for real, POST sb_list / sb_sms to your provider (Mailchimp/ConvertKit
+   for email, Community/SimpleTexting/Twilio for SMS) — swap the storeLocal calls below. */
+function storeLocal(key,val){try{const a=JSON.parse(localStorage.getItem(key)||'[]');if(!a.includes(val)){a.push(val);localStorage.setItem(key,JSON.stringify(a));}}catch(_){}}
+function signbook(){
+  const e=document.getElementById('gemail'),p=document.getElementById('gphone'),note=document.getElementById('joinnote');
+  const ev=e.value.trim(),pv=p.value.trim(),digits=pv.replace(/[^\d]/g,'');
+  const emailOk=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ev);
+  const phoneOk=pv===''||digits.length>=10;
+  if(!emailOk){note.textContent='✗ enter a valid email';note.classList.add('bad');e.focus();return;}
+  if(!phoneOk){note.textContent='✗ enter a valid phone, or leave it blank';note.classList.add('bad');p.focus();return;}
+  storeLocal('sb_list',ev);
+  const gotPhone=digits.length>=10;if(gotPhone)storeLocal('sb_sms',digits);
+  e.value='';p.value='';note.classList.remove('bad');
+  note.textContent=gotPhone?'✓ you in — email + SMS. welcome to the slime ☠':'✓ you in — welcome to the slime ☠';
+  burst(innerWidth/2,innerHeight*.7,20,'#8dff2b');snakeLunge();toast('☠ welcome to the slime');
+}
 let seq='';addEventListener('keydown',e=>{if(e.metaKey||e.ctrlKey||e.altKey||isTyping())return;seq=(seq+e.key.toLowerCase()).slice(-5);if(seq==='slime'){for(let i=0;i<60;i++)setTimeout(()=>burst(innerWidth*Math.random(),innerHeight,8,'#8dff2b'),i*20);stab();snakeLunge();toast('☠ SLIME UNLOCKED ☠');}});
 
 /* ===================== FLESH-OUT FEATURES ===================== */
@@ -848,19 +939,136 @@ if(merchAlertBtn)merchAlertBtn.onclick=()=>{burst(innerWidth/2,innerHeight*.6,16
 /* VAULT — lightbox */
 document.querySelectorAll('#vault .vcard').forEach(card=>card.addEventListener('click',e=>{if(e.metaKey||e.ctrlKey||e.shiftKey)return;e.preventDefault();const img=card.querySelector('img').src,title=card.querySelector('.vt').textContent,sub=card.querySelector('.vs').textContent,href=card.getAttribute('href');openModal(`<div class="mhead wide" style="background-image:url('${img}')"></div><div class="mbody"><span class="kicker">${sub}</span><h3>${title}</h3><p>The full visual lives in the SB vault on YouTube. Tap in for the complete drop.</p><div class="mcta"><a class="bigbtn bSlime" href="${href}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);}));
 
-/* SHOWS — data-driven (add real dates to SHOWS to populate the list) */
-const SHOWS=[];/* e.g. {date:'JUL 12',venue:'The Queen',city:'Wilmington, DE',url:'https://...'} */
-(function renderShows(){const list=document.getElementById('showlist'),empty=document.getElementById('showsEmpty');if(!SHOWS.length){list.style.display='none';empty.style.display='';return;}empty.style.display='none';list.style.display='';list.innerHTML=SHOWS.map(s=>`<div class="showrow"><div class="date">${s.date}</div><div class="venue"><div class="v1">${s.venue}</div><div class="v2">${s.city}</div></div>${s.url?`<a class="tix" href="${s.url}" target="_blank" rel="noopener noreferrer">tickets</a>`:'<span class="tix" style="opacity:.5">soon</span>'}</div>`).join('');})();
+/* SHOWS — content-driven (edit in the admin page) */
+function renderShows(SHOWS){SHOWS=SHOWS||[];const list=document.getElementById('showlist'),empty=document.getElementById('showsEmpty');if(!list||!empty)return;if(!SHOWS.length){list.style.display='none';empty.style.display='';return;}empty.style.display='none';list.style.display='';list.innerHTML=SHOWS.map(s=>`<div class="showrow"><div class="date">${s.date}</div><div class="venue"><div class="v1">${s.venue}</div><div class="v2">${s.city}</div></div>${s.url?`<a class="tix" href="${s.url}" target="_blank" rel="noopener noreferrer">tickets</a>`:'<span class="tix" style="opacity:.5">soon</span>'}</div>`).join('');}
 document.getElementById('tourAlertBtn').onclick=()=>{document.getElementById('connect').scrollIntoView({behavior:'smooth'});setTimeout(()=>document.getElementById('gemail').focus(),600);toast('drop your email below for tour alerts ☠');};
 
 /* SHORTCUTS HELP */
-const SHORTCUTS=[['Q','venom'],['W','ooze'],['E','quake'],['R','abyss'],['A','hiss'],['S','mist'],['D','fang'],['F','curse'],['Space','play / pause'],['Esc','close popups'],['slime','secret burst'],['?','this menu']];
-function openHelp(){openModal(`<div class="mbody" style="padding-top:26px"><span class="kicker">controls</span><h3>shortcuts</h3><p>the whole site plays. cast the enchantments, charge the venom meter, follow the snake.</p><div class="klist">${SHORTCUTS.map(s=>`<div class="krow"><kbd>${s[0]}</kbd><span>${s[1]}</span></div>`).join('')}</div></div>`);}
+const SHORTCUTS=[['Space','play / pause'],['Esc','close popups'],['slime','secret burst'],['?','this menu']];
+function openHelp(){openModal(`<div class="mbody" style="padding-top:26px"><span class="kicker">controls</span><h3>shortcuts</h3><p>the whole site plays. tap the mark for a slime splash, follow the snake.</p><div class="klist">${SHORTCUTS.map(s=>`<div class="krow"><kbd>${s[0]}</kbd><span>${s[1]}</span></div>`).join('')}</div></div>`);}
 document.getElementById('helpbtn').onclick=openHelp;
 addEventListener('keydown',e=>{if(e.key==='?'&&!isTyping()&&!modal.classList.contains('open'))openHelp();});
 
 /* SHARE */
 document.getElementById('shareBtn').onclick=async()=>{const data={title:'SLIME BY — official',text:'Delaware rap — green pressure, venom, motion.',url:location.href};try{if(navigator.share){await navigator.share(data);}else{await navigator.clipboard.writeText(location.href);toast('link copied to clipboard ☑');}}catch(_){}};
+
+/* ===================== FEATURED DROP ===================== */
+function previewFeatured(){startAudio();toast('▶ now spinning — Man Of My Word');}
+function notifyDrop(){document.getElementById('connect').scrollIntoView({behavior:'smooth'});setTimeout(()=>{const g=document.getElementById('gemail');if(g)g.focus();},600);toast('☠ drop your email — first to know');}
+/* drop date is set from CMS content (drop.dropDate); counts down, then reads OUT NOW. */
+let dropDate=new Date('2026-07-04T00:00:00');
+function tickCountdown(){const el=document.getElementById('cd');if(!el)return;const d=dropDate-Date.now();if(isNaN(d)||d<=0){el.innerHTML='<span class="cdlive">OUT NOW ☠</span>';return;}const u=(n,l)=>`<div class="cdu"><b>${String(n).padStart(2,'0')}</b><span>${l}</span></div>`;el.innerHTML=u(Math.floor(d/864e5),'days')+u(Math.floor(d/36e5)%24,'hrs')+u(Math.floor(d/6e4)%60,'min')+u(Math.floor(d/1e3)%60,'sec');}
+tickCountdown();setInterval(tickCountdown,1000);
+
+/* ===================== VIDEOS (content-driven) ===================== */
+let VIDEOS=[];
+function renderVideos(list){VIDEOS=list||[];const g=document.getElementById('vidgrid');if(!g)return;
+  g.innerHTML=VIDEOS.map((v,i)=>`<div class="vid reveal${i%3?' d'+(i%3):''}" data-i="${i}"><img loading="lazy" decoding="async" src="${v.img}" alt="${v.t}"><div class="pp">▶</div><div class="vmeta"><div class="vmt">${v.t}</div><div class="vms">${v.s}</div></div></div>`).join('');
+  g.querySelectorAll('.vid').forEach(c=>{io.observe(c);c.onclick=()=>{const v=VIDEOS[+c.dataset.i];burst(innerWidth/2,innerHeight*.5,10,'#8dff2b');
+    if(v.id){openModal(`<div class="mbody"><span class="kicker">${v.s}</span><h3>${v.t}</h3><div class="vembed"><iframe src="https://www.youtube.com/embed/${v.id}?autoplay=1&rel=0" title="${v.t}" allow="autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe></div></div>`);}
+    else{openModal(`<div class="mbody"><span class="kicker">${v.s}</span><h3>${v.t}</h3><p>Add this clip's YouTube video ID in the admin page to play it right here. For now, catch the full vault on YouTube.</p><div class="mcta"><a class="bigbtn bSlime" href="${(window.SB&&SB.vault&&SB.vault.youtube)||'https://youtube.com/@slimeby_'}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);}};});
+}
+
+/* ===================== THE LAB — stem sequencer (reuses the synth engine) ===================== */
+const STEMS=[
+  {n:'808',  c:'#8dff2b', f:()=>eight0eight(), pat:[1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0]},
+  {n:'BASS', c:'#9b3cff', f:()=>sub(),         pat:[1,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0]},
+  {n:'SNARE',c:'#ff1f2e', f:()=>snare(),       pat:[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0]},
+  {n:'HATS', c:'#b6ff5a', f:()=>hat(false),    pat:[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,1]},
+  {n:'KEYS', c:'#c47bff', f:()=>pluck(392),    pat:[1,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0]},
+];
+const seqEl=document.getElementById('seq');
+if(seqEl){STEMS.forEach(s=>{
+  const trk=document.createElement('div');trk.className='trk';trk.style.setProperty('--c',s.c);
+  trk.innerHTML='<div class="trkhead"><span class="trkdot"></span><span class="trkname">'+s.n+'</span></div><div class="steps"></div>';
+  const stepsEl=trk.querySelector('.steps');
+  s.pat.forEach((on,si)=>{const cell=document.createElement('div');cell.className='stp'+(on?' on':'')+(si%4===0?' beat':'');cell.onclick=()=>{s.pat[si]=s.pat[si]?0:1;cell.classList.toggle('on');ensureCtx();if(s.pat[si])s.f();};stepsEl.appendChild(cell);});
+  trk.querySelector('.trkhead').onclick=()=>{s.muted=!s.muted;trk.classList.toggle('muted',s.muted);};
+  s._cells=stepsEl.children;seqEl.appendChild(trk);
+});}
+let labOn=false,labStep=0,labTimer=null,labBpm=140;
+function labDur(){return 60/labBpm/4*1000;}
+function labTick(){const prev=(labStep+15)%16;STEMS.forEach(s=>{if(s._cells){s._cells[prev]&&s._cells[prev].classList.remove('cur');s._cells[labStep]&&s._cells[labStep].classList.add('cur');}if(!s.muted&&s.pat[labStep])s.f();});labStep=(labStep+1)%16;}
+function labStart(){ensureCtx();if(labOn)return;labOn=true;labStep=0;labTick();labTimer=setInterval(labTick,labDur());const b=document.getElementById('labPlay');if(b)b.textContent='❚❚ stop the slime';}
+function labStop(){labOn=false;clearInterval(labTimer);const b=document.getElementById('labPlay');if(b)b.textContent='▶ run the slime';STEMS.forEach(s=>{if(s._cells)for(const c of s._cells)c.classList.remove('cur');});}
+const labPlayBtn=document.getElementById('labPlay');if(labPlayBtn)labPlayBtn.onclick=()=>labOn?labStop():labStart();
+const labBpmEl=document.getElementById('labBpm'),labBpmV=document.getElementById('labBpmV');
+if(labBpmEl)labBpmEl.oninput=()=>{labBpm=+labBpmEl.value;if(labBpmV)labBpmV.textContent=labBpm;if(labOn){clearInterval(labTimer);labTimer=setInterval(labTick,labDur());}};
+
+/* ===================== SB UNIVERSE — five powers map (content-driven) ===================== */
+let POWERS=[];
+function openPower(i){const p=POWERS[i];if(!p)return;
+  const meters=(p.stats||[]).map(s=>`<div class="pmeter"><span class="pml">${s[0]}</span><div class="pbar"><i data-w="${s[1]}"></i></div><span class="pmv">${s[1]}</span></div>`).join('');
+  openModal(`<div class="mbody pcard" style="--c:${p.c}"><div class="ptag">force ${p.id} · ${p.tag}</div><h3>${p.n}</h3><p>${p.lore}</p><div class="pmeters">${meters}</div></div>`);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>document.querySelectorAll('#modal .pbar i').forEach(b=>b.style.width=b.dataset.w+'%')));
+  burst(innerWidth/2,innerHeight*.5,12,p.c);snakeLunge();
+}
+function renderPowers(list){POWERS=list||[];const wrap=document.querySelector('#universe .upanels');if(!wrap)return;
+  wrap.innerHTML=POWERS.map((p,i)=>`<div class="upanel reveal${i?' d'+Math.min(i,4):''}" data-p="${i}" role="button" tabindex="0"><div class="orb" style="background:radial-gradient(circle,${p.c},transparent 70%)"></div><div class="idx">${p.id}</div><div class="ut">${p.n}</div><div class="ud">${p.short||''}</div><div class="uenter">enter ↦</div></div>`).join('');
+  wrap.querySelectorAll('.upanel').forEach(el=>{io.observe(el);const i=+el.dataset.p;
+    el.addEventListener('click',()=>openPower(i));
+    el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.code==='Space'){e.preventDefault();openPower(i);}});});
+}
+
+/* ===================== RELEASES (content-driven) ===================== */
+function renderReleases(list){const g=document.getElementById('mgrid');if(!g)return;
+  g.innerHTML=(list||[]).map((r,i)=>`<a class="rel reveal d${(i%3)+1}" data-type="${r.type||'single'}" target="_blank" rel="noopener noreferrer" href="${r.url}"><div class="art"><img loading="lazy" decoding="async" src="${r.img}" alt="${r.title}"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">${r.title}</div><div class="s">${r.sub}</div></div></a>`).join('');
+  g.querySelectorAll('.rel').forEach(el=>io.observe(el));
+  const onf=document.querySelector('#mfilter button.on');const f=onf?onf.dataset.f:'all';
+  g.querySelectorAll('.rel').forEach(c=>c.classList.toggle('hide',f!=='all'&&c.dataset.type!==f));
+}
+
+/* ===================== APPLY CONTENT — maps the CMS model onto the page ===================== */
+function applyContent(c){
+  if(!c)return;window.SB=c;
+  const q=s=>document.querySelector(s);
+  const txt=(s,v)=>{const e=q(s);if(e&&v!=null)e.textContent=v;};
+  const setHtml=(s,v)=>{const e=q(s);if(e&&v!=null)e.innerHTML=v;};
+  const href=(s,v)=>{const e=q(s);if(e&&v!=null)e.setAttribute('href',v);};
+  const src=(s,v)=>{const e=q(s);if(e&&v!=null)e.setAttribute('src',v);};
+  const bg=(s,v)=>{const e=q(s);if(e&&v)e.style.backgroundImage=`url('${v}')`;};
+
+  if(c.hero){const h1=q('.hero h1.glitch');if(h1&&c.hero.title){h1.textContent=c.hero.title;h1.setAttribute('data-t',c.hero.title);}txt('.hero .sub',c.hero.sub);}
+
+  renderMarquee(c.marquee);
+
+  if(c.drop){txt('#drop .kicker',c.drop.kicker);setHtml('#drop .shead h2',c.drop.heading);
+    bg('#drop .dropfeat .cover',c.drop.cover);txt('#drop .dropfeat h3',c.drop.featuredTitle);txt('#drop .dropfeat .dsub',c.drop.featuredSub);
+    const dl=document.querySelectorAll('#drop .dropfeat .smartlinks a');[c.drop.spotify,c.drop.apple,c.drop.youtube].forEach((u,i)=>{if(dl[i]&&u)dl[i].href=u;});
+    href('#presaveBtn',c.drop.presaveUrl);
+    if(c.drop.dropDate){const d=new Date(c.drop.dropDate);if(!isNaN(d.getTime()))dropDate=d;tickCountdown();}}
+
+  if(c.music){bg('#music .pwart',c.music.playerCover);txt('#music .pwtitle',c.music.playerTitle);
+    const emb=q('#music .embedwrap iframe');if(emb&&c.music.spotifyArtistId)emb.src=`https://open.spotify.com/embed/artist/${c.music.spotifyArtistId}?utm_source=generator&theme=0`;
+    renderReleases(c.music.releases);}
+
+  if(c.about){txt('#about .lead',c.about.lead);txt('#about .about p',c.about.text);src('#about .pic img',c.about.portrait);txt('#about .badge',c.about.badge);
+    const st=document.querySelectorAll('#about .stats .stat');(c.about.stats||[]).forEach((s,i)=>{if(st[i]){const n=st[i].querySelector('.n'),l=st[i].querySelector('.l');if(n)n.textContent=s.n;if(l)l.textContent=s.l;}});}
+
+  if(c.universe){txt('#universe .uhint',c.universe.hint);renderPowers(c.universe.powers);}
+
+  if(c.vault){href('#vault .shead .link',c.vault.youtube);const vg=q('#vault .vgrid');
+    if(vg){vg.innerHTML=(c.vault.items||[]).map((v,i)=>`<a class="vcard reveal${i?' d'+Math.min(i,3):''}" href="${v.href}" target="_blank" rel="noopener noreferrer"><img loading="lazy" decoding="async" src="${v.img}" alt=""><div class="pico">▶</div><div class="vinfo"><div class="vt">${v.title}</div><div class="vs">${v.sub}</div></div></a>`).join('');
+      vg.querySelectorAll('.vcard').forEach(card=>{io.observe(card);card.addEventListener('click',e=>{if(e.metaKey||e.ctrlKey||e.shiftKey)return;e.preventDefault();const img=card.querySelector('img').src,title=card.querySelector('.vt').textContent,sub=card.querySelector('.vs').textContent,h=card.getAttribute('href');openModal(`<div class="mhead wide" style="background-image:url('${img}')"></div><div class="mbody"><span class="kicker">${sub}</span><h3>${title}</h3><p>The full visual lives in the SB vault on YouTube. Tap in for the complete drop.</p><div class="mcta"><a class="bigbtn bSlime" href="${h}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);});});}}
+
+  renderVideos(c.videos);
+
+  if(c.merch){txt('#merch .kicker',c.merch.kicker);setHtml('#merch .shead h2',c.merch.heading);txt('#merch .comingsoon p',c.merch.text);txt('#merchAlertBtn',c.merch.button);}
+
+  renderShows(c.shows);
+
+  if(c.contact){txt('#connect h2',c.contact.heading);
+    const cl=document.querySelectorAll('#connect .clinks a');[c.contact.spotify,c.contact.apple,c.contact.youtube,c.contact.instagram,c.contact.tiktok].forEach((u,i)=>{if(cl[i]&&u)cl[i].href=u;});
+    const bk=q('#connect .booking a');if(bk&&c.contact.bookingEmail){bk.href='mailto:'+c.contact.bookingEmail;bk.textContent=c.contact.bookingEmail;}
+    const jt=q('.jointitle');if(jt)jt.innerHTML=`${c.contact.joinTitle||''}<span>${c.contact.joinSub||''}</span>`;}
+
+  if(c.footer){const fb=q('.fbadges');if(fb&&c.footer.badges)fb.innerHTML=c.footer.badges.map(b=>`<span class="fbadge">${b}</span>`).join('');txt('.fcopy',c.footer.copy);}
+}
+
+/* boot: render defaults instantly, then overlay whatever's published in Supabase.
+   Guarded so a missing/failed cms.js can never break the rest of the page. */
+try{ if(typeof SB_DEFAULTS!=='undefined') applyContent(SB_DEFAULTS); }catch(e){}
+try{ if(typeof sbGetContent==='function') sbGetContent().then(applyContent).catch(()=>{}); }catch(e){}
 </script>
 </body>
 </html>

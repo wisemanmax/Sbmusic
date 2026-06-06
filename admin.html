@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>SLIME BY — admin</title>
+<style>
+:root{--slime:#8dff2b;--blood:#ff1f2e;--alien:#9b3cff;--ink:#eafff0;--soft:#9fb3a4;--muted:#6b7d70;--bg:#080a07;--pan:#0d120e}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Arial,sans-serif;font-size:14px}
+h1,h2,h3{font-family:"Arial Black",Impact,system-ui;letter-spacing:.5px}
+a{color:var(--slime)}
+.wrap{max-width:860px;margin:0 auto;padding:20px 16px 120px}
+/* gate */
+#gate{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.gatebox{width:100%;max-width:360px;background:var(--pan);border:1px solid rgba(141,255,43,.25);padding:28px;text-align:center}
+.gatebox .mk{font-size:34px;font-family:"Arial Black",Impact;color:var(--slime);letter-spacing:1px}
+.gatebox p{color:var(--soft);font-size:12px;margin:6px 0 18px}
+.gatebox input{width:100%;background:#05060500;border:1px solid rgba(255,255,255,.2);color:#fff;padding:13px 14px;font-size:15px;margin-bottom:10px;text-align:center}
+.gatebox input:focus{outline:none;border-color:var(--slime)}
+.gerr{color:var(--blood);font-size:12px;min-height:16px;margin-top:8px}
+.btn{font-family:"Arial Black",Impact;font-size:15px;border:1px solid var(--slime);background:var(--slime);color:#08120a;padding:11px 18px;cursor:pointer}
+.btn:hover{box-shadow:0 0 18px rgba(141,255,43,.5)}
+.btn.ghost{background:transparent;color:var(--slime)}
+.btn.warn{border-color:var(--blood);color:var(--blood);background:transparent}
+/* app */
+#app{display:none}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.top h1{font-size:24px;color:var(--slime);margin:0}
+.lead{color:var(--soft);font-size:12.5px;line-height:1.5;border-left:2px solid var(--slime);padding:8px 12px;background:rgba(141,255,43,.05);margin:10px 0 18px}
+.block{border:1px solid rgba(255,255,255,.1);background:var(--pan);margin:0 0 12px;border-radius:6px;overflow:hidden}
+.blockhead{font-family:"Arial Black",Impact;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:var(--slime);padding:12px 14px;background:rgba(255,255,255,.03);border-bottom:1px solid rgba(255,255,255,.07)}
+.blockhead.coll{cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.blockhead.coll::after{content:"▾";color:var(--muted);font-family:system-ui}
+.block.closed .blockhead.coll::after{content:"▸"}
+.block.closed > .obj,.block.closed > .arr{display:none}
+.obj,.arr{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.obj .block,.arr .block{background:#0a0d0b}
+.frow{display:flex;flex-direction:column;gap:5px}
+.flbl{font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+.inp{width:100%;background:#05070500;border:1px solid rgba(255,255,255,.16);color:var(--ink);padding:9px 11px;font-size:13.5px;font-family:inherit}
+.inp:focus{outline:none;border-color:var(--slime)}
+textarea.ta{min-height:74px;resize:vertical;line-height:1.5}
+.arritem{border:1px solid rgba(255,255,255,.1);border-left:2px solid var(--alien);padding:10px 12px;display:flex;flex-direction:column;gap:9px;background:#0a0d0b}
+.arrhead{display:flex;justify-content:space-between;align-items:center}
+.arridx{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--soft)}
+.rmbtn{border:1px solid rgba(255,31,46,.4);background:transparent;color:var(--blood);cursor:pointer;width:26px;height:26px;line-height:1;border-radius:4px}
+.addbtn{align-self:flex-start;border:1px dashed rgba(141,255,43,.5);background:transparent;color:var(--slime);cursor:pointer;padding:8px 14px;font-size:12px}
+.tuple{display:flex;gap:8px}
+.tuple .inp:last-child{max-width:90px}
+.imgctl{display:flex;flex-direction:column;gap:8px}
+.imgrow{display:flex;gap:8px}
+.imgrow .inp{flex:1}
+.imgprev{width:100%;height:120px;background:#000 center/cover no-repeat;border:1px solid rgba(255,255,255,.12);border-radius:4px}
+.upbtn{border:1px solid var(--slime);background:transparent;color:var(--slime);cursor:pointer;padding:0 14px;font-size:12px;white-space:nowrap}
+.file{display:none}
+.upstat{font-size:11px;color:var(--soft)}
+.bar{position:fixed;left:0;right:0;bottom:0;background:rgba(8,10,7,.96);border-top:1px solid rgba(141,255,43,.3);padding:12px 16px;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;backdrop-filter:blur(6px);z-index:50}
+.bar .note{color:var(--muted);font-size:11px;flex:1;min-width:140px}
+#toast{position:fixed;left:50%;bottom:74px;transform:translateX(-50%) translateY(20px);background:#0d120e;border:1px solid var(--slime);color:var(--ink);padding:11px 18px;border-radius:6px;opacity:0;transition:.3s;z-index:60;font-size:13px;pointer-events:none;max-width:90vw;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.hintrow{font-size:11px;color:var(--muted)}
+</style>
+</head>
+<body>
+<script src="cms.js"></script>
+
+<!-- PASSWORD GATE -->
+<div id="gate">
+  <div class="gatebox">
+    <div class="mk">SB</div>
+    <h2 style="margin:6px 0 0;font-size:18px">admin</h2>
+    <p>enter the password to manage the site</p>
+    <input id="pw" type="password" placeholder="password" autocomplete="current-password">
+    <button class="btn" style="width:100%" id="loginBtn">enter ☠</button>
+    <div class="gerr" id="gerr"></div>
+  </div>
+</div>
+
+<!-- EDITOR -->
+<div id="app">
+  <div class="wrap">
+    <div class="top">
+      <h1>☠ SLIME CONTROL</h1>
+      <button class="btn ghost" id="logoutBtn">log out</button>
+    </div>
+    <div class="lead">Edit any section below, upload images, then hit <b>Publish</b> — changes go live for everyone instantly. Tip: tap a section title to collapse it. The interactive bits (stem player, visualizer, snake) aren't content, so they're not listed here.</div>
+    <div id="form"></div>
+  </div>
+  <div class="bar">
+    <span class="note">writes are verified server-side · reads are public</span>
+    <button class="btn ghost" id="reloadBtn">↺ reload</button>
+    <button class="btn warn" id="resetBtn">reset to defaults</button>
+    <button class="btn" id="publishBtn">▲ publish</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let PW = sessionStorage.getItem('sb_pw') || '';
+let model = null;
+
+const $ = (id) => document.getElementById(id);
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2600);}
+
+/* ---------- auth ---------- */
+async function tryLogin(pw){
+  await sbAdmin(pw, 'login');            // throws if wrong
+  PW = pw; sessionStorage.setItem('sb_pw', pw);
+  await enterEditor();
+}
+$('loginBtn').onclick = async () => {
+  const pw = $('pw').value.trim(); $('gerr').textContent='';
+  if(!pw) return;
+  $('loginBtn').textContent='checking…';
+  try { await tryLogin(pw); }
+  catch(e){ $('gerr').textContent = (String(e.message).includes('unauthorized')||String(e.message).includes('401')) ? '✗ wrong password' : ('✗ '+e.message); }
+  finally { $('loginBtn').textContent='enter ☠'; }
+};
+$('pw').addEventListener('keydown', e=>{ if(e.key==='Enter') $('loginBtn').click(); });
+$('logoutBtn').onclick = () => { sessionStorage.removeItem('sb_pw'); location.reload(); };
+
+async function enterEditor(){
+  $('gate').style.display='none';
+  $('app').style.display='';
+  model = sbClone(await sbGetContent());
+  renderForm();
+}
+
+/* ---------- generic form builder ---------- */
+const IMG_RE = /(cover|img|image|portrait|photo|thumb|art|pic)/i;
+const MULTI_RE = /(text|lore|sub|desc|bio|hint|copy|joinsub|short)/i;
+
+function elt(tag, cls, txt){ const e=document.createElement(tag); if(cls)e.className=cls; if(txt!=null)e.textContent=txt; return e; }
+function getByPath(p){ let o=model; for(const k of p) o=o[k]; return o; }
+function setByPath(p, v){ let o=model; for(let i=0;i<p.length-1;i++) o=o[p[i]]; o[p[p.length-1]]=v; }
+function tkeyOf(path){ return path.filter(s=>typeof s!=='number').join('.'); }
+
+function fileToB64(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>{ const s=String(r.result); res(s.slice(s.indexOf(',')+1)); }; r.onerror=rej; r.readAsDataURL(file); }); }
+
+function imageControl(value, path){
+  const box=elt('div','imgctl');
+  const prev=elt('div','imgprev'); if(value) prev.style.backgroundImage=`url('${value}')`;
+  const row=elt('div','imgrow');
+  const inp=document.createElement('input'); inp.className='inp'; inp.value=value||''; inp.placeholder='image url';
+  inp.oninput=()=>{ setByPath(path, inp.value); prev.style.backgroundImage = inp.value?`url('${inp.value}')`:''; };
+  const btn=elt('button','upbtn','⤴ upload'); btn.type='button';
+  const file=document.createElement('input'); file.type='file'; file.accept='image/*'; file.className='file';
+  const stat=elt('span','upstat','');
+  btn.onclick=()=>file.click();
+  file.onchange=async()=>{ const f=file.files[0]; if(!f) return;
+    if(f.size > 6*1024*1024){ stat.textContent='✗ image too big (max ~6MB)'; return; }
+    stat.textContent='uploading…';
+    try{ const b64=await fileToB64(f); const r=await sbAdmin(PW,'upload',{filename:f.name,contentType:f.type,dataB64:b64});
+      setByPath(path, r.url); inp.value=r.url; prev.style.backgroundImage=`url('${r.url}')`; stat.textContent='✓ uploaded'; }
+    catch(e){ stat.textContent='✗ '+e.message; } };
+  row.appendChild(inp); row.appendChild(btn);
+  box.appendChild(prev); box.appendChild(row); box.appendChild(file); box.appendChild(stat);
+  return box;
+}
+
+function primitiveControl(key, value, path){
+  if(typeof value==='boolean'){ const c=document.createElement('input'); c.type='checkbox'; c.checked=value; c.onchange=()=>setByPath(path,c.checked); return c; }
+  if(IMG_RE.test(key)) return imageControl(value, path);
+  let c;
+  if(MULTI_RE.test(key) || (typeof value==='string' && value.length>70)){ c=document.createElement('textarea'); c.className='inp ta'; }
+  else { c=document.createElement('input'); c.className='inp'; }
+  c.value = value==null?'':value;
+  c.oninput=()=>{ const v=c.value; setByPath(path, (typeof value==='number' && v.trim()!=='' && !isNaN(+v)) ? +v : v); };
+  return c;
+}
+
+function fieldRow(label, control){ const r=elt('div','frow'); if(label!=null) r.appendChild(elt('label','flbl',label)); r.appendChild(control); return r; }
+
+function block(title, inner){ const b=elt('div','block'); if(title!=null){ const h=elt('div','blockhead coll',String(title)); h.onclick=()=>b.classList.toggle('closed'); b.appendChild(h); } b.appendChild(inner); return b; }
+
+function buildValue(key, value, path){
+  if(Array.isArray(value)){
+    const wrap=elt('div','arr');
+    value.forEach((item, idx)=>{
+      const card=elt('div','arritem');
+      const head=elt('div','arrhead'); head.appendChild(elt('span','arridx', (key||'item')+' '+(idx+1)));
+      const rm=elt('button','rmbtn','✕'); rm.type='button'; rm.onclick=()=>{ value.splice(idx,1); renderForm(); };
+      head.appendChild(rm); card.appendChild(head);
+      if(Array.isArray(item)){               // tuple e.g. [label, number]
+        const t=elt('div','tuple');
+        item.forEach((cell, ci)=>{ const inp=document.createElement('input'); inp.className='inp'; inp.value=cell;
+          inp.oninput=()=>{ item[ci] = (typeof cell==='number') ? (parseFloat(inp.value)||0) : inp.value; };
+          t.appendChild(inp); });
+        card.appendChild(t);
+      } else if(item && typeof item==='object'){
+        Object.keys(item).forEach(k=> card.appendChild(buildValue(k, item[k], path.concat(idx, k))));
+      } else {
+        card.appendChild(fieldRow(null, primitiveControl(key, item, path.concat(idx))));
+      }
+      wrap.appendChild(card);
+    });
+    const add=elt('button','addbtn','+ add '+(key||'item')); add.type='button';
+    add.onclick=()=>{ const t=SB_TEMPLATES[tkeyOf(path)]; value.push(t!==undefined? sbClone(t) : ''); renderForm(); };
+    wrap.appendChild(add);
+    return block(key, wrap);
+  }
+  if(value && typeof value==='object'){
+    const wrap=elt('div','obj');
+    Object.keys(value).forEach(k=> wrap.appendChild(buildValue(k, value[k], path.concat(k))));
+    return block(key, wrap);
+  }
+  return fieldRow(key, primitiveControl(key, value, path));
+}
+
+const ORDER=['hero','drop','marquee','music','about','universe','vault','videos','merch','shows','contact','footer'];
+function renderForm(){
+  const root=$('form'); root.innerHTML='';
+  const keys=ORDER.filter(k=>k in model).concat(Object.keys(model).filter(k=>!ORDER.includes(k)));
+  keys.forEach(k=> root.appendChild(buildValue(k, model[k], [k])));
+}
+
+/* ---------- actions ---------- */
+$('publishBtn').onclick=async()=>{
+  $('publishBtn').textContent='publishing…';
+  try{ await sbAdmin(PW,'save',model); toast('✓ published — live for visitors'); }
+  catch(e){ toast('✗ '+e.message); }
+  finally{ $('publishBtn').textContent='▲ publish'; }
+};
+$('reloadBtn').onclick=async()=>{ model=sbClone(await sbGetContent()); renderForm(); toast('↺ reloaded from server'); };
+$('resetBtn').onclick=()=>{ if(confirm('Reset the editor to the built-in defaults? (nothing publishes until you hit Publish)')){ model=sbClone(SB_DEFAULTS); renderForm(); toast('reset to defaults — review, then publish'); } };
+
+/* ---------- boot: resume session if we already have a valid password ---------- */
+(async()=>{ if(PW){ try{ await tryLogin(PW); }catch(_){ sessionStorage.removeItem('sb_pw'); } } })();
+</script>
+</body>
+</html>
