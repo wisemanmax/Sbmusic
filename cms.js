@@ -16,7 +16,8 @@ window.SB_CFG = SB_CFG;
 const SB_DEFAULTS = {
   hero: {
     title: 'SLIME BY',
-    sub: 'delaware rage · green pressure · venom',
+    sub: 'delaware rage · <b>green pressure</b> · <i>venom</i>',
+    bg: 'assets/sb-portrait.jpg',
   },
   marquee: ['SLIME SZN', 'VENOM', 'SNAKE PIT', '★ MAN OF MY WORD', '100% INDEPENDENT', 'SB UNIVERSE'],
   drop: {
@@ -45,7 +46,7 @@ const SB_DEFAULTS = {
     ],
   },
   about: {
-    lead: 'melody, chaos, motion & green pressure',
+    lead: 'melody, chaos, <em>motion</em> & green pressure',
     text: 'Slime By is a Delaware artist building a world around melody, chaos, motion, and green pressure. The sound moves between rage, luxury, pain, and flex. Every drop is part of the SB universe.',
     portrait: 'assets/sb-portrait.jpg',
     badge: '☠ SB · DE',
@@ -119,6 +120,115 @@ const SB_TEMPLATES = {
 };
 window.SB_TEMPLATES = SB_TEMPLATES;
 
+/* ---- ADMIN UI METADATA ----
+   Drives the enterprise admin: which sections exist, in what order, and how each
+   field should be labelled / edited. The admin still walks the live content model,
+   but consults this so editors see friendly labels + the right input instead of
+   raw JSON. Anything not described here falls back to sensible heuristics. */
+const SB_SECTIONS = [
+  { key: 'hero',     label: 'Hero',        icon: '☠', desc: 'The first thing visitors see — title, tagline, and backdrop.' },
+  { key: 'marquee',  label: 'Marquee',     icon: '➤', desc: 'The scrolling band of words under the hero.' },
+  { key: 'drop',     label: 'Featured Drop', icon: '✦', desc: 'Spotlight release, smart links, and the next-drop countdown.' },
+  { key: 'music',    label: 'Music',       icon: '♫', desc: 'The in-page player, release grid, and Spotify embed.' },
+  { key: 'about',    label: 'About',       icon: '✶', desc: 'Bio, portrait, and the stat badges.' },
+  { key: 'universe', label: 'SB World',    icon: '◉', desc: 'The five-powers lore map.' },
+  { key: 'vault',    label: 'Vault',       icon: '▣', desc: 'Visual grid that opens a lightbox.' },
+  { key: 'videos',   label: 'Videos',      icon: '▶', desc: 'YouTube clips (add a video ID to play in-page).' },
+  { key: 'merch',    label: 'Merch',       icon: '✪', desc: 'The merch / coming-soon block.' },
+  { key: 'shows',    label: 'Shows',       icon: '♪', desc: 'Tour dates. Empty shows a "get alerts" card.' },
+  { key: 'contact',  label: 'Contact',     icon: '✉', desc: 'Social links, booking email, and the join-the-list copy.' },
+  { key: 'footer',   label: 'Footer',      icon: '⚑', desc: 'Footer badges and copyright line.' },
+];
+window.SB_SECTIONS = SB_SECTIONS;
+
+/* field meta keyed by dotted path (array indices stripped).
+   type: text | textarea | html | url | email | date | color | number | select
+   label / hint / placeholder / options(select) are all optional. */
+const SB_SCHEMA = {
+  'hero.title':            { label: 'Headline', hint: 'The giant glitch title.' },
+  'hero.sub':              { label: 'Tagline', type: 'html', hint: 'Supports <b> (slime green) and <i> (blood red).' },
+  'hero.bg':               { label: 'Background image', type: 'image', hint: 'Full-bleed photo behind the hero.' },
+
+  'marquee':               { label: 'Scrolling words', itemLabel: 'word', hint: 'Each entry scrolls across the slime band.' },
+
+  'drop.kicker':           { label: 'Kicker', hint: 'Small label above the heading.' },
+  'drop.heading':          { label: 'Heading', type: 'html', hint: 'Wrap a word in <em> to make it slime-green.' },
+  'drop.featuredTitle':    { label: 'Release title' },
+  'drop.featuredSub':      { label: 'Release subtitle' },
+  'drop.cover':            { label: 'Cover art', type: 'image' },
+  'drop.spotify':          { label: 'Spotify link', type: 'url' },
+  'drop.apple':            { label: 'Apple Music link', type: 'url' },
+  'drop.youtube':          { label: 'YouTube link', type: 'url' },
+  'drop.presaveUrl':       { label: 'Pre-save link', type: 'url' },
+  'drop.dropDate':         { label: 'Next drop date', type: 'date', hint: 'Powers the countdown. After it passes the card reads “OUT NOW”.' },
+
+  'music.playerTitle':     { label: 'Player track title' },
+  'music.playerCover':     { label: 'Player cover art', type: 'image' },
+  'music.spotifyArtistId': { label: 'Spotify artist ID', hint: 'The ID in open.spotify.com/artist/<ID>.' },
+  'music.releases':        { label: 'Releases', itemLabel: 'release', titleKey: 'title' },
+  'music.releases.title':  { label: 'Title' },
+  'music.releases.sub':    { label: 'Subtitle', placeholder: 'single · 2025' },
+  'music.releases.type':   { label: 'Type', type: 'select', options: ['single', 'album'] },
+  'music.releases.img':    { label: 'Cover art', type: 'image' },
+  'music.releases.url':    { label: 'Link', type: 'url' },
+
+  'about.lead':            { label: 'Lead line', type: 'html' },
+  'about.text':            { label: 'Bio', type: 'textarea' },
+  'about.portrait':        { label: 'Portrait', type: 'image' },
+  'about.badge':           { label: 'Photo badge' },
+  'about.stats':           { label: 'Stats', itemLabel: 'stat', titleKey: 'l' },
+  'about.stats.n':         { label: 'Number' },
+  'about.stats.l':         { label: 'Label' },
+
+  'universe.hint':         { label: 'Hint line' },
+  'universe.powers':       { label: 'Powers', itemLabel: 'power', titleKey: 'n' },
+  'universe.powers.id':    { label: 'Number', placeholder: '01' },
+  'universe.powers.n':     { label: 'Name' },
+  'universe.powers.c':     { label: 'Colour', type: 'color' },
+  'universe.powers.tag':   { label: 'Tag line' },
+  'universe.powers.short': { label: 'Short blurb', type: 'textarea' },
+  'universe.powers.lore':  { label: 'Full lore', type: 'textarea' },
+  'universe.powers.stats': { label: 'Meters', itemLabel: 'meter' },
+
+  'vault.youtube':         { label: 'YouTube channel', type: 'url' },
+  'vault.items':           { label: 'Visuals', itemLabel: 'visual', titleKey: 'title' },
+  'vault.items.title':     { label: 'Title' },
+  'vault.items.sub':       { label: 'Subtitle' },
+  'vault.items.img':       { label: 'Thumbnail', type: 'image' },
+  'vault.items.href':      { label: 'Link', type: 'url' },
+
+  'videos':                { label: 'Videos', itemLabel: 'video', titleKey: 't' },
+  'videos.t':              { label: 'Title' },
+  'videos.s':              { label: 'Subtitle' },
+  'videos.img':            { label: 'Thumbnail', type: 'image' },
+  'videos.id':             { label: 'YouTube video ID', hint: 'Just the ID (e.g. dQw4w9WgXcQ). Leave blank to link out instead.' },
+
+  'merch.kicker':          { label: 'Kicker' },
+  'merch.heading':         { label: 'Heading', type: 'html' },
+  'merch.text':            { label: 'Body', type: 'textarea' },
+  'merch.button':          { label: 'Button label' },
+
+  'shows':                 { label: 'Tour dates', itemLabel: 'show', titleKey: 'venue' },
+  'shows.date':            { label: 'Date', placeholder: 'JUL 04' },
+  'shows.venue':           { label: 'Venue' },
+  'shows.city':            { label: 'City' },
+  'shows.url':             { label: 'Tickets link', type: 'url' },
+
+  'contact.heading':       { label: 'Heading' },
+  'contact.spotify':       { label: 'Spotify', type: 'url' },
+  'contact.apple':         { label: 'Apple Music', type: 'url' },
+  'contact.youtube':       { label: 'YouTube', type: 'url' },
+  'contact.instagram':     { label: 'Instagram', type: 'url' },
+  'contact.tiktok':        { label: 'TikTok', type: 'url' },
+  'contact.bookingEmail':  { label: 'Booking email', type: 'email' },
+  'contact.joinTitle':     { label: 'Join title' },
+  'contact.joinSub':       { label: 'Join subtitle', type: 'textarea' },
+
+  'footer.badges':         { label: 'Badges', itemLabel: 'badge' },
+  'footer.copy':           { label: 'Copyright line' },
+};
+window.SB_SCHEMA = SB_SCHEMA;
+
 /* ---- helpers ---- */
 function sbIsObj(x) { return x && typeof x === 'object' && !Array.isArray(x); }
 /* deep-merge `over` onto `base`; arrays & primitives in `over` win wholesale */
@@ -161,3 +271,24 @@ async function sbAdmin(password, action, payload) {
   return j;
 }
 window.sbAdmin = sbAdmin;
+
+/* capture a sign-up in the `subscribers` table (anon insert is allowed by RLS).
+   Returns true on success; callers should keep their local fallback regardless. */
+async function sbSubscribe(email, phone) {
+  try {
+    const r = await fetch(SB_CFG.url + '/rest/v1/subscribers?on_conflict=email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SB_CFG.key,
+        Authorization: 'Bearer ' + SB_CFG.key,
+        Prefer: 'resolution=ignore-duplicates,return=minimal',
+      },
+      body: JSON.stringify({ email: email || null, phone: phone || null }),
+    });
+    return r.ok;
+  } catch (_) {
+    return false;
+  }
+}
+window.sbSubscribe = sbSubscribe;
