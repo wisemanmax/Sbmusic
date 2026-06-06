@@ -1,15 +1,12 @@
 # SLIME BY — Official Site
 
 The official website for **Slime By** — Delaware rap. Melody, chaos, motion, green pressure.
-A single-page, fully interactive experience: real Web-Audio visualizer, castable slime
-enchantments, a scroll-tracking snake, SB Universe lore, music, vault, merch, shows, and contact.
+A single-page, fully interactive experience: real Web-Audio visualizer, a scroll-tracking
+snake, SB Universe lore, music, vault, merch, shows, and contact.
 
 **Stack:** plain HTML/CSS/JS in one file. No build step, no dependencies. Just open `index.html`.
 
 ## Features
-- **Slime enchantments** — a grimoire of eight castable Web-Audio enchantments
-  (venom, ooze, quake, abyss, hiss, mist, fang, curse). Tap them or press the rune key
-  (`Q W E R / A S D F`). Charging the **venom meter** triggers full rage mode.
 - **Live visualizer** — real-time frequency bars/waves driven by the playing track.
 - **Music** — release grid with **all / albums / singles** filters, an in-page player
   (play/pause, seek, **volume**), and the live Spotify artist embed.
@@ -40,8 +37,6 @@ assets/
   The list renders automatically; an empty array shows the "no shows" state.
 - **Releases:** each card is an `<a class="rel" data-type="album|single">` in the
   `#mgrid` block — the filter tabs read `data-type`.
-- **Enchantments:** edit the `ENCHANTS` array in `index.html` — each entry is
-  `{l:'NAME', k:'KEY', c:'#color', f:()=>sound()}` and renders into `#enchgrid`.
 
 ## Run locally
 Open `index.html` in a browser, or serve it:
