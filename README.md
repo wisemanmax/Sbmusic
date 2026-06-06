@@ -4,7 +4,10 @@ The official website for **Slime By** — Delaware rap. Melody, chaos, motion, g
 A single-page, fully interactive experience: real Web-Audio visualizer, a scroll-tracking
 snake, SB Universe lore, music, vault, merch, shows, and contact.
 
-**Stack:** plain HTML/CSS/JS in one file. No build step, no dependencies. Just open `index.html`.
+**Stack:** static HTML/CSS/JS — no build step. The page (`index.html`) is data-driven:
+it reads its content from Supabase via `cms.js`, and falls back to built-in defaults if
+the backend is empty or unreachable, so it always renders. A password-protected admin
+page (`admin.html`) lets you edit every section and publish live.
 
 ## Features
 - **Featured drop / spotlight** — the current release with **smart links** (Spotify /
@@ -30,9 +33,30 @@ snake, SB Universe lore, music, vault, merch, shows, and contact.
 - **Accessibility** — skip link, focus outlines, ARIA labels, and full
   `prefers-reduced-motion` support.
 
+## Admin / live editing (CMS)
+The site's content lives in **Supabase** and is editable from a password-gated admin page.
+
+- **Open** `https://<your-site>/admin.html` and enter the password.
+- **Edit** any section — text, links, images (with upload), and repeatable lists
+  (releases, videos, shows, the five powers, vault items). Tap a section title to collapse it.
+- **Publish** — writes go live for all visitors instantly.
+
+**How it's wired**
+- `cms.js` holds the Supabase URL + publishable (read-only) key and the default content model.
+- The public site reads content with the publishable key (RLS allows read only).
+- Writes go through a Supabase **Edge Function** (`admin`) that checks the password
+  **server-side** (stored in a locked-down `admin_config` table, never shipped to the browser),
+  so the password actually protects writes. Uploaded images go to a public `media` bucket.
+- To change the password: update the `password` value in the `admin_config` table.
+- Note: Supabase's free tier pauses a project after ~1 week of inactivity; if that happens
+  the site still renders (from `cms.js` defaults) but published edits won't show until the
+  project is resumed.
+
 ## Structure
 ```
-index.html                  # the whole site (HTML + CSS + JS)
+index.html                  # the site (HTML + CSS + JS), rendered from CMS content
+admin.html                  # password-gated admin / CMS editor
+cms.js                       # Supabase config, default content model, read/write helpers
 assets/
   man-of-my-word.mp3        # background track (loops)
   my-time-cover.jpg         # My Time cover art
@@ -41,21 +65,14 @@ assets/
 ```
 
 ## Customizing content
-- **Add tour dates:** edit the `SHOWS` array in `index.html`, e.g.
-  `{date:'JUL 12', venue:'The Queen', city:'Wilmington, DE', url:'https://tickets…'}`.
-  The list renders automatically; an empty array shows the "no shows" state.
-- **Releases:** each card is an `<a class="rel" data-type="album|single">` in the
-  `#mgrid` block — the filter tabs read `data-type`.
-- **Featured drop:** edit the `#drop` section (cover, title, smart links) and set
-  `DROP_DATE` in `index.html` to your next release date for the countdown. Point the
-  `#presaveBtn` link at your pre-save URL (e.g. a DistroKid HyperFollow / Feature.fm link).
-- **Videos:** add each clip's YouTube video ID to the `VIDEOS` array in `index.html`
-  (`{t,s,img,id}`) — entries with an `id` play in an embedded lightbox.
-- **Stem player:** edit the `STEMS` array in `index.html` — each entry is
-  `{n:'NAME', c:'#color', f:()=>sound(), pat:[...16 steps]}`.
-- **SB Universe lore:** the `#universe` panels are a clickable "five powers" map —
-  edit the `POWERS` array in `index.html` (`{id,n,c,tag,lore,stats}`) to retitle a
-  force, rewrite its lore, or change its power-meter stats.
+**The easy way:** use the admin page (`admin.html`) — it edits every section, including
+tour dates, releases, the featured drop + countdown date + pre-save link, videos
+(YouTube IDs), and the SB Universe "five powers" lore + stats, then publishes live.
+
+**By hand:** the same content model lives in `SB_DEFAULTS` in `cms.js` (these are the
+fallback values when nothing is published). Editing it there changes the built-in defaults.
+- **Stem player** is interactive, not content — it stays in the `STEMS` array in
+  `index.html` (`{n:'NAME', c:'#color', f:()=>sound(), pat:[...16 steps]}`).
 
 ## Run locally
 Open `index.html` in a browser, or serve it:

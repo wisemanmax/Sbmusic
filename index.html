@@ -727,6 +727,7 @@ body.rage .rmtag{opacity:1}
   <div class="box" id="modalBox"><button class="x" id="modalX" aria-label="close">✕</button><div id="modalContent"></div></div>
 </div>
 
+<script src="cms.js"></script>
 <script>
 /* LOADER */
 window.addEventListener('load',()=>setTimeout(()=>document.getElementById('loader').classList.add('gone'),1500));
@@ -747,9 +748,7 @@ const spy=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){Objec
 Object.keys(navMap).forEach(id=>{const s=document.getElementById(id);if(s)spy.observe(s);});
 
 /* MARQUEE */
-const words=['SLIME SZN','VENOM','SNAKE PIT','★ MAN OF MY WORD','100% INDEPENDENT','SB UNIVERSE'];
-let mh='';for(let r=0;r<2;r++){words.forEach(w=>mh+=`<span>${w}</span><span>✦</span>`)}
-document.getElementById('track').innerHTML=mh;
+function renderMarquee(words){let mh='';for(let r=0;r<2;r++){(words||[]).forEach(w=>mh+=`<span>${w}</span><span>✦</span>`)}document.getElementById('track').innerHTML=mh;}
 
 /* REVEAL */
 const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.12});
@@ -940,9 +939,8 @@ if(merchAlertBtn)merchAlertBtn.onclick=()=>{burst(innerWidth/2,innerHeight*.6,16
 /* VAULT — lightbox */
 document.querySelectorAll('#vault .vcard').forEach(card=>card.addEventListener('click',e=>{if(e.metaKey||e.ctrlKey||e.shiftKey)return;e.preventDefault();const img=card.querySelector('img').src,title=card.querySelector('.vt').textContent,sub=card.querySelector('.vs').textContent,href=card.getAttribute('href');openModal(`<div class="mhead wide" style="background-image:url('${img}')"></div><div class="mbody"><span class="kicker">${sub}</span><h3>${title}</h3><p>The full visual lives in the SB vault on YouTube. Tap in for the complete drop.</p><div class="mcta"><a class="bigbtn bSlime" href="${href}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);}));
 
-/* SHOWS — data-driven (add real dates to SHOWS to populate the list) */
-const SHOWS=[];/* e.g. {date:'JUL 12',venue:'The Queen',city:'Wilmington, DE',url:'https://...'} */
-(function renderShows(){const list=document.getElementById('showlist'),empty=document.getElementById('showsEmpty');if(!SHOWS.length){list.style.display='none';empty.style.display='';return;}empty.style.display='none';list.style.display='';list.innerHTML=SHOWS.map(s=>`<div class="showrow"><div class="date">${s.date}</div><div class="venue"><div class="v1">${s.venue}</div><div class="v2">${s.city}</div></div>${s.url?`<a class="tix" href="${s.url}" target="_blank" rel="noopener noreferrer">tickets</a>`:'<span class="tix" style="opacity:.5">soon</span>'}</div>`).join('');})();
+/* SHOWS — content-driven (edit in the admin page) */
+function renderShows(SHOWS){SHOWS=SHOWS||[];const list=document.getElementById('showlist'),empty=document.getElementById('showsEmpty');if(!list||!empty)return;if(!SHOWS.length){list.style.display='none';empty.style.display='';return;}empty.style.display='none';list.style.display='';list.innerHTML=SHOWS.map(s=>`<div class="showrow"><div class="date">${s.date}</div><div class="venue"><div class="v1">${s.venue}</div><div class="v2">${s.city}</div></div>${s.url?`<a class="tix" href="${s.url}" target="_blank" rel="noopener noreferrer">tickets</a>`:'<span class="tix" style="opacity:.5">soon</span>'}</div>`).join('');}
 document.getElementById('tourAlertBtn').onclick=()=>{document.getElementById('connect').scrollIntoView({behavior:'smooth'});setTimeout(()=>document.getElementById('gemail').focus(),600);toast('drop your email below for tour alerts ☠');};
 
 /* SHORTCUTS HELP */
@@ -957,24 +955,19 @@ document.getElementById('shareBtn').onclick=async()=>{const data={title:'SLIME B
 /* ===================== FEATURED DROP ===================== */
 function previewFeatured(){startAudio();toast('▶ now spinning — Man Of My Word');}
 function notifyDrop(){document.getElementById('connect').scrollIntoView({behavior:'smooth'});setTimeout(()=>{const g=document.getElementById('gemail');if(g)g.focus();},600);toast('☠ drop your email — first to know');}
-/* ← set your next release date/time (local). Until then it counts down; after, it reads OUT NOW. */
-const DROP_DATE=new Date('2026-07-04T00:00:00');
-function tickCountdown(){const el=document.getElementById('cd');if(!el)return;const d=DROP_DATE-Date.now();if(d<=0){el.innerHTML='<span class="cdlive">OUT NOW ☠</span>';return;}const u=(n,l)=>`<div class="cdu"><b>${String(n).padStart(2,'0')}</b><span>${l}</span></div>`;el.innerHTML=u(Math.floor(d/864e5),'days')+u(Math.floor(d/36e5)%24,'hrs')+u(Math.floor(d/6e4)%60,'min')+u(Math.floor(d/1e3)%60,'sec');}
+/* drop date is set from CMS content (drop.dropDate); counts down, then reads OUT NOW. */
+let dropDate=new Date('2026-07-04T00:00:00');
+function tickCountdown(){const el=document.getElementById('cd');if(!el)return;const d=dropDate-Date.now();if(isNaN(d)||d<=0){el.innerHTML='<span class="cdlive">OUT NOW ☠</span>';return;}const u=(n,l)=>`<div class="cdu"><b>${String(n).padStart(2,'0')}</b><span>${l}</span></div>`;el.innerHTML=u(Math.floor(d/864e5),'days')+u(Math.floor(d/36e5)%24,'hrs')+u(Math.floor(d/6e4)%60,'min')+u(Math.floor(d/1e3)%60,'sec');}
 tickCountdown();setInterval(tickCountdown,1000);
 
-/* ===================== VIDEOS ===================== */
-/* ← add each clip's YouTube video ID (the part after watch?v=) to embed it in-page */
-const VIDEOS=[
-  {t:'Man Of My Word',s:'official video',img:'assets/sb-portrait.jpg',id:''},
-  {t:'My Time',s:'visualizer',img:'assets/my-time-cover.jpg',id:''},
-  {t:'Slime Szn',s:'teaser · SB',img:'assets/slime-by.jpg',id:''},
-];
-(function renderVideos(){const g=document.getElementById('vidgrid');if(!g)return;
+/* ===================== VIDEOS (content-driven) ===================== */
+let VIDEOS=[];
+function renderVideos(list){VIDEOS=list||[];const g=document.getElementById('vidgrid');if(!g)return;
   g.innerHTML=VIDEOS.map((v,i)=>`<div class="vid reveal${i%3?' d'+(i%3):''}" data-i="${i}"><img loading="lazy" decoding="async" src="${v.img}" alt="${v.t}"><div class="pp">▶</div><div class="vmeta"><div class="vmt">${v.t}</div><div class="vms">${v.s}</div></div></div>`).join('');
   g.querySelectorAll('.vid').forEach(c=>{io.observe(c);c.onclick=()=>{const v=VIDEOS[+c.dataset.i];burst(innerWidth/2,innerHeight*.5,10,'#8dff2b');
     if(v.id){openModal(`<div class="mbody"><span class="kicker">${v.s}</span><h3>${v.t}</h3><div class="vembed"><iframe src="https://www.youtube.com/embed/${v.id}?autoplay=1&rel=0" title="${v.t}" allow="autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe></div></div>`);}
-    else{openModal(`<div class="mbody"><span class="kicker">${v.s}</span><h3>${v.t}</h3><p>Add this clip's YouTube video ID to the <code>VIDEOS</code> list to play it right here. For now, catch the full vault on YouTube.</p><div class="mcta"><a class="bigbtn bSlime" href="https://youtube.com/@slimeby_" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);}};});
-})();
+    else{openModal(`<div class="mbody"><span class="kicker">${v.s}</span><h3>${v.t}</h3><p>Add this clip's YouTube video ID in the admin page to play it right here. For now, catch the full vault on YouTube.</p><div class="mcta"><a class="bigbtn bSlime" href="${(window.SB&&SB.vault&&SB.vault.youtube)||'https://youtube.com/@slimeby_'}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);}};});
+}
 
 /* ===================== THE LAB — stem sequencer (reuses the synth engine) ===================== */
 const STEMS=[
@@ -1002,34 +995,80 @@ const labPlayBtn=document.getElementById('labPlay');if(labPlayBtn)labPlayBtn.onc
 const labBpmEl=document.getElementById('labBpm'),labBpmV=document.getElementById('labBpmV');
 if(labBpmEl)labBpmEl.oninput=()=>{labBpm=+labBpmEl.value;if(labBpmV)labBpmV.textContent=labBpm;if(labOn){clearInterval(labTimer);labTimer=setInterval(labTick,labDur());}};
 
-/* ===================== SB UNIVERSE — five powers map ===================== */
-const POWERS=[
-  {id:'01',n:'the sound',c:'#8dff2b',tag:'melody × chaos',
-   lore:'Melody welded to chaos. Hooks that set like resin and don’t let go. The sound is the first law of the SB world — every other force is built on top of the frequency.',
-   stats:[['melody',82],['chaos',76],['pressure',68]]},
-  {id:'02',n:'the slime',c:'#b6ff5a',tag:'the texture',
-   lore:'Wet, glossy, dangerous — the green coating every surface SB touches. The slime spreads on contact. Once it’s on you, you’re part of the world.',
-   stats:[['spread',90],['shine',74],['venom',80]]},
-  {id:'03',n:'the snake',c:'#9b3cff',tag:'the guide',
-   lore:'Quiet, patient, lethal. Movement you feel before you ever see it. The snake is SB’s avatar — it follows you through the whole site, and through the whole story.',
-   stats:[['patience',88],['strike',92],['stealth',70]]},
-  {id:'04',n:'the motion',c:'#c47bff',tag:'never static',
-   lore:'Never static. The world bends, drips, and keeps moving forward. Stand still in the SB universe and the slime catches up to you.',
-   stats:[['momentum',86],['flux',79],['drive',84]]},
-  {id:'05',n:'the pressure',c:'#ff1f2e',tag:'green pressure',
-   lore:'Green pressure. Diamonds or dust — there is no in between. The pressure is what turns the sound into something permanent.',
-   stats:[['intensity',94],['weight',81],['heat',77]]},
-];
+/* ===================== SB UNIVERSE — five powers map (content-driven) ===================== */
+let POWERS=[];
 function openPower(i){const p=POWERS[i];if(!p)return;
-  const meters=p.stats.map(s=>`<div class="pmeter"><span class="pml">${s[0]}</span><div class="pbar"><i data-w="${s[1]}"></i></div><span class="pmv">${s[1]}</span></div>`).join('');
+  const meters=(p.stats||[]).map(s=>`<div class="pmeter"><span class="pml">${s[0]}</span><div class="pbar"><i data-w="${s[1]}"></i></div><span class="pmv">${s[1]}</span></div>`).join('');
   openModal(`<div class="mbody pcard" style="--c:${p.c}"><div class="ptag">force ${p.id} · ${p.tag}</div><h3>${p.n}</h3><p>${p.lore}</p><div class="pmeters">${meters}</div></div>`);
   requestAnimationFrame(()=>requestAnimationFrame(()=>document.querySelectorAll('#modal .pbar i').forEach(b=>b.style.width=b.dataset.w+'%')));
   burst(innerWidth/2,innerHeight*.5,12,p.c);snakeLunge();
 }
-document.querySelectorAll('#universe .upanel').forEach(el=>{const i=+el.dataset.p;el.setAttribute('role','button');el.setAttribute('tabindex','0');
-  el.addEventListener('click',()=>openPower(i));
-  el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.code==='Space'){e.preventDefault();openPower(i);}});
-});
+function renderPowers(list){POWERS=list||[];const wrap=document.querySelector('#universe .upanels');if(!wrap)return;
+  wrap.innerHTML=POWERS.map((p,i)=>`<div class="upanel reveal${i?' d'+Math.min(i,4):''}" data-p="${i}" role="button" tabindex="0"><div class="orb" style="background:radial-gradient(circle,${p.c},transparent 70%)"></div><div class="idx">${p.id}</div><div class="ut">${p.n}</div><div class="ud">${p.short||''}</div><div class="uenter">enter ↦</div></div>`).join('');
+  wrap.querySelectorAll('.upanel').forEach(el=>{io.observe(el);const i=+el.dataset.p;
+    el.addEventListener('click',()=>openPower(i));
+    el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.code==='Space'){e.preventDefault();openPower(i);}});});
+}
+
+/* ===================== RELEASES (content-driven) ===================== */
+function renderReleases(list){const g=document.getElementById('mgrid');if(!g)return;
+  g.innerHTML=(list||[]).map((r,i)=>`<a class="rel reveal d${(i%3)+1}" data-type="${r.type||'single'}" target="_blank" rel="noopener noreferrer" href="${r.url}"><div class="art"><img loading="lazy" decoding="async" src="${r.img}" alt="${r.title}"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">${r.title}</div><div class="s">${r.sub}</div></div></a>`).join('');
+  g.querySelectorAll('.rel').forEach(el=>io.observe(el));
+  const onf=document.querySelector('#mfilter button.on');const f=onf?onf.dataset.f:'all';
+  g.querySelectorAll('.rel').forEach(c=>c.classList.toggle('hide',f!=='all'&&c.dataset.type!==f));
+}
+
+/* ===================== APPLY CONTENT — maps the CMS model onto the page ===================== */
+function applyContent(c){
+  if(!c)return;window.SB=c;
+  const q=s=>document.querySelector(s);
+  const txt=(s,v)=>{const e=q(s);if(e&&v!=null)e.textContent=v;};
+  const setHtml=(s,v)=>{const e=q(s);if(e&&v!=null)e.innerHTML=v;};
+  const href=(s,v)=>{const e=q(s);if(e&&v!=null)e.setAttribute('href',v);};
+  const src=(s,v)=>{const e=q(s);if(e&&v!=null)e.setAttribute('src',v);};
+  const bg=(s,v)=>{const e=q(s);if(e&&v)e.style.backgroundImage=`url('${v}')`;};
+
+  if(c.hero){const h1=q('.hero h1.glitch');if(h1&&c.hero.title){h1.textContent=c.hero.title;h1.setAttribute('data-t',c.hero.title);}txt('.hero .sub',c.hero.sub);}
+
+  renderMarquee(c.marquee);
+
+  if(c.drop){txt('#drop .kicker',c.drop.kicker);setHtml('#drop .shead h2',c.drop.heading);
+    bg('#drop .dropfeat .cover',c.drop.cover);txt('#drop .dropfeat h3',c.drop.featuredTitle);txt('#drop .dropfeat .dsub',c.drop.featuredSub);
+    const dl=document.querySelectorAll('#drop .dropfeat .smartlinks a');[c.drop.spotify,c.drop.apple,c.drop.youtube].forEach((u,i)=>{if(dl[i]&&u)dl[i].href=u;});
+    href('#presaveBtn',c.drop.presaveUrl);
+    if(c.drop.dropDate){const d=new Date(c.drop.dropDate);if(!isNaN(d.getTime()))dropDate=d;tickCountdown();}}
+
+  if(c.music){bg('#music .pwart',c.music.playerCover);txt('#music .pwtitle',c.music.playerTitle);
+    const emb=q('#music .embedwrap iframe');if(emb&&c.music.spotifyArtistId)emb.src=`https://open.spotify.com/embed/artist/${c.music.spotifyArtistId}?utm_source=generator&theme=0`;
+    renderReleases(c.music.releases);}
+
+  if(c.about){txt('#about .lead',c.about.lead);txt('#about .about p',c.about.text);src('#about .pic img',c.about.portrait);txt('#about .badge',c.about.badge);
+    const st=document.querySelectorAll('#about .stats .stat');(c.about.stats||[]).forEach((s,i)=>{if(st[i]){const n=st[i].querySelector('.n'),l=st[i].querySelector('.l');if(n)n.textContent=s.n;if(l)l.textContent=s.l;}});}
+
+  if(c.universe){txt('#universe .uhint',c.universe.hint);renderPowers(c.universe.powers);}
+
+  if(c.vault){href('#vault .shead .link',c.vault.youtube);const vg=q('#vault .vgrid');
+    if(vg){vg.innerHTML=(c.vault.items||[]).map((v,i)=>`<a class="vcard reveal${i?' d'+Math.min(i,3):''}" href="${v.href}" target="_blank" rel="noopener noreferrer"><img loading="lazy" decoding="async" src="${v.img}" alt=""><div class="pico">▶</div><div class="vinfo"><div class="vt">${v.title}</div><div class="vs">${v.sub}</div></div></a>`).join('');
+      vg.querySelectorAll('.vcard').forEach(card=>{io.observe(card);card.addEventListener('click',e=>{if(e.metaKey||e.ctrlKey||e.shiftKey)return;e.preventDefault();const img=card.querySelector('img').src,title=card.querySelector('.vt').textContent,sub=card.querySelector('.vs').textContent,h=card.getAttribute('href');openModal(`<div class="mhead wide" style="background-image:url('${img}')"></div><div class="mbody"><span class="kicker">${sub}</span><h3>${title}</h3><p>The full visual lives in the SB vault on YouTube. Tap in for the complete drop.</p><div class="mcta"><a class="bigbtn bSlime" href="${h}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);});});}}
+
+  renderVideos(c.videos);
+
+  if(c.merch){txt('#merch .kicker',c.merch.kicker);setHtml('#merch .shead h2',c.merch.heading);txt('#merch .comingsoon p',c.merch.text);txt('#merchAlertBtn',c.merch.button);}
+
+  renderShows(c.shows);
+
+  if(c.contact){txt('#connect h2',c.contact.heading);
+    const cl=document.querySelectorAll('#connect .clinks a');[c.contact.spotify,c.contact.apple,c.contact.youtube,c.contact.instagram,c.contact.tiktok].forEach((u,i)=>{if(cl[i]&&u)cl[i].href=u;});
+    const bk=q('#connect .booking a');if(bk&&c.contact.bookingEmail){bk.href='mailto:'+c.contact.bookingEmail;bk.textContent=c.contact.bookingEmail;}
+    const jt=q('.jointitle');if(jt)jt.innerHTML=`${c.contact.joinTitle||''}<span>${c.contact.joinSub||''}</span>`;}
+
+  if(c.footer){const fb=q('.fbadges');if(fb&&c.footer.badges)fb.innerHTML=c.footer.badges.map(b=>`<span class="fbadge">${b}</span>`).join('');txt('.fcopy',c.footer.copy);}
+}
+
+/* boot: render defaults instantly, then overlay whatever's published in Supabase.
+   Guarded so a missing/failed cms.js can never break the rest of the page. */
+try{ if(typeof SB_DEFAULTS!=='undefined') applyContent(SB_DEFAULTS); }catch(e){}
+try{ if(typeof sbGetContent==='function') sbGetContent().then(applyContent).catch(()=>{}); }catch(e){}
 </script>
 </body>
 </html>
