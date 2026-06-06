@@ -80,7 +80,7 @@ nav.scrolled{background:rgba(8,5,4,.8);backdrop-filter:blur(12px);border-bottom:
 .navlinks a:hover{opacity:1;color:var(--slime);text-shadow:0 0 10px var(--slime)}
 .btnX{font-family:var(--ui);font-weight:700;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;border:1px solid var(--slime);background:transparent;color:var(--slime);padding:9px 16px;transition:.18s}
 .btnX:hover{background:var(--slime);color:#08120a;box-shadow:0 0 22px rgba(141,255,43,.5)}
-.burger{display:none;flex-direction:column;gap:5px;cursor:pointer}
+.burger{display:none;flex-direction:column;gap:5px;cursor:pointer;background:none;border:0;padding:4px}
 .burger span{width:24px;height:2px;background:#fff}
 
 .bigbtn{font-family:var(--ui);font-weight:700;font-size:14px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;border:1px solid;padding:14px 26px;transition:.16s;display:inline-flex;align-items:center;gap:9px;background:rgba(10,7,5,.5);backdrop-filter:blur(4px)}
@@ -313,10 +313,39 @@ body.rage .rmtag{opacity:1}
   .about{grid-template-columns:1fr}
   .sticker{display:none}
 }
+
+/* ACTIVE NAV LINK (scroll-spy) */
+.navlinks a.active{opacity:1;color:var(--slime);text-shadow:0 0 10px var(--slime)}
+.navlinks a.active::after{content:"";position:absolute;left:0;right:0;bottom:-6px;height:2px;background:var(--slime);box-shadow:0 0 8px var(--slime)}
+
+/* VOLUME SLIDER */
+.pwvol{-webkit-appearance:none;appearance:none;width:84px;height:4px;background:rgba(255,255,255,.18);outline:none;cursor:pointer;margin-left:auto}
+.pwvol::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--slime);box-shadow:0 0 8px var(--slime);cursor:pointer}
+.pwvol::-moz-range-thumb{width:13px;height:13px;border:0;border-radius:50%;background:var(--slime);box-shadow:0 0 8px var(--slime);cursor:pointer}
+
+/* BACK TO TOP */
+.totop{position:fixed;right:16px;bottom:16px;z-index:2000;width:46px;height:46px;border-radius:50%;border:1px solid var(--slime);background:rgba(12,9,7,.85);backdrop-filter:blur(12px);color:var(--slime);font-size:18px;cursor:pointer;opacity:0;visibility:hidden;transition:opacity .3s,visibility .3s,background .14s,box-shadow .14s,transform .14s;box-shadow:0 8px 30px rgba(0,0,0,.55)}
+.totop.show{opacity:1;visibility:visible}
+.totop:hover{background:var(--slime);color:#08120a;box-shadow:0 0 22px rgba(141,255,43,.5)}
+.totop:active{transform:scale(.92)}
+
+/* SKIP LINK (a11y) */
+.skip{position:fixed;top:-60px;left:12px;z-index:12000;background:var(--slime);color:#08120a;font-weight:700;font-size:13px;letter-spacing:1px;padding:10px 16px;text-transform:uppercase;transition:top .2s}
+.skip:focus{top:12px}
+:focus-visible{outline:2px solid var(--slime);outline-offset:2px}
+
+/* REDUCED MOTION (a11y) — tame heavy animation for users who ask for it */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+  html{scroll-behavior:auto}
+  body.rage{animation:none!important}
+  .reveal{opacity:1!important;transform:none!important}
+}
 </style>
 </head>
 <body>
 
+<a class="skip" href="#music">skip to content</a>
 <div class="bgwrap"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
 <canvas id="snake"></canvas>
 <div class="grain"></div><div class="scan"></div><div class="vig"></div>
@@ -338,7 +367,7 @@ body.rage .rmtag{opacity:1}
     <a href="#pads">pads</a><a href="#music">music</a><a href="#visualizer">waves</a><a href="#universe">sb world</a><a href="#connect">tap in</a>
   </div>
   <button class="btnX" onclick="enterRage()">☠ rage mode</button>
-  <div class="burger" id="burger"><span></span><span></span><span></span></div>
+  <button class="burger" id="burger" aria-label="menu" aria-expanded="false" aria-controls="nav"><span></span><span></span><span></span></button>
 </nav>
 
 <!-- HERO -->
@@ -398,18 +427,18 @@ body.rage .rmtag{opacity:1}
         <div class="pwtitle">Man Of My Word</div>
         <canvas class="pweq" id="pweq"></canvas>
         <div class="pwprog" id="pwprog"><i id="pwprogfill"></i></div>
-        <div class="pwbtns"><button class="pwplay" id="pwplay">▶</button><span class="pwtime"><span id="pwcur">0:00</span> / <span id="pwdur">0:00</span></span></div>
+        <div class="pwbtns"><button class="pwplay" id="pwplay" aria-label="play / pause">▶</button><span class="pwtime"><span id="pwcur">0:00</span> / <span id="pwdur">0:00</span></span><input type="range" class="pwvol" id="pwvol" min="0" max="100" value="55" aria-label="volume"></div>
       </div>
     </div>
   </div>
 
   <div class="mgrid">
-    <a class="rel reveal d1" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/5RickWrPNRszADHSzJJYUc"><div class="art"><img src="assets/my-time-cover.jpg" alt="My Time"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">My Time</div><div class="s">album · 2024</div></div></a>
-    <a class="rel reveal d2" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/6T2tcMpvYytltsEjPgyhEw"><div class="art"><img src="https://i.scdn.co/image/ab67616d00001e028a915904da619cc9a6ee6fc5" alt="Save Her"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Save Her</div><div class="s">single · 2024</div></div></a>
-    <a class="rel reveal d3" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/5zZBRNMJqFr6hBpB6cjfyI"><div class="art"><img src="https://i.scdn.co/image/ab67616d00001e02999c0b302ffd8ac36402327a" alt="Flip"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Flip</div><div class="s">single · 2023</div></div></a>
-    <a class="rel reveal d1" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/2yiGZO9RmY8ql8h1OtManp"><div class="art"><img src="https://i.scdn.co/image/ab67616d00001e02999c0b302ffd8ac36402327a" alt="Turn This Up"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Turn This Up</div><div class="s">single · 2023</div></div></a>
-    <a class="rel reveal d2" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/358k4SFDwfF02ln2L4ZIg5"><div class="art"><img src="https://i.scdn.co/image/ab67616d00001e028a915904da619cc9a6ee6fc5" alt="I'm In Yo City"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">I'm In Yo City</div><div class="s">single · 2021</div></div></a>
-    <a class="rel reveal d3" target="_blank" rel="noopener noreferrer" href="https://music.apple.com/us/artist/slime-by/1542729349"><div class="art"><img src="assets/sb-portrait.jpg" alt="Slime By"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Flava</div><div class="s">apple music</div></div></a>
+    <a class="rel reveal d1" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/5RickWrPNRszADHSzJJYUc"><div class="art"><img loading="lazy" decoding="async" src="assets/my-time-cover.jpg" alt="My Time"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">My Time</div><div class="s">album · 2024</div></div></a>
+    <a class="rel reveal d2" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/6T2tcMpvYytltsEjPgyhEw"><div class="art"><img loading="lazy" decoding="async" src="https://i.scdn.co/image/ab67616d00001e028a915904da619cc9a6ee6fc5" alt="Save Her"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Save Her</div><div class="s">single · 2024</div></div></a>
+    <a class="rel reveal d3" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/5zZBRNMJqFr6hBpB6cjfyI"><div class="art"><img loading="lazy" decoding="async" src="https://i.scdn.co/image/ab67616d00001e02999c0b302ffd8ac36402327a" alt="Flip"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Flip</div><div class="s">single · 2023</div></div></a>
+    <a class="rel reveal d1" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/2yiGZO9RmY8ql8h1OtManp"><div class="art"><img loading="lazy" decoding="async" src="https://i.scdn.co/image/ab67616d00001e02999c0b302ffd8ac36402327a" alt="Turn This Up"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Turn This Up</div><div class="s">single · 2023</div></div></a>
+    <a class="rel reveal d2" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/358k4SFDwfF02ln2L4ZIg5"><div class="art"><img loading="lazy" decoding="async" src="https://i.scdn.co/image/ab67616d00001e028a915904da619cc9a6ee6fc5" alt="I'm In Yo City"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">I'm In Yo City</div><div class="s">single · 2021</div></div></a>
+    <a class="rel reveal d3" target="_blank" rel="noopener noreferrer" href="https://music.apple.com/us/artist/slime-by/1542729349"><div class="art"><img loading="lazy" decoding="async" src="assets/sb-portrait.jpg" alt="Slime By"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Flava</div><div class="s">apple music</div></div></a>
   </div>
   <div class="embedwrap panel reveal">
     <iframe style="border-radius:4px" src="https://open.spotify.com/embed/artist/70LnkJjJc5yq650kELO09A?utm_source=generator&theme=0" width="100%" height="352" frameborder="0" allow="autoplay;clipboard-write;encrypted-media;fullscreen;picture-in-picture" loading="lazy"></iframe>
@@ -426,7 +455,7 @@ body.rage .rmtag{opacity:1}
 <!-- ABOUT -->
 <section id="about">
   <div class="about">
-    <div class="pic reveal"><img src="assets/sb-portrait.jpg" alt="Slime By"><div class="badge">☠ SB · DE</div></div>
+    <div class="pic reveal"><img loading="lazy" decoding="async" src="assets/sb-portrait.jpg" alt="Slime By"><div class="badge">☠ SB · DE</div></div>
     <div>
       <div class="reveal"><span class="kicker">the artist</span></div>
       <div class="lead reveal">melody, chaos, <em>motion</em> & green pressure</div>
@@ -458,10 +487,10 @@ body.rage .rmtag{opacity:1}
   <div class="reveal"><span class="kicker">the vault</span></div>
   <div class="shead reveal"><h2>visuals</h2><a class="link" href="https://youtube.com/@slimeby_" target="_blank" rel="noopener noreferrer">youtube →</a></div>
   <div class="vgrid">
-    <a class="vcard reveal" href="https://youtube.com/@slimeby_" target="_blank" rel="noopener noreferrer"><img src="assets/sb-portrait.jpg" alt=""><div class="pico">▶</div><div class="vinfo"><div class="vt">Man Of My Word</div><div class="vs">official visual</div></div></a>
-    <a class="vcard reveal d1" href="https://youtube.com/@slimeby_" target="_blank" rel="noopener noreferrer"><img src="assets/my-time-cover.jpg" alt=""><div class="pico">▶</div><div class="vinfo"><div class="vt">My Time</div><div class="vs">visualizer</div></div></a>
-    <a class="vcard reveal d2" href="https://youtube.com/@slimeby_" target="_blank" rel="noopener noreferrer"><img src="assets/slime-by.jpg" alt=""><div class="pico">▶</div><div class="vinfo"><div class="vt">Slime Szn</div><div class="vs">teaser · SB</div></div></a>
-    <a class="vcard reveal d3" href="https://youtube.com/@slimeby_" target="_blank" rel="noopener noreferrer"><img src="assets/sb-portrait.jpg" alt="" style="filter:hue-rotate(80deg) brightness(.7)"><div class="pico">▶</div><div class="vinfo"><div class="vt">Behind The Slime</div><div class="vs">vault · SB</div></div></a>
+    <a class="vcard reveal" href="https://youtube.com/@slimeby_" target="_blank" rel="noopener noreferrer"><img loading="lazy" decoding="async" src="assets/sb-portrait.jpg" alt=""><div class="pico">▶</div><div class="vinfo"><div class="vt">Man Of My Word</div><div class="vs">official visual</div></div></a>
+    <a class="vcard reveal d1" href="https://youtube.com/@slimeby_" target="_blank" rel="noopener noreferrer"><img loading="lazy" decoding="async" src="assets/my-time-cover.jpg" alt=""><div class="pico">▶</div><div class="vinfo"><div class="vt">My Time</div><div class="vs">visualizer</div></div></a>
+    <a class="vcard reveal d2" href="https://youtube.com/@slimeby_" target="_blank" rel="noopener noreferrer"><img loading="lazy" decoding="async" src="assets/slime-by.jpg" alt=""><div class="pico">▶</div><div class="vinfo"><div class="vt">Slime Szn</div><div class="vs">teaser · SB</div></div></a>
+    <a class="vcard reveal d3" href="https://youtube.com/@slimeby_" target="_blank" rel="noopener noreferrer"><img loading="lazy" decoding="async" src="assets/sb-portrait.jpg" alt="" style="filter:hue-rotate(80deg) brightness(.7)"><div class="pico">▶</div><div class="vinfo"><div class="vt">Behind The Slime</div><div class="vs">vault · SB</div></div></a>
   </div>
 </section>
 
@@ -510,22 +539,31 @@ body.rage .rmtag{opacity:1}
 </footer>
 
 <div class="musicbar" id="musicbar">
-  <div class="disc" id="disc" style="background-image:url('assets/my-time-cover.jpg')"></div>
+  <div class="disc" id="disc" style="background-image:url('assets/my-time-cover.jpg')" role="button" tabindex="0" aria-label="play / pause"></div>
   <div class="minfo"><div class="now">now playing</div><div class="stitle">Man Of My Word</div></div>
-  <button class="pbtn" id="pbtn">▶</button>
+  <button class="pbtn" id="pbtn" aria-label="play / pause">▶</button>
 </div>
+<button class="totop" id="totop" aria-label="back to top">↑</button>
 <audio id="audio" loop preload="auto" src="assets/man-of-my-word.mp3" crossorigin="anonymous"></audio>
 
 <script>
 /* LOADER */
 window.addEventListener('load',()=>setTimeout(()=>document.getElementById('loader').classList.add('gone'),1500));
-(()=>{const b=690+Math.floor(Math.random()*9000);document.getElementById('vcount').textContent=String(b).padStart(6,'0');})();
+(()=>{const el=document.getElementById('vcount');let n=parseInt(localStorage.getItem('sb_visits')||'0',10);if(!n||isNaN(n))n=690+Math.floor(Math.random()*9000);n++;try{localStorage.setItem('sb_visits',n);}catch(_){}el.textContent=String(n).padStart(6,'0');})();
 
 /* NAV */
 const nav=document.getElementById('nav');
 addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>40));
-document.getElementById('burger').onclick=()=>nav.classList.toggle('open');
-document.querySelectorAll('.navlinks a').forEach(a=>a.onclick=()=>nav.classList.remove('open'));
+const burger=document.getElementById('burger');
+function setMenu(open){nav.classList.toggle('open',open);burger.setAttribute('aria-expanded',open?'true':'false');}
+burger.onclick=()=>setMenu(!nav.classList.contains('open'));
+document.querySelectorAll('.navlinks a').forEach(a=>a.onclick=()=>setMenu(false));
+addEventListener('click',e=>{if(nav.classList.contains('open')&&!e.target.closest('#nav'))setMenu(false);});
+
+/* SCROLL-SPY — highlight the nav link for the section in view */
+const navMap={};document.querySelectorAll('.navlinks a').forEach(a=>{navMap[a.getAttribute('href').slice(1)]=a;});
+const spy=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){Object.values(navMap).forEach(a=>a.classList.remove('active'));navMap[e.target.id]?.classList.add('active');}}),{rootMargin:'-45% 0px -50% 0px'});
+Object.keys(navMap).forEach(id=>{const s=document.getElementById(id);if(s)spy.observe(s);});
 
 /* MARQUEE */
 const words=['SLIME SZN','VENOM','SNAKE PIT','★ MAN OF MY WORD','100% INDEPENDENT','SB UNIVERSE'];
@@ -569,6 +607,14 @@ function fmt(s){if(!isFinite(s))return'0:00';const m=Math.floor(s/60),x=Math.flo
 audio.addEventListener('loadedmetadata',()=>pwdur.textContent=fmt(audio.duration));
 audio.addEventListener('timeupdate',()=>{pwcur.textContent=fmt(audio.currentTime);pwfill.style.width=(audio.currentTime/audio.duration*100||0)+'%';});
 pwprog.onclick=e=>{if(!isFinite(audio.duration))return;const r=pwprog.getBoundingClientRect();audio.currentTime=(e.clientX-r.left)/r.width*audio.duration;};
+/* VOLUME */
+const pwvol=document.getElementById('pwvol');pwvol.value=Math.round(audio.volume*100);pwvol.addEventListener('input',()=>{audio.volume=pwvol.value/100;});
+/* BACK TO TOP */
+const totop=document.getElementById('totop');totop.onclick=()=>scrollTo({top:0,behavior:'smooth'});
+addEventListener('scroll',()=>totop.classList.toggle('show',scrollY>600));
+/* SPACEBAR = play/pause (when not typing / not on a control) */
+addEventListener('keydown',e=>{if(e.code==='Space'&&!isTyping()&&!e.target.closest('button,a,input,[role=button]')){e.preventDefault();toggle();}});
+disc.addEventListener('keydown',e=>{if(e.key==='Enter'||e.code==='Space'){e.preventDefault();toggle();}});
 
 /* SYNTH */
 function distc(amt){const n=256,c=new Float32Array(n);for(let i=0;i<n;i++){const x=i/n*2-1;c[i]=(Math.PI+amt)*x/(Math.PI+amt*Math.abs(x));}return c;}
@@ -695,7 +741,7 @@ let rageOn=false;
 function enterRage(){rageOn=!rageOn;document.body.classList.toggle('rage',rageOn);if(rageOn)ensureCtx();}
 
 /* GUESTBOOK + easter egg */
-function signbook(){const e=document.getElementById('gemail');if(e.value&&e.value.includes('@')){e.value='';e.placeholder='✓ welcome to the slime ☠';}else{e.placeholder='enter a valid email';}}
+function signbook(){const e=document.getElementById('gemail');const v=e.value.trim();if(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){try{const list=JSON.parse(localStorage.getItem('sb_list')||'[]');if(!list.includes(v)){list.push(v);localStorage.setItem('sb_list',JSON.stringify(list));}}catch(_){}e.value='';e.placeholder='✓ welcome to the slime ☠';burst(innerWidth/2,innerHeight*.7,20,'#8dff2b');snakeLunge();}else{e.value='';e.placeholder='✗ enter a valid email';}}
 let seq='';addEventListener('keydown',e=>{if(e.metaKey||e.ctrlKey||e.altKey||isTyping())return;seq=(seq+e.key.toLowerCase()).slice(-5);if(seq==='slime'){for(let i=0;i<60;i++)setTimeout(()=>burst(innerWidth*Math.random(),innerHeight,8,'#8dff2b'),i*20);stab();snakeLunge();}});
 </script>
 </body>
