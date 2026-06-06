@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>☠ SLIME BY ☠ — official</title>
+<meta name="description" content="Slime By — Delaware rap. green pressure, venom, motion. play the slime pads, follow the snake.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#060403; --ink:#f2efe9; --soft:#b9b3a8; --muted:#6b6358;
+  --slime:#8dff2b; --slime2:#b6ff5a; --venom:#2a7a00; --blood:#ff1f2e; --blood2:#ff5a45; --alien:#9b3cff; --alien2:#c47bff;
+  --disp:'Pirata One',cursive; --ui:'Oswald',sans-serif; --mono:'Courier New',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:var(--ui);font-weight:400;overflow-x:hidden;-webkit-font-smoothing:antialiased;cursor:none}
+@media(hover:none){body{cursor:auto}}
+img{display:block;width:100%}
+a{color:inherit;text-decoration:none}
+::selection{background:var(--slime);color:#08120a}
+
+.bgwrap{position:fixed;inset:0;z-index:-3;overflow:hidden;background:
+  radial-gradient(45% 50% at 18% 16%,rgba(141,255,43,.18),transparent 60%),
+  radial-gradient(48% 55% at 84% 12%,rgba(155,60,255,.16),transparent 60%),
+  radial-gradient(55% 60% at 82% 88%,rgba(141,255,43,.14),transparent 60%),
+  radial-gradient(50% 55% at 10% 90%,rgba(255,31,46,.14),transparent 60%),
+  #060403}
+.blob{position:absolute;border-radius:50%;filter:blur(80px);opacity:.5;mix-blend-mode:screen;animation:float 18s ease-in-out infinite}
+.blob.b1{width:48vw;height:48vw;left:-10vw;top:-8vw;background:radial-gradient(circle,var(--slime),transparent 70%)}
+.blob.b2{width:52vw;height:52vw;right:-12vw;top:8vh;background:radial-gradient(circle,var(--alien),transparent 70%);animation-delay:-5s}
+.blob.b3{width:46vw;height:46vw;left:22vw;bottom:-14vw;background:radial-gradient(circle,var(--blood),transparent 70%);animation-delay:-9s}
+@keyframes float{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(4vw,-3vh) scale(1.08)}66%{transform:translate(-3vw,4vh) scale(.94)}}
+
+/* interactive snake lives here, behind content but above bg */
+#snake{position:fixed;inset:0;z-index:-1;pointer-events:none}
+
+.scan{position:fixed;inset:0;z-index:9994;pointer-events:none;opacity:.45;background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px)}
+.grain{position:fixed;inset:0;z-index:9993;pointer-events:none;opacity:.07;mix-blend-mode:overlay;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.vig{position:fixed;inset:0;z-index:9992;pointer-events:none;box-shadow:inset 0 0 200px rgba(0,0,0,.8),inset 0 0 80px rgba(141,255,43,.05)}
+
+/* CURSOR + EMBERS */
+.cursor{position:fixed;top:0;left:0;width:26px;height:26px;border:2px solid var(--slime);border-radius:50%;pointer-events:none;z-index:10000;transform:translate(-50%,-50%);box-shadow:0 0 12px var(--slime),inset 0 0 8px rgba(141,255,43,.4);transition:width .15s,height .15s,border-color .15s}
+.cursor::after{content:"";position:absolute;inset:0;margin:auto;width:3px;height:3px;border-radius:50%;background:var(--blood);box-shadow:0 0 8px var(--blood)}
+.cursor.big{width:54px;height:54px;border-color:var(--slime2);box-shadow:0 0 22px var(--slime)}
+#trail{position:fixed;inset:0;z-index:9996;pointer-events:none}
+@media(hover:none){.cursor,#trail{display:none}}
+
+/* LOADER */
+#loader{position:fixed;inset:0;z-index:11000;background:#050302;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;transition:opacity .7s,visibility .7s}
+#loader.gone{opacity:0;visibility:hidden}
+#loader .lt{font-family:var(--disp);font-size:46px;color:var(--ink);letter-spacing:1px;animation:flick 2.4s infinite}
+@keyframes flick{0%,92%,100%{opacity:1}93%{opacity:.3}95%{opacity:1}96%{opacity:.4}}
+#loader .ls{font-family:var(--ui);font-weight:600;font-size:11px;letter-spacing:5px;color:var(--slime);text-transform:uppercase}
+#loader .bar{width:200px;height:6px;background:rgba(255,255,255,.08);overflow:hidden;border:1px solid rgba(141,255,43,.3)}
+#loader .bar i{display:block;height:100%;width:0;background:var(--slime);box-shadow:0 0 12px var(--slime);animation:load 1.5s ease forwards}
+@keyframes load{to{width:100%}}
+
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;align-items:center;justify-content:space-between;padding:14px 22px;transition:.35s}
+nav.scrolled{background:rgba(8,5,4,.8);backdrop-filter:blur(12px);border-bottom:1px solid rgba(141,255,43,.25);padding:10px 22px}
+.logo{display:flex;align-items:center;gap:11px}
+.logo .mk{width:34px;height:34px;filter:drop-shadow(0 0 8px var(--slime))}
+.logo .mk path{stroke:var(--slime);stroke-width:6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.logo .wm{font-family:var(--disp);font-size:24px;letter-spacing:.5px;color:var(--ink);text-shadow:1px 0 var(--blood),-1px 0 var(--slime)}
+.navlinks{display:flex;gap:22px;font-weight:600;font-size:12px;letter-spacing:2px;text-transform:uppercase}
+.navlinks a{position:relative;color:#fff;opacity:.82;transition:.2s}
+.navlinks a:hover{opacity:1;color:var(--slime);text-shadow:0 0 10px var(--slime)}
+.btnX{font-family:var(--ui);font-weight:700;font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;border:1px solid var(--slime);background:transparent;color:var(--slime);padding:9px 16px;transition:.18s}
+.btnX:hover{background:var(--slime);color:#08120a;box-shadow:0 0 22px rgba(141,255,43,.5)}
+.burger{display:none;flex-direction:column;gap:5px;cursor:pointer}
+.burger span{width:24px;height:2px;background:#fff}
+
+.bigbtn{font-family:var(--ui);font-weight:700;font-size:14px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;border:1px solid;padding:14px 26px;transition:.16s;display:inline-flex;align-items:center;gap:9px;background:rgba(10,7,5,.5);backdrop-filter:blur(4px)}
+.bSlime{border-color:var(--slime);color:var(--slime)}
+.bSlime:hover{background:var(--slime);color:#08120a;box-shadow:0 0 26px rgba(141,255,43,.5);transform:translateY(-2px)}
+.bBlood{border-color:var(--blood);color:var(--blood)}
+.bBlood:hover{background:var(--blood);color:#fff;box-shadow:0 0 26px rgba(255,31,46,.55);transform:translateY(-2px)}
+.bAlien{border-color:var(--alien);color:var(--alien2)}
+.bAlien:hover{background:var(--alien);color:#fff;box-shadow:0 0 26px rgba(155,60,255,.55);transform:translateY(-2px)}
+
+/* HERO */
+.hero{min-height:100svh;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:90px 18px 40px;overflow:hidden}
+.herobg{position:absolute;inset:0;z-index:0;background-image:url('assets/sb-portrait.jpg');background-size:cover;background-position:center 25%}
+.herobg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,4,3,.7),rgba(6,4,3,.55) 40%,rgba(6,4,3,.92)),radial-gradient(60% 60% at 50% 45%,transparent,rgba(6,4,3,.6))}
+#heroCanvas{position:absolute;inset:0;z-index:1;opacity:.85}
+.heroinner{position:relative;z-index:3;transform:translate(var(--px,0),var(--py,0))}
+.sbmono{width:clamp(64px,9vw,96px);margin:0 auto 6px;cursor:pointer;filter:drop-shadow(0 0 20px var(--slime));-webkit-user-select:none;user-select:none;animation:pulse 3s ease-in-out infinite}
+.sbmono path{stroke:var(--slime);stroke-width:6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+@keyframes pulse{0%,100%{filter:drop-shadow(0 0 14px var(--slime))}50%{filter:drop-shadow(0 0 30px var(--slime))}}
+.hero h1{font-family:var(--disp);font-size:clamp(64px,17vw,230px);line-height:.82;letter-spacing:1px;color:var(--ink);position:relative;text-shadow:0 0 40px rgba(141,255,43,.25)}
+.glitch{position:relative}
+.glitch::before,.glitch::after{content:attr(data-t);position:absolute;left:0;top:0;width:100%;height:100%}
+.glitch::before{color:var(--blood);z-index:-1;animation:gl1 2.6s infinite linear alternate-reverse}
+.glitch::after{color:var(--slime);z-index:-2;animation:gl2 2s infinite linear alternate-reverse}
+@keyframes gl1{0%{clip-path:inset(0 0 85% 0);transform:translate(-3px,-2px)}25%{clip-path:inset(60% 0 10% 0);transform:translate(3px,2px)}50%{clip-path:inset(20% 0 55% 0);transform:translate(-2px,1px)}75%{clip-path:inset(80% 0 2% 0);transform:translate(2px,-1px)}100%{clip-path:inset(40% 0 40% 0);transform:translate(-3px,0)}}
+@keyframes gl2{0%{clip-path:inset(10% 0 70% 0);transform:translate(3px,1px)}50%{clip-path:inset(50% 0 30% 0);transform:translate(-3px,-2px)}100%{clip-path:inset(75% 0 5% 0);transform:translate(2px,2px)}}
+.hero .sub{font-weight:600;font-size:clamp(11px,1.8vw,15px);letter-spacing:4px;text-transform:uppercase;margin-top:18px;color:var(--soft)}
+.hero .sub b{color:var(--slime)}.hero .sub i{font-style:normal;color:var(--blood)}
+.cta-row{display:flex;gap:13px;justify-content:center;margin-top:32px;flex-wrap:wrap}
+.counter{margin-top:28px;display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--soft);border:1px solid rgba(255,255,255,.15);padding:8px 16px;background:rgba(0,0,0,.35)}
+.counter b{color:var(--slime)}
+.sticker{position:absolute;z-index:4;font-family:var(--disp);font-size:clamp(16px,2vw,24px);padding:8px 14px;animation:bob 4s ease-in-out infinite;border:2px solid}
+.sticker.s1{top:15%;left:7%;color:var(--blood);border-color:var(--blood);transform:rotate(-9deg);background:rgba(255,31,46,.08)}
+.sticker.s2{top:21%;right:6%;color:var(--slime);border-color:var(--slime);transform:rotate(8deg);animation-delay:-1.5s;background:rgba(141,255,43,.07)}
+.sticker.s3{bottom:19%;left:10%;color:var(--alien2);border-color:var(--alien);transform:rotate(6deg);animation-delay:-2.5s;background:rgba(155,60,255,.08)}
+.sticker.s4{bottom:23%;right:9%;color:var(--ink);border-color:#fff;transform:rotate(-11deg);animation-delay:-1s;background:rgba(255,255,255,.05)}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(var(--r,0))}50%{transform:translateY(-12px) rotate(var(--r,0))}}
+.scrollcue{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);z-index:3;font-weight:600;font-size:11px;letter-spacing:3px;color:var(--soft);text-transform:uppercase;animation:bob 2s ease-in-out infinite}
+
+/* MARQUEE + DRIP */
+.marquee{position:relative;z-index:4;overflow:hidden;background:var(--slime);border-top:2px solid #000}
+.marquee .track{display:flex;white-space:nowrap;animation:scroll 22s linear infinite}
+.marquee span{font-family:var(--disp);font-size:28px;color:#08120a;padding:9px 22px;text-shadow:1px 1px 0 rgba(255,255,255,.25)}
+@keyframes scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.drip{height:30px;position:relative;z-index:4;margin-top:-1px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='30' viewBox='0 0 140 30'%3E%3Cpath fill='%238dff2b' d='M0 0 H140 V7 Q132 7 130 16 Q128 27 126 16 Q124 7 104 7 Q86 7 84 18 Q82 30 80 18 Q78 7 56 7 Q40 7 38 13 Q36 23 34 13 Q32 7 14 7 Q6 7 0 8 Z'/%3E%3C/svg%3E") repeat-x;background-size:140px 30px;filter:drop-shadow(0 4px 6px rgba(141,255,43,.3))}
+
+/* SECTIONS */
+section{padding:clamp(60px,9vw,116px) clamp(18px,5vw,56px);position:relative;z-index:1}
+.kicker{display:inline-flex;align-items:center;gap:8px;font-family:var(--ui);font-weight:700;font-size:12px;letter-spacing:4px;color:var(--slime);text-transform:uppercase;margin-bottom:14px}
+.kicker::before{content:"";width:26px;height:2px;background:var(--blood)}
+.shead{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:40px;flex-wrap:wrap;gap:14px}
+.shead h2{font-family:var(--disp);font-size:clamp(40px,8vw,100px);line-height:.84;letter-spacing:.5px;color:var(--ink);text-shadow:2px 0 var(--blood),-2px 0 rgba(141,255,43,.7)}
+.shead h2 em{font-style:normal;color:var(--slime)}
+.shead .link{font-weight:600;font-size:12px;letter-spacing:2px;color:var(--slime2);text-transform:uppercase;transition:.2s}
+.shead .link:hover{color:#fff;text-shadow:0 0 10px var(--slime)}
+.panel{background:rgba(12,9,7,.55);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(8px)}
+
+/* PADS */
+.padwrap{display:grid;grid-template-columns:1.4fr .9fr;gap:18px}
+@media(max-width:820px){.padwrap{grid-template-columns:1fr}}
+.padboard{padding:18px;border:1px solid rgba(141,255,43,.25)}
+.padgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.pad{position:relative;aspect-ratio:1;border:1px solid rgba(255,255,255,.15);background:linear-gradient(180deg,#15100c,#0b0806);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;transition:transform .05s,box-shadow .1s,border-color .1s;-webkit-user-select:none;user-select:none;overflow:hidden}
+.pad .pl{font-family:var(--disp);font-size:20px;color:var(--ink);text-align:center;line-height:.9}
+.pad .pk{font-family:var(--mono);font-size:10px;color:var(--muted);border:1px solid rgba(255,255,255,.2);padding:1px 6px;letter-spacing:1px}
+.pad::after{content:"";position:absolute;inset:0;opacity:0;transition:opacity .25s;background:radial-gradient(circle,var(--c,#8dff2b),transparent 70%)}
+.pad.hit{transform:scale(.94);border-color:var(--c,#8dff2b);box-shadow:0 0 26px var(--c,#8dff2b),inset 0 0 30px rgba(255,255,255,.1)}
+.pad.hit::after{opacity:.45}
+.padside{display:flex;flex-direction:column;gap:14px}
+.ragebox{padding:18px;border:1px solid rgba(255,31,46,.3);flex:1;display:flex;flex-direction:column;justify-content:center}
+.ragebox .rl{font-family:var(--ui);font-weight:700;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--blood);margin-bottom:10px}
+.ragebar{height:26px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.4);overflow:hidden;position:relative}
+.ragebar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--slime),var(--blood));transition:width .15s;box-shadow:0 0 18px rgba(255,31,46,.5)}
+.ragebar span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;letter-spacing:1px;color:#fff;mix-blend-mode:difference}
+.ragehint{font-size:12px;color:var(--soft);margin-top:12px;line-height:1.5}
+.ragehint b{color:var(--slime)}
+.splashbtn{font-family:var(--disp);font-size:18px;cursor:pointer;border:1px solid var(--slime);color:var(--slime);background:rgba(141,255,43,.06);padding:14px;text-align:center;transition:.16s;-webkit-user-select:none;user-select:none}
+.splashbtn:hover{background:var(--slime);color:#08120a;box-shadow:0 0 22px rgba(141,255,43,.5)}
+.splashbtn:active{transform:scale(.96)}
+
+/* PLAYER */
+.playerwin{max-width:640px;margin:0 auto 30px;overflow:hidden;border:1px solid rgba(255,255,255,.18);box-shadow:0 20px 50px rgba(0,0,0,.6),0 0 40px rgba(141,255,43,.12);background:linear-gradient(180deg,#120d0a,#0a0706)}
+.pwbar{display:flex;align-items:center;gap:10px;padding:9px 12px;background:linear-gradient(180deg,#241a14,#160f0b);color:var(--ink);border-bottom:1px solid rgba(141,255,43,.3)}
+.pwbar .dots{display:flex;gap:6px}.pwbar .dots i{width:11px;height:11px;border-radius:50%;display:block}
+.pwbar .dots .r{background:var(--blood)}.pwbar .dots .y{background:var(--slime)}.pwbar .dots .g{background:var(--alien)}
+.pwbar .pwt{font-family:var(--disp);font-size:16px;letter-spacing:.5px}.pwbar .pwz{margin-left:auto;font-family:var(--mono);font-size:10px;opacity:.6}
+.pwbody{display:flex;gap:16px;padding:18px;align-items:center}
+.pwart{width:84px;height:84px;flex-shrink:0;background-size:cover;background-position:center;border:1px solid rgba(141,255,43,.3);box-shadow:0 0 20px rgba(141,255,43,.2)}
+.pwinfo{flex:1;min-width:0}
+.pwnow{font-weight:700;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--slime2)}
+.pwtitle{font-family:var(--disp);font-size:22px;margin-top:2px;color:var(--ink)}
+.pweq{width:100%;height:30px;margin-top:8px;display:block}
+.pwprog{height:8px;background:rgba(255,255,255,.12);margin-top:10px;cursor:pointer;overflow:hidden}
+.pwprog i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--slime),var(--blood))}
+.pwbtns{display:flex;align-items:center;gap:10px;margin-top:12px}
+.pwplay{width:46px;height:46px;border-radius:50%;border:1px solid var(--slime);cursor:pointer;color:var(--slime);font-size:15px;background:rgba(141,255,43,.08);transition:.14s}
+.pwplay:hover{background:var(--slime);color:#08120a}.pwplay:active{transform:scale(.95)}
+.pwtime{font-family:var(--mono);font-size:12px;color:var(--soft);letter-spacing:1px}
+
+/* MUSIC GRID */
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
+.rel{display:block;position:relative;overflow:hidden;background:rgba(12,9,7,.5);border:1px solid rgba(255,255,255,.12);transition:.25s}
+.rel:hover{transform:translateY(-5px);border-color:var(--slime);box-shadow:0 18px 40px rgba(0,0,0,.5),0 0 26px rgba(141,255,43,.18)}
+.rel .art{aspect-ratio:1;overflow:hidden;position:relative;background:#120d0a}
+.rel .art img{height:100%;object-fit:cover;transition:.5s}
+.rel:hover .art img{transform:scale(1.08);filter:saturate(1.2)}
+.rel .art .play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(6,4,3,.5);opacity:0;transition:.3s}
+.rel:hover .art .play{opacity:1}
+.rel .art .play i{width:52px;height:52px;border-radius:50%;border:1px solid var(--slime);color:var(--slime);display:flex;align-items:center;justify-content:center;font-style:normal;font-size:17px;box-shadow:0 0 22px var(--slime);background:rgba(141,255,43,.1)}
+.rel .meta{padding:13px 14px 15px}
+.rel .meta .t{font-family:var(--disp);font-size:18px;letter-spacing:.3px}
+.rel .meta .s{font-weight:500;font-size:11px;color:var(--muted);letter-spacing:1px;margin-top:3px;text-transform:uppercase}
+.embedwrap{margin-top:34px;overflow:hidden;padding:6px}
+
+/* VISUALIZER */
+.viz{padding:0;position:relative;height:78svh;min-height:520px;overflow:hidden;border-top:2px solid rgba(141,255,43,.25);border-bottom:2px solid rgba(141,255,43,.25)}
+#vizCanvas{position:absolute;inset:0;z-index:1}
+.viz .vtext{position:absolute;z-index:3;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;pointer-events:none;padding:0 16px}
+.viz .vtext h2{font-family:var(--disp);font-size:clamp(44px,12vw,150px);letter-spacing:2px;color:var(--ink);text-shadow:3px 0 var(--blood),-3px 0 rgba(141,255,43,.8)}
+.viz .vtext p{font-weight:600;font-size:13px;letter-spacing:4px;text-transform:uppercase;margin-top:10px;color:var(--slime)}
+.viz .vbtn{position:absolute;z-index:4;bottom:30px;left:50%;transform:translateX(-50%)}
+
+/* ABOUT */
+.about{display:grid;grid-template-columns:.82fr 1.18fr;gap:clamp(28px,5vw,60px);align-items:center}
+.about .pic{position:relative;aspect-ratio:1;overflow:hidden;border:1px solid rgba(141,255,43,.35);box-shadow:0 20px 50px rgba(0,0,0,.5)}
+.about .pic img{height:100%;object-fit:cover;object-position:center 30%;filter:contrast(1.06) saturate(1.04)}
+.about .pic::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,rgba(6,4,3,.7)),linear-gradient(120deg,rgba(141,255,43,.1),transparent 45%)}
+.about .pic .badge{position:absolute;bottom:14px;left:14px;font-family:var(--disp);font-size:16px;color:var(--slime);z-index:2;text-shadow:0 0 12px rgba(141,255,43,.6)}
+.about .lead{font-family:var(--disp);font-size:clamp(32px,4.6vw,60px);line-height:1;color:var(--ink);text-shadow:2px 0 var(--blood)}
+.about .lead em{font-style:normal;color:var(--slime)}
+.about p{font-size:15px;line-height:1.8;margin-top:20px;color:var(--soft);max-width:54ch;font-weight:300}
+.stats{display:flex;gap:14px;margin-top:28px;flex-wrap:wrap}
+.stat{padding:14px 22px;border:1px solid rgba(255,255,255,.12);text-align:center}
+.stat .n{font-family:var(--disp);font-size:34px;color:var(--slime)}
+.stat .l{font-weight:600;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-top:3px}
+
+/* SB UNIVERSE */
+.upanels{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.upanel{position:relative;padding:24px 20px 28px;min-height:210px;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;transition:.3s;background:rgba(12,9,7,.55);border:1px solid rgba(255,255,255,.1)}
+.upanel:hover{transform:translateY(-6px);border-color:var(--slime);box-shadow:0 18px 40px rgba(0,0,0,.45)}
+.upanel .orb{position:absolute;width:120px;height:120px;border-radius:50%;top:-30px;right:-30px;filter:blur(10px);opacity:.5;transition:.4s}
+.upanel:nth-child(1) .orb{background:radial-gradient(circle,var(--blood),transparent 70%)}
+.upanel:nth-child(2) .orb{background:radial-gradient(circle,var(--slime),transparent 70%)}
+.upanel:nth-child(3) .orb{background:radial-gradient(circle,var(--alien),transparent 70%)}
+.upanel:nth-child(4) .orb{background:radial-gradient(circle,var(--blood),transparent 70%)}
+.upanel:nth-child(5) .orb{background:radial-gradient(circle,var(--slime),transparent 70%)}
+.upanel:hover .orb{opacity:1;transform:scale(1.4)}
+.upanel .idx{position:absolute;top:14px;left:18px;font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.4)}
+.upanel .ut{font-family:var(--disp);font-size:28px;color:var(--ink)}
+.upanel .ud{font-size:13px;line-height:1.6;color:var(--soft);margin-top:8px;max-width:30ch;font-weight:300}
+
+/* VAULT */
+.vgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}
+.vcard{position:relative;aspect-ratio:16/10;overflow:hidden;display:block;border:1px solid rgba(255,255,255,.14)}
+.vcard img{height:100%;object-fit:cover;transition:.6s;filter:brightness(.7) contrast(1.1) saturate(1.1)}
+.vcard:hover img{transform:scale(1.08);filter:brightness(.95)}
+.vcard::before{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,transparent 40%,rgba(6,4,3,.88))}
+.vcard .vinfo{position:absolute;z-index:2;left:15px;bottom:13px;right:15px}
+.vcard .vinfo .vt{font-family:var(--disp);font-size:22px}
+.vcard .vinfo .vs{font-weight:600;font-size:10px;letter-spacing:1px;color:var(--slime2);text-transform:uppercase;margin-top:3px}
+.vcard .pico{position:absolute;z-index:3;top:50%;left:50%;transform:translate(-50%,-50%) scale(.7);width:58px;height:58px;border-radius:50%;border:1px solid var(--slime);color:var(--slime);background:rgba(6,4,3,.5);display:flex;align-items:center;justify-content:center;font-size:18px;opacity:0;transition:.3s;box-shadow:0 0 26px var(--slime)}
+.vcard:hover .pico{opacity:1;transform:translate(-50%,-50%) scale(1)}
+
+/* MERCH */
+.pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px}
+.prod{position:relative;overflow:hidden;background:rgba(12,9,7,.5);border:1px solid rgba(255,255,255,.1);transition:.25s}
+.prod:hover{transform:translateY(-5px);border-color:var(--slime)}
+.prod .part{aspect-ratio:1;display:flex;align-items:center;justify-content:center;position:relative;background:radial-gradient(circle at 50% 35%,#1a120d,#0a0706)}
+.prod .part svg{width:58%;height:58%;filter:drop-shadow(0 0 16px rgba(141,255,43,.4))}
+.prod .part .soon{position:absolute;top:10px;left:10px;font-family:var(--disp);font-size:13px;color:var(--blood);border:1px solid var(--blood);padding:3px 8px}
+.prod .pmeta{padding:14px;display:flex;justify-content:space-between;align-items:center}
+.prod .pmeta .pt{font-family:var(--disp);font-size:17px}
+.prod .pmeta .pty{font-weight:500;font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase}
+.prod .pmeta .pp{font-family:var(--disp);font-size:16px;color:var(--slime)}
+
+/* SHOWS */
+.shows{padding:54px 28px;text-align:center}
+.shows .big{font-family:var(--disp);font-size:clamp(30px,5vw,56px);line-height:1;color:var(--ink);text-shadow:2px 0 var(--blood)}
+.shows .big em{font-style:normal;color:var(--slime)}
+.shows p{font-weight:600;font-size:12px;letter-spacing:2px;color:var(--soft);text-transform:uppercase;margin-top:14px}
+
+/* CONTACT */
+.contact{position:relative;text-align:center;overflow:hidden}
+#contactCanvas{position:absolute;inset:0;z-index:0;opacity:.5}
+.contact .inner{position:relative;z-index:2}
+.contact .sbmono{width:90px;margin:0 auto 18px}
+.contact h2{font-family:var(--disp);font-size:clamp(44px,9vw,120px);letter-spacing:1px;color:var(--ink);text-shadow:3px 0 var(--blood),-3px 0 rgba(141,255,43,.8)}
+.contact .clinks{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:30px}
+.guest{max-width:420px;margin:28px auto 0;display:flex;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.3)}
+.guest input{flex:1;background:transparent;border:0;padding:14px 18px;color:#fff;font-family:var(--ui);font-size:13px;outline:none}
+.guest input::placeholder{color:var(--muted)}
+.guest button{border:0;cursor:pointer;color:#08120a;font-family:var(--disp);font-size:16px;padding:0 22px;background:var(--slime)}
+.booking{margin-top:22px;font-weight:500;font-size:13px;letter-spacing:1px;color:var(--soft)}
+.booking a{color:var(--slime)}
+
+footer{padding:48px 22px 40px;text-align:center;position:relative;z-index:1}
+.fmark{font-family:var(--disp);font-size:clamp(60px,20vw,240px);line-height:.8;color:var(--ink);opacity:.92;text-shadow:3px 0 var(--blood),-3px 0 rgba(141,255,43,.6)}
+.fbadges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:22px}
+.fbadge{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.5px;padding:5px 10px;border:1px solid rgba(255,255,255,.2);color:var(--soft)}
+.fcopy{font-weight:500;font-size:11px;color:var(--muted);letter-spacing:1px;margin-top:18px}
+
+.musicbar{position:fixed;left:16px;bottom:16px;z-index:2000;display:flex;align-items:center;padding:7px;background:rgba(12,9,7,.85);backdrop-filter:blur(12px);border:1px solid rgba(141,255,43,.3);box-shadow:0 8px 30px rgba(0,0,0,.55)}
+.disc{width:44px;height:44px;border-radius:50%;flex-shrink:0;cursor:pointer;position:relative;background-size:cover;background-position:center;border:2px solid var(--slime);box-shadow:0 0 16px rgba(141,255,43,.4)}
+.disc::after{content:"";position:absolute;inset:0;margin:auto;width:9px;height:9px;border-radius:50%;background:#060403;border:1px solid var(--slime)}
+.disc.spin{animation:spin 4s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.minfo{padding:0 14px 0 11px;max-width:0;overflow:hidden;white-space:nowrap;transition:max-width .4s ease}
+.musicbar.open .minfo{max-width:200px}
+.minfo .now{font-weight:700;font-size:8px;letter-spacing:2px;color:var(--slime2);text-transform:uppercase}
+.minfo .stitle{font-family:var(--disp);font-size:15px;margin-top:1px}
+.pbtn{width:40px;height:40px;flex-shrink:0;border-radius:50%;border:1px solid var(--slime);cursor:pointer;color:var(--slime);font-size:13px;background:rgba(141,255,43,.1);transition:.14s}
+.pbtn:active{transform:scale(.94)}
+
+#rageOverlay{position:fixed;inset:0;z-index:9995;pointer-events:none;opacity:0;transition:opacity .4s;mix-blend-mode:screen;background:repeating-linear-gradient(0deg,rgba(255,31,46,.05) 0 1px,transparent 1px 3px),radial-gradient(60% 50% at 50% 50%,rgba(255,31,46,.1),transparent 70%)}
+body.rage #rageOverlay{opacity:1}
+body.rage{animation:rageshake .1s steps(2) infinite}
+@keyframes rageshake{0%{transform:translate(0,0)}25%{transform:translate(-1px,1px)}50%{transform:translate(1px,-1px)}75%{transform:translate(-1px,-1px)}100%{transform:translate(1px,1px)}}
+.rmtag{position:fixed;top:58px;left:50%;transform:translateX(-50%);z-index:2001;font-family:var(--disp);font-size:16px;color:#fff;background:var(--blood);padding:6px 16px;opacity:0;transition:.4s;box-shadow:0 0 24px var(--blood);pointer-events:none;letter-spacing:1px}
+body.rage .rmtag{opacity:1}
+#flash{position:fixed;inset:0;z-index:9990;background:var(--slime);opacity:0;pointer-events:none}
+
+.reveal{opacity:0;transform:translateY(34px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+.reveal.in{opacity:1;transform:none}
+.reveal.d1{transition-delay:.08s}.reveal.d2{transition-delay:.16s}.reveal.d3{transition-delay:.24s}.reveal.d4{transition-delay:.32s}
+
+@media(max-width:820px){
+  .navlinks,nav>.btnX{display:none}
+  .burger{display:flex}
+  nav.open .navlinks{display:flex;position:absolute;top:100%;left:0;right:0;flex-direction:column;gap:16px;background:rgba(8,5,4,.97);padding:22px;border-bottom:1px solid rgba(141,255,43,.3)}
+  .about{grid-template-columns:1fr}
+  .sticker{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="bgwrap"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+<canvas id="snake"></canvas>
+<div class="grain"></div><div class="scan"></div><div class="vig"></div>
+<div id="rageOverlay"></div><div id="flash"></div>
+
+<div id="loader"><div class="lt">SLIME BY</div><div class="ls">loading the slime…</div><div class="bar"><i></i></div></div>
+
+<div class="cursor" id="cursor"></div>
+<canvas id="trail"></canvas>
+<div class="rmtag">☠ RAGE MODE ☠ click again to exit</div>
+
+<!-- NAV -->
+<nav id="nav">
+  <div class="logo">
+    <svg class="mk" viewBox="0 0 100 100"><path d="M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30 62 M50 16 L50 84"/></svg>
+    <div class="wm">SLIME BY</div>
+  </div>
+  <div class="navlinks">
+    <a href="#pads">pads</a><a href="#music">music</a><a href="#visualizer">waves</a><a href="#universe">sb world</a><a href="#connect">tap in</a>
+  </div>
+  <button class="btnX" onclick="enterRage()">☠ rage mode</button>
+  <div class="burger" id="burger"><span></span><span></span><span></span></div>
+</nav>
+
+<!-- HERO -->
+<header class="hero" id="top">
+  <div class="herobg"></div>
+  <canvas id="heroCanvas"></canvas>
+  <div class="sticker s1" style="--r:-9deg">RAGE</div>
+  <div class="sticker s2" style="--r:8deg">VENOM</div>
+  <div class="sticker s3" style="--r:6deg">SB</div>
+  <div class="sticker s4" style="--r:-11deg">SLIME</div>
+  <div class="heroinner" id="heroinner">
+    <svg class="sbmono" id="heroMono" viewBox="0 0 100 100" title="splash"><path d="M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30 62 M50 16 L50 84"/></svg>
+    <h1 class="glitch" data-t="SLIME BY">SLIME BY</h1>
+    <div class="sub">delaware rage · <b>green pressure</b> · <i>venom</i></div>
+    <div class="cta-row">
+      <button class="bigbtn bSlime" onclick="listenNow()">▶ play</button>
+      <button class="bigbtn bBlood" onclick="document.getElementById('pads').scrollIntoView()">● slime pads</button>
+      <button class="bigbtn bAlien" onclick="enterRage()">☠ rage mode</button>
+    </div>
+    <div class="counter">slime in the building: <b id="vcount">000690</b></div>
+  </div>
+  <div class="scrollcue">scroll ↓ the snake follows</div>
+</header>
+
+<!-- MARQUEE + DRIP -->
+<div class="marquee"><div class="track" id="track"></div></div>
+<div class="drip"></div>
+
+<!-- PADS -->
+<section id="pads">
+  <div class="reveal"><span class="kicker">● play it</span></div>
+  <div class="shead reveal"><h2>SLIME <em>pads</em></h2></div>
+  <div class="padwrap">
+    <div class="padboard panel reveal"><div class="padgrid" id="padgrid"></div></div>
+    <div class="padside">
+      <div class="ragebox panel reveal d1">
+        <div class="rl">☠ rage meter</div>
+        <div class="ragebar"><i id="ragefill"></i><span id="ragepct">0%</span></div>
+        <div class="ragehint">tap the pads or smash your <b>keyboard</b> (keys shown on each pad). fill the meter to <b>100%</b> and go full rage.</div>
+      </div>
+      <div class="splashbtn reveal d2" id="splashBtn">☠ DROP THE SLIME</div>
+    </div>
+  </div>
+</section>
+
+<!-- MUSIC -->
+<section id="music">
+  <div class="reveal"><span class="kicker">♫ now spinning</span></div>
+  <div class="shead reveal"><h2>the <em>music</em></h2><a class="link" href="https://open.spotify.com/artist/70LnkJjJc5yq650kELO09A" target="_blank">all releases →</a></div>
+
+  <div class="playerwin reveal">
+    <div class="pwbar"><div class="dots"><i class="r"></i><i class="y"></i><i class="g"></i></div><div class="pwt">SLIME PLAYER</div><div class="pwz">.exe</div></div>
+    <div class="pwbody">
+      <div class="pwart" style="background-image:url('assets/my-time-cover.jpg')"></div>
+      <div class="pwinfo">
+        <div class="pwnow">★ now playing</div>
+        <div class="pwtitle">Man Of My Word</div>
+        <canvas class="pweq" id="pweq"></canvas>
+        <div class="pwprog" id="pwprog"><i id="pwprogfill"></i></div>
+        <div class="pwbtns"><button class="pwplay" id="pwplay">▶</button><span class="pwtime"><span id="pwcur">0:00</span> / <span id="pwdur">0:00</span></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mgrid">
+    <a class="rel reveal d1" target="_blank" href="https://open.spotify.com/album/5RickWrPNRszADHSzJJYUc"><div class="art"><img src="assets/my-time-cover.jpg" alt="My Time"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">My Time</div><div class="s">album · 2024</div></div></a>
+    <a class="rel reveal d2" target="_blank" href="https://open.spotify.com/album/6T2tcMpvYytltsEjPgyhEw"><div class="art"><img src="https://i.scdn.co/image/ab67616d00001e028a915904da619cc9a6ee6fc5" alt="Save Her"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Save Her</div><div class="s">single · 2024</div></div></a>
+    <a class="rel reveal d3" target="_blank" href="https://open.spotify.com/album/5zZBRNMJqFr6hBpB6cjfyI"><div class="art"><img src="https://i.scdn.co/image/ab67616d00001e02999c0b302ffd8ac36402327a" alt="Flip"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Flip</div><div class="s">single · 2023</div></div></a>
+    <a class="rel reveal d1" target="_blank" href="https://open.spotify.com/album/2yiGZO9RmY8ql8h1OtManp"><div class="art"><img src="https://i.scdn.co/image/ab67616d00001e02999c0b302ffd8ac36402327a" alt="Turn This Up"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Turn This Up</div><div class="s">single · 2023</div></div></a>
+    <a class="rel reveal d2" target="_blank" href="https://open.spotify.com/album/358k4SFDwfF02ln2L4ZIg5"><div class="art"><img src="https://i.scdn.co/image/ab67616d00001e028a915904da619cc9a6ee6fc5" alt="I'm In Yo City"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">I'm In Yo City</div><div class="s">single · 2021</div></div></a>
+    <a class="rel reveal d3" target="_blank" href="https://music.apple.com/us/artist/slime-by/1542729349"><div class="art"><img src="assets/sb-portrait.jpg" alt="Slime By"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Flava</div><div class="s">apple music</div></div></a>
+  </div>
+  <div class="embedwrap panel reveal">
+    <iframe style="border-radius:4px" src="https://open.spotify.com/embed/artist/70LnkJjJc5yq650kELO09A?utm_source=generator&theme=0" width="100%" height="352" frameborder="0" allow="autoplay;clipboard-write;encrypted-media;fullscreen;picture-in-picture" loading="lazy"></iframe>
+  </div>
+</section>
+
+<!-- VISUALIZER -->
+<section class="viz" id="visualizer">
+  <canvas id="vizCanvas"></canvas>
+  <div class="vtext"><h2>FREQUENCY</h2><p>☠ feed the slime ☠</p></div>
+  <div class="vbtn"><button class="bigbtn bBlood" onclick="listenNow()">▶ press play</button></div>
+</section>
+
+<!-- ABOUT -->
+<section id="about">
+  <div class="about">
+    <div class="pic reveal"><img src="assets/sb-portrait.jpg" alt="Slime By"><div class="badge">☠ SB · DE</div></div>
+    <div>
+      <div class="reveal"><span class="kicker">the artist</span></div>
+      <div class="lead reveal">melody, chaos, <em>motion</em> & green pressure</div>
+      <p class="reveal d1">Slime By is a Delaware artist building a world around melody, chaos, motion, and green pressure. The sound moves between rage, luxury, pain, and flex. Every drop is part of the SB universe.</p>
+      <div class="stats reveal d2">
+        <div class="stat"><div class="n">5+</div><div class="l">releases</div></div>
+        <div class="stat"><div class="n">SB</div><div class="l">the world</div></div>
+        <div class="stat"><div class="n">100%</div><div class="l">independent</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SB UNIVERSE -->
+<section id="universe">
+  <div class="reveal"><span class="kicker">the lore</span></div>
+  <div class="shead reveal"><h2>SB <em>world</em></h2></div>
+  <div class="upanels">
+    <div class="upanel reveal"><div class="orb"></div><div class="idx">01</div><div class="ut">the sound</div><div class="ud">melody welded to chaos. hooks that set like resin and don't let go.</div></div>
+    <div class="upanel reveal d1"><div class="orb"></div><div class="idx">02</div><div class="ut">the slime</div><div class="ud">wet, glossy, dangerous — the texture coating everything SB touches.</div></div>
+    <div class="upanel reveal d2"><div class="orb"></div><div class="idx">03</div><div class="ut">the snake</div><div class="ud">quiet, patient, lethal. movement you feel before you ever see it.</div></div>
+    <div class="upanel reveal d3"><div class="orb"></div><div class="idx">04</div><div class="ut">the motion</div><div class="ud">never static. the world bends, drips, and keeps moving forward.</div></div>
+    <div class="upanel reveal d4"><div class="orb"></div><div class="idx">05</div><div class="ut">the pressure</div><div class="ud">green pressure. diamonds or dust — there is no in between.</div></div>
+  </div>
+</section>
+
+<!-- VAULT -->
+<section id="vault">
+  <div class="reveal"><span class="kicker">the vault</span></div>
+  <div class="shead reveal"><h2>visuals</h2><a class="link" href="https://youtube.com/@slimeby_" target="_blank">youtube →</a></div>
+  <div class="vgrid">
+    <a class="vcard reveal" href="https://youtube.com/@slimeby_" target="_blank"><img src="assets/sb-portrait.jpg" alt=""><div class="pico">▶</div><div class="vinfo"><div class="vt">Man Of My Word</div><div class="vs">official visual</div></div></a>
+    <a class="vcard reveal d1" href="https://youtube.com/@slimeby_" target="_blank"><img src="assets/my-time-cover.jpg" alt=""><div class="pico">▶</div><div class="vinfo"><div class="vt">My Time</div><div class="vs">visualizer</div></div></a>
+    <a class="vcard reveal d2" href="https://youtube.com/@slimeby_" target="_blank"><img src="assets/slime-by.jpg" alt=""><div class="pico">▶</div><div class="vinfo"><div class="vt">Slime Szn</div><div class="vs">teaser · SB</div></div></a>
+    <a class="vcard reveal d3" href="https://youtube.com/@slimeby_" target="_blank"><img src="assets/sb-portrait.jpg" alt="" style="filter:hue-rotate(80deg) brightness(.7)"><div class="pico">▶</div><div class="vinfo"><div class="vt">Behind The Slime</div><div class="vs">vault · SB</div></div></a>
+  </div>
+</section>
+
+<!-- MERCH -->
+<section id="merch">
+  <div class="reveal"><span class="kicker">slime shop</span></div>
+  <div class="shead reveal"><h2>merch <em>soon</em></h2></div>
+  <div class="pgrid">
+    <div class="prod reveal"><div class="part"><span class="soon">soon</span><svg viewBox="0 0 100 100" fill="none" stroke="#8dff2b" stroke-width="2.5"><path d="M30 30 L20 40 L28 50 L28 80 L72 80 L72 50 L80 40 L70 30 L60 30 Q50 42 40 30 Z"/></svg></div><div class="pmeta"><div><div class="pt">blackout hoodie</div><div class="pty">SB snake stitch</div></div><div class="pp">soon</div></div></div>
+    <div class="prod reveal d1"><div class="part"><span class="soon">soon</span><svg viewBox="0 0 100 100" fill="none" stroke="#ff1f2e" stroke-width="2.5"><path d="M28 28 L16 38 L24 48 L24 78 L76 78 L76 48 L84 38 L72 28 L62 28 Q50 38 38 28 Z"/></svg></div><div class="pmeta"><div><div class="pt">snake tee</div><div class="pty">green ink print</div></div><div class="pp">soon</div></div></div>
+    <div class="prod reveal d2"><div class="part"><span class="soon">soon</span><svg viewBox="0 0 100 100" fill="none" stroke="#9b3cff" stroke-width="2.5"><ellipse cx="50" cy="50" rx="30" ry="22"/><path d="M32 46 q8 -8 14 0 M54 46 q8 -8 14 0 M40 62 q10 8 20 0"/></svg></div><div class="pmeta"><div><div class="pt">vamp mask</div><div class="pty">blood / lime</div></div><div class="pp">soon</div></div></div>
+    <div class="prod reveal d3"><div class="part"><span class="soon">soon</span><svg viewBox="0 0 100 100" fill="none" stroke="#8dff2b" stroke-width="2.5"><path d="M50 18 q-22 10 -22 34 q0 22 22 30 q22 -8 22 -30 q0 -24 -22 -34Z M40 44 q6 -6 12 0 M50 54 v14"/></svg></div><div class="pmeta"><div><div class="pt">venom chain</div><div class="pty">SB pendant</div></div><div class="pp">soon</div></div></div>
+  </div>
+</section>
+
+<!-- SHOWS -->
+<section id="shows">
+  <div class="reveal"><span class="kicker">on stage</span></div>
+  <div class="shead reveal"><h2>shows</h2></div>
+  <div class="shows panel reveal"><div class="big">no shows announced. <em>stay tapped in.</em></div><p>★ follow @slimeby_sb for first access ★</p></div>
+</section>
+
+<!-- CONTACT -->
+<section class="contact" id="connect">
+  <canvas id="contactCanvas"></canvas>
+  <div class="inner">
+    <svg class="sbmono" id="contactMono" viewBox="0 0 100 100" title="splash"><path d="M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30 62 M50 16 L50 84"/></svg>
+    <div class="reveal"><span class="kicker" style="justify-content:center">enter the world</span></div>
+    <h2 class="reveal">TAP IN</h2>
+    <div class="clinks reveal d1">
+      <a class="bigbtn bSlime" href="https://open.spotify.com/artist/70LnkJjJc5yq650kELO09A" target="_blank">spotify</a>
+      <a class="bigbtn bBlood" href="https://music.apple.com/us/artist/slime-by/1542729349" target="_blank">apple music</a>
+      <a class="bigbtn bAlien" href="https://youtube.com/@slimeby_" target="_blank">youtube</a>
+      <a class="bigbtn bSlime" href="https://instagram.com/slimeby_sb" target="_blank">instagram</a>
+      <a class="bigbtn bBlood" href="https://www.tiktok.com/@slimeby_sb" target="_blank">tiktok</a>
+    </div>
+    <div class="guest reveal d2"><input id="gemail" placeholder="join the slime — your@email.com"><button onclick="signbook()">join ☠</button></div>
+    <div class="booking reveal d2">booking & features — <a href="mailto:booking@slimeby.com">booking@slimeby.com</a></div>
+  </div>
+</section>
+
+<footer>
+  <div class="fmark">SB</div>
+  <div class="fbadges"><span class="fbadge">★ BEST VIEWED IN RAGE MODE</span><span class="fbadge">MADE IN DE</span><span class="fbadge">100% INDEPENDENT</span><span class="fbadge">SB UNIVERSE ☠</span></div>
+  <div class="fcopy">© 2026 slime by · delaware · the snake moves</div>
+</footer>
+
+<div class="musicbar" id="musicbar">
+  <div class="disc" id="disc" style="background-image:url('assets/my-time-cover.jpg')"></div>
+  <div class="minfo"><div class="now">now playing</div><div class="stitle">Man Of My Word</div></div>
+  <button class="pbtn" id="pbtn">▶</button>
+</div>
+<audio id="audio" loop preload="auto" src="assets/man-of-my-word.mp3" crossorigin="anonymous"></audio>
+
+<script>
+/* LOADER */
+window.addEventListener('load',()=>setTimeout(()=>document.getElementById('loader').classList.add('gone'),1500));
+(()=>{const b=690+Math.floor(Math.random()*9000);document.getElementById('vcount').textContent=String(b).padStart(6,'0');})();
+
+/* NAV */
+const nav=document.getElementById('nav');
+addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>40));
+document.getElementById('burger').onclick=()=>nav.classList.toggle('open');
+document.querySelectorAll('.navlinks a').forEach(a=>a.onclick=()=>nav.classList.remove('open'));
+
+/* MARQUEE */
+const words=['SLIME SZN','VENOM','SNAKE PIT','★ MAN OF MY WORD','100% INDEPENDENT','SB UNIVERSE'];
+let mh='';for(let r=0;r<2;r++){words.forEach(w=>mh+=`<span>${w}</span><span>✦</span>`)}
+document.getElementById('track').innerHTML=mh;
+
+/* REVEAL */
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.12});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+/* CURSOR + EMBERS */
+const cursor=document.getElementById('cursor');
+let mx=innerWidth/2,my=innerHeight/2,cxp=mx,cyp=my;
+const hoverEls='a,button,.rel,.vcard,.upanel,.prod,.disc,.pwplay,.pad,.splashbtn,.sbmono';
+addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;emit(e.clientX,e.clientY,1);
+  const hx=(e.clientX/innerWidth-.5),hy=(e.clientY/innerHeight-.5);const hi=document.getElementById('heroinner');if(hi){hi.style.setProperty('--px',(hx*16)+'px');hi.style.setProperty('--py',(hy*12)+'px');}});
+document.addEventListener('mouseover',e=>{if(e.target.closest(hoverEls))cursor.classList.add('big')});
+document.addEventListener('mouseout',e=>{if(e.target.closest(hoverEls))cursor.classList.remove('big')});
+(function cl(){cxp+=(mx-cxp)*.25;cyp+=(my-cyp)*.25;cursor.style.left=cxp+'px';cursor.style.top=cyp+'px';requestAnimationFrame(cl)})();
+const tcv=document.getElementById('trail'),tctx=tcv.getContext('2d');
+let embers=[];const emberC=['#ff1f2e','#8dff2b','#9b3cff','#b6ff5a'];
+function emit(x,y,n){for(let i=0;i<n;i++){if(Math.random()<.5)embers.push({x,y,vx:(Math.random()-.5)*.6,vy:-Math.random()*1.2-.3,life:1,c:emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*2.4+.8})}if(embers.length>180)embers.splice(0,embers.length-180);}
+function burst(x,y,n,c){for(let i=0;i<n;i++){const a=Math.random()*7,sp=Math.random()*4+1;embers.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:1,c:c||emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*3+1})}}
+function sizeTrail(){tcv.width=innerWidth;tcv.height=innerHeight;}sizeTrail();addEventListener('resize',sizeTrail);
+
+/* AUDIO GRAPH */
+const audio=document.getElementById('audio');audio.volume=.55;
+const pbtn=document.getElementById('pbtn'),disc=document.getElementById('disc'),musicbar=document.getElementById('musicbar'),pwplay=document.getElementById('pwplay');
+let actx,analyser,srcNode,mix,freq,graphReady=false,playing=false,noiseBuf;
+function ensureCtx(){if(!actx){try{actx=new(window.AudioContext||window.webkitAudioContext)();analyser=actx.createAnalyser();analyser.fftSize=128;analyser.smoothingTimeConstant=.82;mix=actx.createGain();mix.gain.value=.9;mix.connect(analyser);analyser.connect(actx.destination);freq=new Uint8Array(analyser.frequencyBinCount);noiseBuf=actx.createBuffer(1,actx.sampleRate,actx.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;}catch(e){}}if(actx&&actx.state==='suspended')actx.resume();}
+function connectMedia(){if(graphReady)return;ensureCtx();try{srcNode=actx.createMediaElementSource(audio);srcNode.connect(mix);graphReady=true;}catch(e){}}
+function startAudio(){connectMedia();ensureCtx();audio.play().then(()=>setUI(true)).catch(()=>{});}
+function setUI(on){playing=on;const ic=on?'❚❚':'▶';pbtn.textContent=ic;pwplay.textContent=ic;disc.classList.toggle('spin',on);musicbar.classList.toggle('open',on);}
+function toggle(){if(audio.paused)startAudio();else{audio.pause();setUI(false);}}
+pbtn.onclick=toggle;disc.onclick=toggle;pwplay.onclick=toggle;
+audio.addEventListener('play',()=>setUI(true));audio.addEventListener('pause',()=>setUI(false));
+function listenNow(){startAudio();document.getElementById('visualizer').scrollIntoView({behavior:'smooth'});}
+['click','touchstart','keydown'].forEach(ev=>document.addEventListener(ev,function k(){ensureCtx();},{once:true}));
+const pwcur=document.getElementById('pwcur'),pwdur=document.getElementById('pwdur'),pwfill=document.getElementById('pwprogfill'),pwprog=document.getElementById('pwprog');
+function fmt(s){if(!isFinite(s))return'0:00';const m=Math.floor(s/60),x=Math.floor(s%60);return m+':'+String(x).padStart(2,'0');}
+audio.addEventListener('loadedmetadata',()=>pwdur.textContent=fmt(audio.duration));
+audio.addEventListener('timeupdate',()=>{pwcur.textContent=fmt(audio.currentTime);pwfill.style.width=(audio.currentTime/audio.duration*100||0)+'%';});
+pwprog.onclick=e=>{const r=pwprog.getBoundingClientRect();audio.currentTime=(e.clientX-r.left)/r.width*audio.duration;};
+
+/* SYNTH */
+function distc(amt){const n=256,c=new Float32Array(n);for(let i=0;i<n;i++){const x=i/n*2-1;c[i]=(Math.PI+amt)*x/(Math.PI+amt*Math.abs(x));}return c;}
+function env(g,t0,a,peak,d){g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(peak,t0+a);g.gain.exponentialRampToValueAtTime(.0001,t0+a+d);}
+function pluck(base){ensureCtx();const t=actx.currentTime,g=actx.createGain();const ws=actx.createWaveShaper();ws.curve=distc(1.5);g.connect(ws);ws.connect(mix);[1,2,3].forEach((r,i)=>{const o=actx.createOscillator();o.type=i===0?'triangle':'sine';o.frequency.value=base*r;const og=actx.createGain();og.gain.value=[1,.4,.2][i];o.connect(og);og.connect(g);o.start(t);o.stop(t+.55);});env(g,t,.004,.5,.5);spike(.55);}
+function eight0eight(){ensureCtx();const t=actx.currentTime,o=actx.createOscillator(),g=actx.createGain(),ws=actx.createWaveShaper();ws.curve=distc(6);o.type='sine';o.frequency.setValueAtTime(130,t);o.frequency.exponentialRampToValueAtTime(44,t+.12);o.connect(ws);ws.connect(g);g.connect(mix);env(g,t,.004,.9,.55);o.start(t);o.stop(t+.7);spike(.9);}
+function sub(){ensureCtx();const t=actx.currentTime,o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.setValueAtTime(70,t);o.frequency.exponentialRampToValueAtTime(38,t+.2);o.connect(g);g.connect(mix);env(g,t,.004,.95,.7);o.start(t);o.stop(t+.9);spike(1);}
+function hat(open){ensureCtx();const t=actx.currentTime,s=actx.createBufferSource();s.buffer=noiseBuf;const hp=actx.createBiquadFilter();hp.type='highpass';hp.frequency.value=7000;const g=actx.createGain();s.connect(hp);hp.connect(g);g.connect(mix);env(g,t,.001,.35,open?.25:.05);s.start(t);s.stop(t+.3);spike(.3);}
+function snare(){ensureCtx();const t=actx.currentTime;const s=actx.createBufferSource();s.buffer=noiseBuf;const bp=actx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1800;const g=actx.createGain();s.connect(bp);bp.connect(g);g.connect(mix);env(g,t,.001,.5,.18);s.start(t);s.stop(t+.25);const o=actx.createOscillator(),og=actx.createGain();o.type='triangle';o.frequency.value=180;o.connect(og);og.connect(mix);env(og,t,.001,.3,.12);o.start(t);o.stop(t+.15);spike(.6);}
+function stab(){ensureCtx();const t=actx.currentTime,ws=actx.createWaveShaper();ws.curve=distc(3);const lp=actx.createBiquadFilter();lp.type='lowpass';lp.frequency.setValueAtTime(2600,t);lp.frequency.exponentialRampToValueAtTime(500,t+.4);const g=actx.createGain();ws.connect(lp);lp.connect(g);g.connect(mix);[220,261.6,329.6].forEach(f=>{const o=actx.createOscillator();o.type='sawtooth';o.frequency.value=f;o.detune.value=(Math.random()*14-7);o.connect(ws);o.start(t);o.stop(t+.5);});env(g,t,.006,.5,.5);spike(.8);}
+function spike(amt){for(let i=0;i<levels.length;i++){levels[i]=Math.min(1,levels[i]+amt*(0.5+Math.random()*0.6));}}
+
+const PADS=[
+  {l:'SLIME',k:'Q',c:'#8dff2b',f:()=>pluck(740)},
+  {l:'OOZE',k:'W',c:'#b6ff5a',f:()=>pluck(440)},
+  {l:'808',k:'E',c:'#ff1f2e',f:()=>eight0eight()},
+  {l:'SUB',k:'R',c:'#ff5a45',f:()=>sub()},
+  {l:'HAT',k:'A',c:'#c47bff',f:()=>hat(false)},
+  {l:'OPEN',k:'S',c:'#9b3cff',f:()=>hat(true)},
+  {l:'SNARE',k:'D',c:'#ffffff',f:()=>snare()},
+  {l:'STAB',k:'F',c:'#ff1f2e',f:()=>stab()},
+];
+const padgrid=document.getElementById('padgrid');const padByKey={};
+PADS.forEach(p=>{const el=document.createElement('div');el.className='pad';el.style.setProperty('--c',p.c);el.innerHTML=`<div class="pl">${p.l}</div><div class="pk">${p.k}</div>`;
+  const fire=()=>{ensureCtx();p.f();el.classList.add('hit');addRage(8);const r=el.getBoundingClientRect();burst(r.left+r.width/2,r.top+r.height/2,10,p.c);setTimeout(()=>el.classList.remove('hit'),120);};
+  el.addEventListener('pointerdown',e=>{e.preventDefault();fire();});padByKey[p.k.toLowerCase()]=fire;padgrid.appendChild(el);});
+addEventListener('keydown',e=>{if(e.repeat)return;const f=padByKey[e.key.toLowerCase()];if(f)f();});
+
+/* RAGE METER */
+let rage=0;const ragefill=document.getElementById('ragefill'),ragepct=document.getElementById('ragepct');
+function addRage(n){rage=Math.min(100,rage+n);renderRage();if(rage>=100)rageBurst();}
+function renderRage(){ragefill.style.width=rage+'%';ragepct.textContent=Math.round(rage)+'%';}
+setInterval(()=>{if(rage>0&&!document.body.classList.contains('rage')){rage=Math.max(0,rage-1.2);renderRage();}},220);
+function rageBurst(){const f=document.getElementById('flash');f.style.transition='none';f.style.opacity='.8';requestAnimationFrame(()=>{f.style.transition='opacity .6s';f.style.opacity='0';});for(let i=0;i<40;i++)setTimeout(()=>burst(innerWidth*Math.random(),innerHeight*Math.random(),6),i*8);if(!document.body.classList.contains('rage'))enterRage();rage=0;renderRage();snakeLunge();}
+
+/* SLIME SPLASH (replaces bells) */
+function slimeSplash(x,y){stab();if(x!=null)burst(x,y,18,'#8dff2b');addRage(5);snakeLunge();}
+document.getElementById('heroMono').onclick=e=>slimeSplash(e.clientX,e.clientY);
+document.getElementById('contactMono').onclick=e=>slimeSplash(e.clientX,e.clientY);
+document.getElementById('splashBtn').onclick=e=>slimeSplash(e.clientX,e.clientY);
+
+/* ---------- INTERACTIVE SCROLL SNAKE ---------- */
+const snakeCv=document.getElementById('snake'),sctx=snakeCv.getContext('2d');
+let SW=0,SH=0,sdpr=1;
+function sizeSnake(){sdpr=Math.min(devicePixelRatio||1,2);SW=innerWidth;SH=innerHeight;snakeCv.width=SW*sdpr;snakeCv.height=SH*sdpr;sctx.setTransform(sdpr,0,0,sdpr,0,0);}
+sizeSnake();addEventListener('resize',sizeSnake);
+const SEG=46;
+let snk=[];for(let i=0;i<SEG;i++)snk.push({x:SW*.5,y:SH*.5});
+let headX=SW*.5,headY=SH*.5,lungeT=0,tongueT=0;
+function snakeLunge(){lungeT=1;}
+function scrollProg(){const m=document.documentElement.scrollHeight-innerHeight;return m>0?Math.min(1,Math.max(0,scrollY/m)):0;}
+function drawSnake(t,energy){
+  const sp=scrollProg();
+  // head target: Y tracks scroll through the viewport, X weaves (more weave with energy), slight mouse lean
+  const weave=Math.sin(t*0.0011+sp*7)*Math.min(SW*0.34,260)+Math.sin(t*0.0023)*40;
+  let tx=SW*0.5+weave+(mx-SW*0.5)*0.12;
+  let ty=70+sp*(SH-150);
+  if(lungeT>0){tx+=(mx-tx)*0.6*lungeT;ty+=(my-ty)*0.6*lungeT;lungeT*=0.9;if(lungeT<0.02)lungeT=0;}
+  headX+=(tx-headX)*0.09;headY+=(ty-headY)*0.09;
+  snk[0].x=headX;snk[0].y=headY;
+  for(let i=1;i<SEG;i++){const p=snk[i-1];const wig=Math.sin(i*0.5+t*0.012)*(2.0+energy*4);
+    snk[i].x+=((p.x+ (i%2?wig:-wig)) - snk[i].x)*0.5;
+    snk[i].y+=(p.y - snk[i].y)*0.5;}
+  // body glow pass
+  sctx.save();sctx.lineCap='round';sctx.lineJoin='round';
+  for(let pass=0;pass<2;pass++){
+    sctx.beginPath();sctx.moveTo(snk[0].x,snk[0].y);
+    for(let i=1;i<SEG;i++)sctx.lineTo(snk[i].x,snk[i].y);
+    if(pass===0){sctx.strokeStyle='rgba(141,255,43,0.22)';sctx.lineWidth=30;sctx.shadowColor='#8dff2b';sctx.shadowBlur=24;}
+    else{const g=sctx.createLinearGradient(snk[0].x,snk[0].y,snk[SEG-1].x,snk[SEG-1].y);g.addColorStop(0,'#b6ff5a');g.addColorStop(.5,'#8dff2b');g.addColorStop(1,'#2a7a00');sctx.strokeStyle=g;sctx.lineWidth=16;sctx.shadowColor='#8dff2b';sctx.shadowBlur=14;}
+    sctx.stroke();
+  }
+  // glossy top highlight
+  sctx.beginPath();sctx.moveTo(snk[0].x,snk[0].y-3);for(let i=1;i<SEG;i++)sctx.lineTo(snk[i].x,snk[i].y-3);
+  sctx.strokeStyle='rgba(255,255,255,0.25)';sctx.lineWidth=3;sctx.shadowBlur=0;sctx.stroke();
+  sctx.restore();
+  // head
+  const hx=snk[0].x,hy=snk[0].y,ang=Math.atan2(snk[0].y-snk[2].y,snk[0].x-snk[2].x);
+  sctx.save();sctx.translate(hx,hy);sctx.rotate(ang);
+  sctx.shadowColor='#8dff2b';sctx.shadowBlur=18;
+  sctx.fillStyle='#9dff2b';sctx.beginPath();sctx.ellipse(0,0,16,12,0,0,7);sctx.fill();
+  // eyes
+  sctx.shadowBlur=0;sctx.fillStyle='#fff';sctx.beginPath();sctx.arc(5,-5,3.2,0,7);sctx.arc(5,5,3.2,0,7);sctx.fill();
+  sctx.fillStyle='#ff1f2e';sctx.beginPath();sctx.arc(6,-5,1.5,0,7);sctx.arc(6,5,1.5,0,7);sctx.fill();
+  // tongue (flick)
+  tongueT+=0.05;const flick=(Math.sin(t*0.02)>.6)?1:0.3;const tl=10+flick*10;
+  sctx.strokeStyle='#ff1f2e';sctx.lineWidth=2;sctx.shadowColor='#ff1f2e';sctx.shadowBlur=8;
+  sctx.beginPath();sctx.moveTo(14,0);sctx.lineTo(14+tl,0);sctx.moveTo(14+tl,0);sctx.lineTo(14+tl+5,-4);sctx.moveTo(14+tl,0);sctx.lineTo(14+tl+5,4);sctx.stroke();
+  sctx.restore();
+}
+
+/* ---------- VISUALIZER CANVAS ---------- */
+function fit(cv){const dpr=Math.min(devicePixelRatio||1,2);const r=cv.getBoundingClientRect();cv.width=r.width*dpr;cv.height=r.height*dpr;const x=cv.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);return{x,w:r.width,h:r.height};}
+const heroCv=document.getElementById('heroCanvas'),vizCv=document.getElementById('vizCanvas'),conCv=document.getElementById('contactCanvas'),eqCv=document.getElementById('pweq');
+let H={},V={},C={},E={};
+function resizeAll(){H=fit(heroCv);V=fit(vizCv);C=fit(conCv);E=fit(eqCv);}
+resizeAll();addEventListener('resize',resizeAll);
+function rg(ctx,w){const g=ctx.createLinearGradient(0,0,w,0);g.addColorStop(0,'#ff1f2e');g.addColorStop(.5,'#9b3cff');g.addColorStop(1,'#8dff2b');return g;}
+let levels=new Array(64).fill(0);
+function updateLevels(t){if(graphReady&&playing&&analyser){analyser.getByteFrequencyData(freq);for(let i=0;i<levels.length;i++)levels[i]+=(freq[i%freq.length]/255-levels[i])*.4;}else{for(let i=0;i<levels.length;i++){const b=.14+.12*Math.sin(t*.0013+i*.35)+.09*Math.sin(t*.0026+i*.7);levels[i]+=(Math.max(0,b)-levels[i])*.08;}}}
+function snakeWave(ctx,w,h,t,amp,thick,yc){ctx.save();ctx.lineCap='round';ctx.shadowColor='#ff1f2e';ctx.shadowBlur=18;const seg=70;for(let pass=0;pass<2;pass++){ctx.beginPath();for(let i=0;i<=seg;i++){const p=i/seg,x=p*w;const lv=levels[Math.floor(p*(levels.length-1))]||0;const wob=Math.sin(p*7+t*.0022+pass*1.6)*amp*(.4+lv*1.6)+Math.sin(p*3-t*.0015)*amp*.4;const y=yc+wob;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.strokeStyle=pass===0?rg(ctx,w):'rgba(255,255,255,.45)';ctx.globalAlpha=pass===0?.95:.3;ctx.lineWidth=thick*(pass===0?1:.4);ctx.stroke();}ctx.restore();}
+function bars(ctx,w,h,base){const n=levels.length,bw=w/n,cols=['#ff1f2e','#8dff2b','#9b3cff'];for(let i=0;i<n;i++){const bh=levels[i]*h*.5;const g=ctx.createLinearGradient(0,base,0,base-bh);g.addColorStop(0,cols[i%3]);g.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=g;ctx.globalAlpha=.85;ctx.fillRect(i*bw+bw*.2,base-bh,bw*.6,bh);ctx.globalAlpha=1;}}
+function ring(ctx,cx,cy,r,t){const n=48,cols=['#ff1f2e','#8dff2b','#9b3cff'];ctx.save();ctx.shadowColor='#8dff2b';ctx.shadowBlur=12;for(let i=0;i<n;i++){const a=i/n*Math.PI*2;const len=8+levels[i%levels.length]*70;ctx.strokeStyle=cols[i%3];ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);ctx.lineTo(cx+Math.cos(a)*(r+len),cy+Math.sin(a)*(r+len));ctx.lineWidth=2;ctx.stroke();}ctx.restore();}
+function eqbars(ctx,w,h){const n=22,bw=w/n,cols=['#ff1f2e','#8dff2b','#9b3cff'];ctx.clearRect(0,0,w,h);for(let i=0;i<n;i++){const bh=Math.max(2,levels[i*2%levels.length]*h);ctx.fillStyle=cols[i%3];ctx.fillRect(i*bw+1,h-bh,bw-2,bh);}}
+let parts=[];for(let i=0;i<34;i++)parts.push({x:Math.random(),y:Math.random(),s:Math.random()*2+.5,v:Math.random()*.0004+.0001,c:emberC[Math.floor(Math.random()*4)]});
+
+function frame(t){updateLevels(t);const energy=levels.reduce((a,b)=>a+b,0)/levels.length;
+  // SNAKE (full page)
+  sctx.clearRect(0,0,SW,SH);drawSnake(t,energy);
+  if(H.w){const{x,w,h}=H;x.clearRect(0,0,w,h);x.save();parts.forEach(p=>{p.y-=p.v*(1+energy*3);if(p.y<0)p.y=1;x.globalAlpha=.3+energy*.5;x.fillStyle=p.c;x.beginPath();x.arc(p.x*w,p.y*h,p.s,0,7);x.fill();});x.restore();snakeWave(x,w,h,t,9+energy*8,3.5+energy*4,h*.62);}
+  if(V.w){const{x,w,h}=V;x.clearRect(0,0,w,h);snakeWave(x,w,h,t,16+energy*18,6+energy*9,h*.5);snakeWave(x,w,h,t*.8+500,11,3+energy*6,h*.52);ring(x,w*.5,h*.5,Math.min(w,h)*.16,t);bars(x,w,h,h);}
+  if(C.w){const{x,w,h}=C;x.clearRect(0,0,w,h);snakeWave(x,w,h,t*.7,9+energy*6,3+energy*4,h*.5);}
+  if(E.w)eqbars(E.x,E.w,E.h);
+  tctx.clearRect(0,0,tcv.width,tcv.height);tctx.globalCompositeOperation='lighter';
+  for(const p of embers){p.life*=.95;p.x+=p.vx;p.y+=p.vy;p.vy+=.02;const s=p.s*p.life+.4;tctx.globalAlpha=p.life;tctx.fillStyle=p.c;tctx.shadowColor=p.c;tctx.shadowBlur=8;tctx.beginPath();tctx.arc(p.x,p.y,s,0,7);tctx.fill();}
+  tctx.globalAlpha=1;embers=embers.filter(p=>p.life>.05);
+  requestAnimationFrame(frame);}
+requestAnimationFrame(frame);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){resizeAll();sizeSnake();}});
+
+/* RAGE MODE */
+let rageOn=false;
+function enterRage(){rageOn=!rageOn;document.body.classList.toggle('rage',rageOn);if(rageOn)ensureCtx();}
+
+/* GUESTBOOK + easter egg */
+function signbook(){const e=document.getElementById('gemail');if(e.value&&e.value.includes('@')){e.value='';e.placeholder='✓ welcome to the slime ☠';}else{e.placeholder='enter a valid email';}}
+let seq='';addEventListener('keydown',e=>{seq=(seq+e.key.toLowerCase()).slice(-5);if(seq==='slime'){for(let i=0;i<60;i++)setTimeout(()=>burst(innerWidth*Math.random(),innerHeight,8,'#8dff2b'),i*20);stab();snakeLunge();}});
+</script>
+</body>
+</html>
