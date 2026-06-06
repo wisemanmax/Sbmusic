@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>☠ SLIME BY ☠ — official</title>
-<meta name="description" content="Slime By — Delaware rap. green pressure, venom, motion. play the slime pads, follow the snake.">
+<meta name="description" content="Slime By — Delaware rap. green pressure, venom, motion. cast the enchantments, follow the snake.">
 <meta name="theme-color" content="#8dff2b">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23060403'/%3E%3Cpath d='M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30 62 M50 16 L50 84' stroke='%238dff2b' stroke-width='8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <meta property="og:type" content="music.musician">
 <meta property="og:title" content="SLIME BY — official">
-<meta property="og:description" content="Delaware rap. green pressure, venom, motion. play the slime pads, follow the snake.">
+<meta property="og:description" content="Delaware rap. green pressure, venom, motion. cast the enchantments, follow the snake.">
 <meta property="og:image" content="assets/sb-portrait.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="SLIME BY — official">
@@ -256,6 +256,14 @@ section{padding:clamp(60px,9vw,116px) clamp(18px,5vw,56px);position:relative;z-i
 .prod .pmeta .pty{font-weight:500;font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase}
 .prod .pmeta .pp{font-family:var(--disp);font-size:16px;color:var(--slime)}
 
+/* MERCH — coming soon */
+.comingsoon{text-align:center;padding:48px 26px 54px;display:flex;flex-direction:column;align-items:center;gap:15px;max-width:640px;margin:0 auto;border:1px solid rgba(141,255,43,.25)}
+.comingsoon .cs-snake{width:96px;filter:drop-shadow(0 0 18px var(--slime));animation:pulse 3s ease-in-out infinite}
+.comingsoon .cs-snake path{stroke:var(--slime);stroke-width:6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.comingsoon .cs-big{font-family:var(--disp);font-size:clamp(40px,8vw,78px);line-height:.9;letter-spacing:2px;color:var(--ink);text-shadow:2px 0 var(--blood),-2px 0 rgba(141,255,43,.7)}
+.comingsoon p{font-size:14px;line-height:1.7;color:var(--soft);max-width:46ch;font-weight:300}
+.comingsoon .cs-snake-i{font-style:normal}
+
 /* SHOWS */
 .shows{padding:54px 28px;text-align:center}
 .shows .big{font-family:var(--disp);font-size:clamp(30px,5vw,56px);line-height:1;color:var(--ink);text-shadow:2px 0 var(--blood)}
@@ -424,7 +432,7 @@ body.rage .rmtag{opacity:1}
     <div class="wm">SLIME BY</div>
   </div>
   <div class="navlinks">
-    <a href="#pads">pads</a><a href="#music">music</a><a href="#visualizer">waves</a><a href="#universe">sb world</a><a href="#connect">tap in</a>
+    <a href="#enchants">enchants</a><a href="#music">music</a><a href="#visualizer">waves</a><a href="#universe">sb world</a><a href="#connect">tap in</a>
   </div>
   <button class="btnX" onclick="enterRage()">☠ rage mode</button>
   <button class="burger" id="burger" aria-label="menu" aria-expanded="false" aria-controls="nav"><span></span><span></span><span></span></button>
@@ -444,7 +452,7 @@ body.rage .rmtag{opacity:1}
     <div class="sub">delaware rage · <b>green pressure</b> · <i>venom</i></div>
     <div class="cta-row">
       <button class="bigbtn bSlime" onclick="listenNow()">▶ play</button>
-      <button class="bigbtn bBlood" onclick="document.getElementById('pads').scrollIntoView()">● slime pads</button>
+      <button class="bigbtn bBlood" onclick="document.getElementById('enchants').scrollIntoView()">✦ enchantments</button>
       <button class="bigbtn bAlien" onclick="enterRage()">☠ rage mode</button>
     </div>
     <div class="counter">slime in the building: <b id="vcount">000690</b></div>
@@ -456,19 +464,19 @@ body.rage .rmtag{opacity:1}
 <div class="marquee"><div class="track" id="track"></div></div>
 <div class="drip"></div>
 
-<!-- PADS -->
-<section id="pads">
-  <div class="reveal"><span class="kicker">● play it</span></div>
-  <div class="shead reveal"><h2>SLIME <em>pads</em></h2></div>
+<!-- ENCHANTMENTS -->
+<section id="enchants">
+  <div class="reveal"><span class="kicker">✦ the grimoire</span></div>
+  <div class="shead reveal"><h2>SLIME <em>enchantments</em></h2></div>
   <div class="padwrap">
-    <div class="padboard panel reveal"><div class="padgrid" id="padgrid"></div></div>
+    <div class="padboard panel reveal"><div class="padgrid" id="enchgrid"></div></div>
     <div class="padside">
       <div class="ragebox panel reveal d1">
-        <div class="rl">☠ rage meter</div>
+        <div class="rl">☠ venom meter</div>
         <div class="ragebar"><i id="ragefill"></i><span id="ragepct">0%</span></div>
-        <div class="ragehint">tap the pads or smash your <b>keyboard</b> (keys shown on each pad). fill the meter to <b>100%</b> and go full rage.</div>
+        <div class="ragehint">cast the enchantments — tap them or press the <b>rune key</b> shown on each. charge the venom to <b>100%</b> and unleash full rage.</div>
       </div>
-      <div class="splashbtn reveal d2" id="splashBtn">☠ DROP THE SLIME</div>
+      <div class="splashbtn reveal d2" id="splashBtn">☠ CAST THE SLIME</div>
     </div>
   </div>
 </section>
@@ -562,13 +570,12 @@ body.rage .rmtag{opacity:1}
 <!-- MERCH -->
 <section id="merch">
   <div class="reveal"><span class="kicker">slime shop</span></div>
-  <div class="shead reveal"><h2>merch <em>soon</em></h2></div>
-  <p class="reveal" style="text-align:center;color:var(--soft);font-size:13px;letter-spacing:1px;margin:-22px auto 26px;max-width:46ch">the slime shop drops soon. tap a piece to lock in a <b style="color:var(--slime)">drop alert</b> — you'll be first when it goes live.</p>
-  <div class="pgrid" id="pgrid">
-    <div class="prod reveal" data-key="hoodie" data-name="Blackout Hoodie" data-sub="SB snake stitch" data-price="$65" data-sizes="S,M,L,XL,XXL" data-desc="Heavyweight blackout fleece with embroidered SB snake stitch on the chest and a dripping green back hit. Boxy fit, raw-edge slime detailing."><div class="part"><span class="soon">soon</span><span class="watching">watching ☑</span><svg viewBox="0 0 100 100" fill="none" stroke="#8dff2b" stroke-width="2.5"><path d="M30 30 L20 40 L28 50 L28 80 L72 80 L72 50 L80 40 L70 30 L60 30 Q50 42 40 30 Z"/></svg></div><div class="pmeta"><div><div class="pt">blackout hoodie</div><div class="pty">SB snake stitch</div></div><div class="pp">$65</div></div></div>
-    <div class="prod reveal d1" data-key="tee" data-name="Snake Tee" data-sub="green ink print" data-price="$35" data-sizes="S,M,L,XL,XXL" data-desc="Premium cotton tee with a hand-drawn snake-pit print in toxic green ink. Front SB mark, oversized back graphic."><div class="part"><span class="soon">soon</span><span class="watching">watching ☑</span><svg viewBox="0 0 100 100" fill="none" stroke="#ff1f2e" stroke-width="2.5"><path d="M28 28 L16 38 L24 48 L24 78 L76 78 L76 48 L84 38 L72 28 L62 28 Q50 38 38 28 Z"/></svg></div><div class="pmeta"><div><div class="pt">snake tee</div><div class="pty">green ink print</div></div><div class="pp">$35</div></div></div>
-    <div class="prod reveal d2" data-key="mask" data-name="Vamp Mask" data-sub="blood / lime" data-price="$25" data-sizes="One size" data-desc="Stretch balaclava in blood + lime with reflective fang detail. One size, full SB venom energy."><div class="part"><span class="soon">soon</span><span class="watching">watching ☑</span><svg viewBox="0 0 100 100" fill="none" stroke="#9b3cff" stroke-width="2.5"><ellipse cx="50" cy="50" rx="30" ry="22"/><path d="M32 46 q8 -8 14 0 M54 46 q8 -8 14 0 M40 62 q10 8 20 0"/></svg></div><div class="pmeta"><div><div class="pt">vamp mask</div><div class="pty">blood / lime</div></div><div class="pp">$25</div></div></div>
-    <div class="prod reveal d3" data-key="chain" data-name="Venom Chain" data-sub="SB pendant" data-price="$120" data-sizes="One size" data-desc="Iced SB snake pendant on a 20-inch cuban chain. Limited venom-green stone set. Numbered drop."><div class="part"><span class="soon">soon</span><span class="watching">watching ☑</span><svg viewBox="0 0 100 100" fill="none" stroke="#8dff2b" stroke-width="2.5"><path d="M50 18 q-22 10 -22 34 q0 22 22 30 q22 -8 22 -30 q0 -24 -22 -34Z M40 44 q6 -6 12 0 M50 54 v14"/></svg></div><div class="pmeta"><div><div class="pt">venom chain</div><div class="pty">SB pendant</div></div><div class="pp">$120</div></div></div>
+  <div class="shead reveal"><h2>merch <em>coming soon</em></h2></div>
+  <div class="comingsoon panel reveal">
+    <svg class="cs-snake" viewBox="0 0 100 100"><path d="M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30 62 M50 16 L50 84"/></svg>
+    <div class="cs-big">COMING SOON</div>
+    <p>the slime shop is still in the lab. hoodies, tees, vamp masks and iced SB chains — all dropping soon. no price tags yet, just <span class="cs-snake-i">🐍</span> where the numbers go.</p>
+    <button class="bigbtn bSlime" id="merchAlertBtn">☠ get the drop alert</button>
   </div>
 </section>
 
@@ -702,20 +709,20 @@ function snare(){ensureCtx();const t=actx.currentTime;const s=actx.createBufferS
 function stab(){ensureCtx();const t=actx.currentTime,ws=actx.createWaveShaper();ws.curve=distc(3);const lp=actx.createBiquadFilter();lp.type='lowpass';lp.frequency.setValueAtTime(2600,t);lp.frequency.exponentialRampToValueAtTime(500,t+.4);const g=actx.createGain();ws.connect(lp);lp.connect(g);g.connect(mix);[220,261.6,329.6].forEach(f=>{const o=actx.createOscillator();o.type='sawtooth';o.frequency.value=f;o.detune.value=(Math.random()*14-7);o.connect(ws);o.start(t);o.stop(t+.5);});env(g,t,.006,.5,.5);spike(.8);}
 function spike(amt){for(let i=0;i<levels.length;i++){levels[i]=Math.min(1,levels[i]+amt*(0.5+Math.random()*0.6));}}
 
-const PADS=[
-  {l:'SLIME',k:'Q',c:'#8dff2b',f:()=>pluck(740)},
+const ENCHANTS=[
+  {l:'VENOM',k:'Q',c:'#8dff2b',f:()=>pluck(740)},
   {l:'OOZE',k:'W',c:'#b6ff5a',f:()=>pluck(440)},
-  {l:'808',k:'E',c:'#ff1f2e',f:()=>eight0eight()},
-  {l:'SUB',k:'R',c:'#ff5a45',f:()=>sub()},
-  {l:'HAT',k:'A',c:'#c47bff',f:()=>hat(false)},
-  {l:'OPEN',k:'S',c:'#9b3cff',f:()=>hat(true)},
-  {l:'SNARE',k:'D',c:'#ffffff',f:()=>snare()},
-  {l:'STAB',k:'F',c:'#ff1f2e',f:()=>stab()},
+  {l:'QUAKE',k:'E',c:'#ff1f2e',f:()=>eight0eight()},
+  {l:'ABYSS',k:'R',c:'#ff5a45',f:()=>sub()},
+  {l:'HISS',k:'A',c:'#c47bff',f:()=>hat(false)},
+  {l:'MIST',k:'S',c:'#9b3cff',f:()=>hat(true)},
+  {l:'FANG',k:'D',c:'#ffffff',f:()=>snare()},
+  {l:'CURSE',k:'F',c:'#ff1f2e',f:()=>stab()},
 ];
-const padgrid=document.getElementById('padgrid');const padByKey={};
-PADS.forEach(p=>{const el=document.createElement('div');el.className='pad';el.style.setProperty('--c',p.c);el.innerHTML=`<div class="pl">${p.l}</div><div class="pk">${p.k}</div>`;
-  const fire=()=>{ensureCtx();p.f();el.classList.add('hit');addRage(8);const r=el.getBoundingClientRect();burst(r.left+r.width/2,r.top+r.height/2,10,p.c);setTimeout(()=>el.classList.remove('hit'),120);};
-  el.addEventListener('pointerdown',e=>{e.preventDefault();fire();});padByKey[p.k.toLowerCase()]=fire;padgrid.appendChild(el);});
+const enchgrid=document.getElementById('enchgrid');const padByKey={};
+ENCHANTS.forEach(p=>{const el=document.createElement('div');el.className='pad';el.style.setProperty('--c',p.c);el.title='cast '+p.l;el.innerHTML=`<div class="pl">${p.l}</div><div class="pk">${p.k}</div>`;
+  const fire=()=>{ensureCtx();p.f();el.classList.add('hit');addRage(8);const r=el.getBoundingClientRect();burst(r.left+r.width/2,r.top+r.height/2,10,p.c);snakeLunge();setTimeout(()=>el.classList.remove('hit'),120);};
+  el.addEventListener('pointerdown',e=>{e.preventDefault();fire();});padByKey[p.k.toLowerCase()]=fire;enchgrid.appendChild(el);});
 function isTyping(){const a=document.activeElement;return a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable);}
 addEventListener('keydown',e=>{if(e.repeat||e.metaKey||e.ctrlKey||e.altKey||isTyping())return;const f=padByKey[e.key.toLowerCase()];if(f)f();});
 
@@ -834,14 +841,9 @@ addEventListener('keydown',e=>{if(e.key==='Escape'&&modal.classList.contains('op
 /* MUSIC FILTER */
 document.querySelectorAll('#mfilter button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#mfilter button').forEach(x=>x.classList.remove('on'));b.classList.add('on');const f=b.dataset.f;document.querySelectorAll('#mgrid .rel').forEach(c=>c.classList.toggle('hide',f!=='all'&&c.dataset.type!==f));});
 
-/* MERCH — drop alerts saved to localStorage */
-let drops=[];try{drops=JSON.parse(localStorage.getItem('sb_drops')||'[]');}catch(_){}
-function saveDrops(){try{localStorage.setItem('sb_drops',JSON.stringify(drops));}catch(_){}}
-document.querySelectorAll('#pgrid .prod').forEach(prod=>{if(drops.includes(prod.dataset.key))prod.classList.add('watched');prod.addEventListener('click',()=>openMerch(prod));});
-function openMerch(prod){const d=prod.dataset,svg=prod.querySelector('.part svg').outerHTML,sizes=d.sizes.split(','),multi=sizes.length>1,watched=drops.includes(d.key);
-  openModal(`<div class="mhead">${svg}</div><div class="mbody"><span class="kicker">slime shop</span><h3>${d.name}</h3><div class="mlabel" style="margin-top:8px;color:var(--slime)">${d.price} · ${d.sub}</div><p>${d.desc}</p>${multi?`<div class="mlabel">select size</div><div class="sizes" id="szRow">${sizes.map(s=>`<button>${s}</button>`).join('')}</div>`:`<div class="mlabel">${sizes[0]}</div>`}<div class="mcta"><button class="bigbtn bSlime" id="notifyBtn">${watched?'✓ watching this drop':'☠ notify me on drop'}</button></div></div>`);
-  const szRow=document.getElementById('szRow');if(szRow)szRow.querySelectorAll('button').forEach(b=>b.onclick=()=>{szRow.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');});
-  document.getElementById('notifyBtn').onclick=()=>{const i=drops.indexOf(d.key);if(i>=0){drops.splice(i,1);prod.classList.remove('watched');toast('drop alert removed','blood');}else{drops.push(d.key);prod.classList.add('watched');burst(innerWidth/2,innerHeight*.6,16,'#8dff2b');toast('✓ drop alert set — you’re first in line');}saveDrops();document.getElementById('notifyBtn').textContent=drops.includes(d.key)?'✓ watching this drop':'☠ notify me on drop';};}
+/* MERCH — coming soon, route to the slime list */
+const merchAlertBtn=document.getElementById('merchAlertBtn');
+if(merchAlertBtn)merchAlertBtn.onclick=()=>{burst(innerWidth/2,innerHeight*.6,16,'#8dff2b');document.getElementById('connect').scrollIntoView({behavior:'smooth'});setTimeout(()=>document.getElementById('gemail').focus(),600);toast('☠ drop your email — first access to the slime shop');};
 
 /* VAULT — lightbox */
 document.querySelectorAll('#vault .vcard').forEach(card=>card.addEventListener('click',e=>{if(e.metaKey||e.ctrlKey||e.shiftKey)return;e.preventDefault();const img=card.querySelector('img').src,title=card.querySelector('.vt').textContent,sub=card.querySelector('.vs').textContent,href=card.getAttribute('href');openModal(`<div class="mhead wide" style="background-image:url('${img}')"></div><div class="mbody"><span class="kicker">${sub}</span><h3>${title}</h3><p>The full visual lives in the SB vault on YouTube. Tap in for the complete drop.</p><div class="mcta"><a class="bigbtn bSlime" href="${href}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);}));
@@ -852,8 +854,8 @@ const SHOWS=[];/* e.g. {date:'JUL 12',venue:'The Queen',city:'Wilmington, DE',ur
 document.getElementById('tourAlertBtn').onclick=()=>{document.getElementById('connect').scrollIntoView({behavior:'smooth'});setTimeout(()=>document.getElementById('gemail').focus(),600);toast('drop your email below for tour alerts ☠');};
 
 /* SHORTCUTS HELP */
-const SHORTCUTS=[['Q','slime'],['W','ooze'],['E','808'],['R','sub'],['A','hat'],['S','open hat'],['D','snare'],['F','stab'],['Space','play / pause'],['Esc','close popups'],['slime','secret burst'],['?','this menu']];
-function openHelp(){openModal(`<div class="mbody" style="padding-top:26px"><span class="kicker">controls</span><h3>shortcuts</h3><p>the whole site plays. smash the pads, fill the rage meter, follow the snake.</p><div class="klist">${SHORTCUTS.map(s=>`<div class="krow"><kbd>${s[0]}</kbd><span>${s[1]}</span></div>`).join('')}</div></div>`);}
+const SHORTCUTS=[['Q','venom'],['W','ooze'],['E','quake'],['R','abyss'],['A','hiss'],['S','mist'],['D','fang'],['F','curse'],['Space','play / pause'],['Esc','close popups'],['slime','secret burst'],['?','this menu']];
+function openHelp(){openModal(`<div class="mbody" style="padding-top:26px"><span class="kicker">controls</span><h3>shortcuts</h3><p>the whole site plays. cast the enchantments, charge the venom meter, follow the snake.</p><div class="klist">${SHORTCUTS.map(s=>`<div class="krow"><kbd>${s[0]}</kbd><span>${s[1]}</span></div>`).join('')}</div></div>`);}
 document.getElementById('helpbtn').onclick=openHelp;
 addEventListener('keydown',e=>{if(e.key==='?'&&!isTyping()&&!modal.classList.contains('open'))openHelp();});
 
