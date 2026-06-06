@@ -53,6 +53,9 @@ assets/
   (`{t,s,img,id}`) — entries with an `id` play in an embedded lightbox.
 - **Stem player:** edit the `STEMS` array in `index.html` — each entry is
   `{n:'NAME', c:'#color', f:()=>sound(), pat:[...16 steps]}`.
+- **SB Universe lore:** the `#universe` panels are a clickable "five powers" map —
+  edit the `POWERS` array in `index.html` (`{id,n,c,tag,lore,stats}`) to retitle a
+  force, rewrite its lore, or change its power-meter stats.
 
 ## Run locally
 Open `index.html` in a browser, or serve it:
