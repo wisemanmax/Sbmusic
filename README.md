@@ -24,30 +24,47 @@ page (`admin.html`) lets you edit every section and publish live.
 - **Merch** — a **coming soon** teaser; the CTA routes visitors to the slime list
   for first access when the shop drops.
 - **Shows** — data-driven list. Empty by default with a "get tour alerts" CTA.
-- **Join the slime (email + SMS)** — validates an email plus an optional phone number
-  and stores sign-ups in `localStorage` (`sb_list` / `sb_sms`). Wire `storeLocal` to a
-  real provider (Mailchimp/ConvertKit for email, Community/Twilio for SMS) to go live.
+- **Join the slime (email + SMS)** — validates an email plus an optional phone number and
+  saves sign-ups to the Supabase `subscribers` table (viewable + exportable in the admin's
+  **Audience** tab), with `localStorage` (`sb_list` / `sb_sms`) as an offline fallback.
 - **Extras** — scroll-spy nav, back-to-top, share button (Web Share API + clipboard
   fallback), keyboard-shortcut help (`?`), persistent visitor counter, and a
   `type "slime"` easter egg.
 - **Accessibility** — skip link, focus outlines, ARIA labels, and full
   `prefers-reduced-motion` support.
 
-## Admin / live editing (CMS)
-The site's content lives in **Supabase** and is editable from a password-gated admin page.
+## Admin / live editing (CMS) — "SLIME CONTROL"
+The site's content lives in **Supabase** and is managed from a password-gated, Shopify-style
+admin at `admin.html`.
 
 - **Open** `https://<your-site>/admin.html` and enter the password.
-- **Edit** any section — text, links, images (with upload), and repeatable lists
-  (releases, videos, shows, the five powers, vault items). Tap a section title to collapse it.
+- **Sidebar navigation** — one pane per section (Hero, Drop, Music, About, SB World, Vault,
+  Videos, Merch, Shows, Contact, Footer) plus **Audience** and **Settings**.
+- **Friendly, labelled forms** — every field has a human label, hint, and the right input:
+  URL / email / date-time / colour pickers, dropdowns, rich-text (HTML) areas, image uploads
+  with live thumbnails, and on/off toggles. (Labels/types come from `SB_SCHEMA` in `cms.js`.)
+- **Live preview** — a real, in-page preview of the site that updates as you type. Toggle
+  desktop / phone widths.
+- **Repeatable lists** (releases, videos, shows, the five powers, vault items, marquee words,
+  badges) support **add, remove, duplicate, and reorder** (move up / down).
+- **Safety rails** — unsaved-change tracking with a status pill, a browser "leave?" guard, and
+  an automatic local **draft** that offers to restore your work if you close the tab.
+- **Audience** — everyone who joined the slime list from the site, with totals and **CSV export**.
+- **Settings** — change the admin password, **export / import** your whole content model as JSON,
+  and reset to the built-in defaults.
 - **Publish** — writes go live for all visitors instantly.
 
 **How it's wired**
-- `cms.js` holds the Supabase URL + publishable (read-only) key and the default content model.
-- The public site reads content with the publishable key (RLS allows read only).
+- `cms.js` holds the Supabase URL + publishable (read-only) key, the default content model
+  (`SB_DEFAULTS`), the admin UI metadata (`SB_SECTIONS`, `SB_SCHEMA`), and the read/write helpers.
+- The public site reads content with the publishable key (RLS allows read of `site_content` only).
 - Writes go through a Supabase **Edge Function** (`admin`) that checks the password
-  **server-side** (stored in a locked-down `admin_config` table, never shipped to the browser),
-  so the password actually protects writes. Uploaded images go to a public `media` bucket.
-- To change the password: update the `password` value in the `admin_config` table.
+  **server-side** (stored in a locked-down `admin_config` table, never shipped to the browser).
+  Actions: `login`, `save`, `upload` (→ public `media` bucket), `list_subs`, `set_password`.
+- **Sign-ups** (`join the slime`) are written to a `subscribers` table via the publishable key —
+  RLS allows anonymous **insert only** (no public read), and the admin reads the list through the
+  edge function with the service-role key. localStorage stays as an offline fallback.
+- To change the password: use **Settings → Change password** (or update `admin_config` directly).
 - Note: Supabase's free tier pauses a project after ~1 week of inactivity; if that happens
   the site still renders (from `cms.js` defaults) but published edits won't show until the
   project is resumed.
