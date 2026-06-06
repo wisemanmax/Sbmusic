@@ -341,6 +341,66 @@ body.rage .rmtag{opacity:1}
   body.rage{animation:none!important}
   .reveal{opacity:1!important;transform:none!important}
 }
+
+/* ===== FLESH-OUT: toasts, modal, filters, shows, shortcuts ===== */
+/* TOASTS */
+#toasts{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:11500;display:flex;flex-direction:column;gap:10px;align-items:center;pointer-events:none}
+.toast{font-family:var(--ui);font-weight:600;font-size:13px;letter-spacing:1px;color:#08120a;background:var(--slime);padding:12px 20px;box-shadow:0 10px 30px rgba(0,0,0,.5),0 0 22px rgba(141,255,43,.4);transform:translateY(20px);opacity:0;transition:.3s;max-width:90vw;text-align:center}
+.toast.show{transform:none;opacity:1}
+.toast.blood{background:var(--blood);color:#fff;box-shadow:0 10px 30px rgba(0,0,0,.5),0 0 22px rgba(255,31,46,.45)}
+.toast.alien{background:var(--alien);color:#fff}
+
+/* MODAL */
+.modal{position:fixed;inset:0;z-index:11200;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(4,3,2,.82);backdrop-filter:blur(8px);opacity:0;visibility:hidden;transition:.3s}
+.modal.open{opacity:1;visibility:visible}
+.modal .box{position:relative;max-width:520px;width:100%;max-height:88vh;overflow:auto;background:linear-gradient(180deg,#140e0a,#0a0706);border:1px solid rgba(141,255,43,.3);box-shadow:0 30px 80px rgba(0,0,0,.7);transform:translateY(18px) scale(.98);transition:.3s}
+.modal.open .box{transform:none}
+.modal .x{position:absolute;top:10px;right:12px;z-index:3;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.4);color:#fff;font-size:16px;cursor:pointer;line-height:1}
+.modal .x:hover{border-color:var(--slime);color:var(--slime)}
+.mhead{aspect-ratio:1;max-height:300px;background-size:cover;background-position:center;position:relative;display:flex;border-bottom:1px solid rgba(141,255,43,.25)}
+.mhead.wide{aspect-ratio:16/9;max-height:240px}
+.mhead::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,rgba(10,7,6,.92))}
+.mhead svg{position:relative;z-index:1;margin:auto;width:42%;filter:drop-shadow(0 0 18px rgba(141,255,43,.4))}
+.mbody{padding:22px}
+.mbody h3{font-family:var(--disp);font-size:30px;color:var(--ink);line-height:1}
+.mbody p{font-size:14px;line-height:1.7;color:var(--soft);margin-top:12px;font-weight:300}
+.mlabel{font-weight:700;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-top:18px}
+.sizes{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.sizes button{font-family:var(--ui);font-weight:600;font-size:13px;min-width:42px;padding:9px 12px;border:1px solid rgba(255,255,255,.22);background:transparent;color:var(--ink);cursor:pointer;transition:.15s}
+.sizes button:hover{border-color:var(--slime);color:var(--slime)}
+.sizes button.sel{background:var(--slime);color:#08120a;border-color:var(--slime)}
+.mcta{margin-top:22px;display:flex;gap:10px;flex-wrap:wrap}
+
+/* MUSIC FILTER TABS */
+.mfilter{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+.mfilter button{font-family:var(--ui);font-weight:700;font-size:12px;letter-spacing:2px;text-transform:uppercase;padding:8px 16px;border:1px solid rgba(255,255,255,.18);background:transparent;color:var(--soft);cursor:pointer;transition:.16s}
+.mfilter button:hover{color:var(--slime);border-color:var(--slime)}
+.mfilter button.on{background:var(--slime);color:#08120a;border-color:var(--slime)}
+.rel.hide{display:none}
+
+/* MERCH interactive */
+.prod{cursor:pointer}
+.prod .watching{position:absolute;top:10px;right:10px;z-index:2;font-family:var(--mono);font-size:10px;color:var(--slime);border:1px solid var(--slime);padding:3px 7px;background:rgba(6,4,3,.7);opacity:0;transition:.2s}
+.prod.watched .watching{opacity:1}
+
+/* SHOWS data-driven */
+.showlist{display:flex;flex-direction:column;gap:10px;max-width:680px;margin:0 auto 22px;text-align:left}
+.showrow{display:flex;align-items:center;gap:16px;padding:15px 18px;border:1px solid rgba(255,255,255,.12);background:rgba(12,9,7,.5);transition:.2s}
+.showrow:hover{border-color:var(--slime)}
+.showrow .date{font-family:var(--disp);font-size:20px;color:var(--slime);min-width:84px}
+.showrow .venue{flex:1;min-width:0}
+.showrow .venue .v1{font-family:var(--disp);font-size:18px;color:var(--ink)}
+.showrow .venue .v2{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-top:2px}
+.showrow .tix{font-weight:700;font-size:11px;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--slime);color:var(--slime);padding:8px 14px;white-space:nowrap;cursor:pointer;background:transparent}
+.showrow .tix:hover{background:var(--slime);color:#08120a}
+
+/* SHORTCUTS help */
+.helpbtn{position:fixed;right:16px;bottom:72px;z-index:2000;width:38px;height:38px;border-radius:50%;border:1px solid rgba(141,255,43,.5);background:rgba(12,9,7,.85);backdrop-filter:blur(12px);color:var(--slime);font-family:var(--disp);font-size:18px;cursor:pointer;transition:.16s}
+.helpbtn:hover{background:var(--slime);color:#08120a;box-shadow:0 0 18px rgba(141,255,43,.5)}
+.klist{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+@media(max-width:520px){.klist{grid-template-columns:1fr}}
+.krow{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--soft)}
+.krow kbd{font-family:var(--mono);font-size:11px;color:var(--ink);border:1px solid rgba(255,255,255,.25);border-bottom-width:2px;padding:3px 8px;background:rgba(255,255,255,.05);min-width:18px;text-align:center}
 </style>
 </head>
 <body>
@@ -432,13 +492,18 @@ body.rage .rmtag{opacity:1}
     </div>
   </div>
 
-  <div class="mgrid">
-    <a class="rel reveal d1" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/5RickWrPNRszADHSzJJYUc"><div class="art"><img loading="lazy" decoding="async" src="assets/my-time-cover.jpg" alt="My Time"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">My Time</div><div class="s">album · 2024</div></div></a>
-    <a class="rel reveal d2" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/6T2tcMpvYytltsEjPgyhEw"><div class="art"><img loading="lazy" decoding="async" src="https://i.scdn.co/image/ab67616d00001e028a915904da619cc9a6ee6fc5" alt="Save Her"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Save Her</div><div class="s">single · 2024</div></div></a>
-    <a class="rel reveal d3" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/5zZBRNMJqFr6hBpB6cjfyI"><div class="art"><img loading="lazy" decoding="async" src="https://i.scdn.co/image/ab67616d00001e02999c0b302ffd8ac36402327a" alt="Flip"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Flip</div><div class="s">single · 2023</div></div></a>
-    <a class="rel reveal d1" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/2yiGZO9RmY8ql8h1OtManp"><div class="art"><img loading="lazy" decoding="async" src="https://i.scdn.co/image/ab67616d00001e02999c0b302ffd8ac36402327a" alt="Turn This Up"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Turn This Up</div><div class="s">single · 2023</div></div></a>
-    <a class="rel reveal d2" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/358k4SFDwfF02ln2L4ZIg5"><div class="art"><img loading="lazy" decoding="async" src="https://i.scdn.co/image/ab67616d00001e028a915904da619cc9a6ee6fc5" alt="I'm In Yo City"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">I'm In Yo City</div><div class="s">single · 2021</div></div></a>
-    <a class="rel reveal d3" target="_blank" rel="noopener noreferrer" href="https://music.apple.com/us/artist/slime-by/1542729349"><div class="art"><img loading="lazy" decoding="async" src="assets/sb-portrait.jpg" alt="Slime By"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Flava</div><div class="s">apple music</div></div></a>
+  <div class="mfilter reveal" id="mfilter">
+    <button class="on" data-f="all">all</button>
+    <button data-f="album">albums</button>
+    <button data-f="single">singles</button>
+  </div>
+  <div class="mgrid" id="mgrid">
+    <a class="rel reveal d1" data-type="album" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/5RickWrPNRszADHSzJJYUc"><div class="art"><img loading="lazy" decoding="async" src="assets/my-time-cover.jpg" alt="My Time"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">My Time</div><div class="s">album · 2024</div></div></a>
+    <a class="rel reveal d2" data-type="single" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/6T2tcMpvYytltsEjPgyhEw"><div class="art"><img loading="lazy" decoding="async" src="https://i.scdn.co/image/ab67616d00001e028a915904da619cc9a6ee6fc5" alt="Save Her"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Save Her</div><div class="s">single · 2024</div></div></a>
+    <a class="rel reveal d3" data-type="single" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/5zZBRNMJqFr6hBpB6cjfyI"><div class="art"><img loading="lazy" decoding="async" src="https://i.scdn.co/image/ab67616d00001e02999c0b302ffd8ac36402327a" alt="Flip"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Flip</div><div class="s">single · 2023</div></div></a>
+    <a class="rel reveal d1" data-type="single" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/2yiGZO9RmY8ql8h1OtManp"><div class="art"><img loading="lazy" decoding="async" src="https://i.scdn.co/image/ab67616d00001e02999c0b302ffd8ac36402327a" alt="Turn This Up"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Turn This Up</div><div class="s">single · 2023</div></div></a>
+    <a class="rel reveal d2" data-type="single" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/358k4SFDwfF02ln2L4ZIg5"><div class="art"><img loading="lazy" decoding="async" src="https://i.scdn.co/image/ab67616d00001e028a915904da619cc9a6ee6fc5" alt="I'm In Yo City"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">I'm In Yo City</div><div class="s">single · 2021</div></div></a>
+    <a class="rel reveal d3" data-type="single" target="_blank" rel="noopener noreferrer" href="https://music.apple.com/us/artist/slime-by/1542729349"><div class="art"><img loading="lazy" decoding="async" src="assets/sb-portrait.jpg" alt="Slime By"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Flava</div><div class="s">apple music</div></div></a>
   </div>
   <div class="embedwrap panel reveal">
     <iframe style="border-radius:4px" src="https://open.spotify.com/embed/artist/70LnkJjJc5yq650kELO09A?utm_source=generator&theme=0" width="100%" height="352" frameborder="0" allow="autoplay;clipboard-write;encrypted-media;fullscreen;picture-in-picture" loading="lazy"></iframe>
@@ -498,19 +563,21 @@ body.rage .rmtag{opacity:1}
 <section id="merch">
   <div class="reveal"><span class="kicker">slime shop</span></div>
   <div class="shead reveal"><h2>merch <em>soon</em></h2></div>
-  <div class="pgrid">
-    <div class="prod reveal"><div class="part"><span class="soon">soon</span><svg viewBox="0 0 100 100" fill="none" stroke="#8dff2b" stroke-width="2.5"><path d="M30 30 L20 40 L28 50 L28 80 L72 80 L72 50 L80 40 L70 30 L60 30 Q50 42 40 30 Z"/></svg></div><div class="pmeta"><div><div class="pt">blackout hoodie</div><div class="pty">SB snake stitch</div></div><div class="pp">soon</div></div></div>
-    <div class="prod reveal d1"><div class="part"><span class="soon">soon</span><svg viewBox="0 0 100 100" fill="none" stroke="#ff1f2e" stroke-width="2.5"><path d="M28 28 L16 38 L24 48 L24 78 L76 78 L76 48 L84 38 L72 28 L62 28 Q50 38 38 28 Z"/></svg></div><div class="pmeta"><div><div class="pt">snake tee</div><div class="pty">green ink print</div></div><div class="pp">soon</div></div></div>
-    <div class="prod reveal d2"><div class="part"><span class="soon">soon</span><svg viewBox="0 0 100 100" fill="none" stroke="#9b3cff" stroke-width="2.5"><ellipse cx="50" cy="50" rx="30" ry="22"/><path d="M32 46 q8 -8 14 0 M54 46 q8 -8 14 0 M40 62 q10 8 20 0"/></svg></div><div class="pmeta"><div><div class="pt">vamp mask</div><div class="pty">blood / lime</div></div><div class="pp">soon</div></div></div>
-    <div class="prod reveal d3"><div class="part"><span class="soon">soon</span><svg viewBox="0 0 100 100" fill="none" stroke="#8dff2b" stroke-width="2.5"><path d="M50 18 q-22 10 -22 34 q0 22 22 30 q22 -8 22 -30 q0 -24 -22 -34Z M40 44 q6 -6 12 0 M50 54 v14"/></svg></div><div class="pmeta"><div><div class="pt">venom chain</div><div class="pty">SB pendant</div></div><div class="pp">soon</div></div></div>
+  <p class="reveal" style="text-align:center;color:var(--soft);font-size:13px;letter-spacing:1px;margin:-22px auto 26px;max-width:46ch">the slime shop drops soon. tap a piece to lock in a <b style="color:var(--slime)">drop alert</b> — you'll be first when it goes live.</p>
+  <div class="pgrid" id="pgrid">
+    <div class="prod reveal" data-key="hoodie" data-name="Blackout Hoodie" data-sub="SB snake stitch" data-price="$65" data-sizes="S,M,L,XL,XXL" data-desc="Heavyweight blackout fleece with embroidered SB snake stitch on the chest and a dripping green back hit. Boxy fit, raw-edge slime detailing."><div class="part"><span class="soon">soon</span><span class="watching">watching ☑</span><svg viewBox="0 0 100 100" fill="none" stroke="#8dff2b" stroke-width="2.5"><path d="M30 30 L20 40 L28 50 L28 80 L72 80 L72 50 L80 40 L70 30 L60 30 Q50 42 40 30 Z"/></svg></div><div class="pmeta"><div><div class="pt">blackout hoodie</div><div class="pty">SB snake stitch</div></div><div class="pp">$65</div></div></div>
+    <div class="prod reveal d1" data-key="tee" data-name="Snake Tee" data-sub="green ink print" data-price="$35" data-sizes="S,M,L,XL,XXL" data-desc="Premium cotton tee with a hand-drawn snake-pit print in toxic green ink. Front SB mark, oversized back graphic."><div class="part"><span class="soon">soon</span><span class="watching">watching ☑</span><svg viewBox="0 0 100 100" fill="none" stroke="#ff1f2e" stroke-width="2.5"><path d="M28 28 L16 38 L24 48 L24 78 L76 78 L76 48 L84 38 L72 28 L62 28 Q50 38 38 28 Z"/></svg></div><div class="pmeta"><div><div class="pt">snake tee</div><div class="pty">green ink print</div></div><div class="pp">$35</div></div></div>
+    <div class="prod reveal d2" data-key="mask" data-name="Vamp Mask" data-sub="blood / lime" data-price="$25" data-sizes="One size" data-desc="Stretch balaclava in blood + lime with reflective fang detail. One size, full SB venom energy."><div class="part"><span class="soon">soon</span><span class="watching">watching ☑</span><svg viewBox="0 0 100 100" fill="none" stroke="#9b3cff" stroke-width="2.5"><ellipse cx="50" cy="50" rx="30" ry="22"/><path d="M32 46 q8 -8 14 0 M54 46 q8 -8 14 0 M40 62 q10 8 20 0"/></svg></div><div class="pmeta"><div><div class="pt">vamp mask</div><div class="pty">blood / lime</div></div><div class="pp">$25</div></div></div>
+    <div class="prod reveal d3" data-key="chain" data-name="Venom Chain" data-sub="SB pendant" data-price="$120" data-sizes="One size" data-desc="Iced SB snake pendant on a 20-inch cuban chain. Limited venom-green stone set. Numbered drop."><div class="part"><span class="soon">soon</span><span class="watching">watching ☑</span><svg viewBox="0 0 100 100" fill="none" stroke="#8dff2b" stroke-width="2.5"><path d="M50 18 q-22 10 -22 34 q0 22 22 30 q22 -8 22 -30 q0 -24 -22 -34Z M40 44 q6 -6 12 0 M50 54 v14"/></svg></div><div class="pmeta"><div><div class="pt">venom chain</div><div class="pty">SB pendant</div></div><div class="pp">$120</div></div></div>
   </div>
 </section>
 
 <!-- SHOWS -->
 <section id="shows">
   <div class="reveal"><span class="kicker">on stage</span></div>
-  <div class="shead reveal"><h2>shows</h2></div>
-  <div class="shows panel reveal"><div class="big">no shows announced. <em>stay tapped in.</em></div><p>★ follow @slimeby_sb for first access ★</p></div>
+  <div class="shead reveal"><h2>shows</h2><a class="link" href="https://instagram.com/slimeby_sb" target="_blank" rel="noopener noreferrer">@slimeby_sb →</a></div>
+  <div class="showlist reveal" id="showlist"></div>
+  <div class="shows panel reveal" id="showsEmpty"><div class="big">no shows announced. <em>stay tapped in.</em></div><p>★ first access drops to the slime list ★</p><div style="margin-top:18px"><button class="bigbtn bSlime" id="tourAlertBtn">☠ get tour alerts</button></div></div>
 </section>
 
 <!-- CONTACT -->
@@ -526,6 +593,7 @@ body.rage .rmtag{opacity:1}
       <a class="bigbtn bAlien" href="https://youtube.com/@slimeby_" target="_blank" rel="noopener noreferrer">youtube</a>
       <a class="bigbtn bSlime" href="https://instagram.com/slimeby_sb" target="_blank" rel="noopener noreferrer">instagram</a>
       <a class="bigbtn bBlood" href="https://www.tiktok.com/@slimeby_sb" target="_blank" rel="noopener noreferrer">tiktok</a>
+      <button class="bigbtn bAlien" id="shareBtn">⤴ share</button>
     </div>
     <div class="guest reveal d2"><input id="gemail" placeholder="join the slime — your@email.com"><button onclick="signbook()">join ☠</button></div>
     <div class="booking reveal d2">booking & features — <a href="mailto:booking@slimeby.com">booking@slimeby.com</a></div>
@@ -544,7 +612,14 @@ body.rage .rmtag{opacity:1}
   <button class="pbtn" id="pbtn" aria-label="play / pause">▶</button>
 </div>
 <button class="totop" id="totop" aria-label="back to top">↑</button>
+<button class="helpbtn" id="helpbtn" aria-label="keyboard shortcuts" title="keyboard shortcuts">?</button>
 <audio id="audio" loop preload="auto" src="assets/man-of-my-word.mp3" crossorigin="anonymous"></audio>
+
+<!-- TOASTS + MODAL -->
+<div id="toasts" aria-live="polite"></div>
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="box" id="modalBox"><button class="x" id="modalX" aria-label="close">✕</button><div id="modalContent"></div></div>
+</div>
 
 <script>
 /* LOADER */
@@ -742,7 +817,48 @@ function enterRage(){rageOn=!rageOn;document.body.classList.toggle('rage',rageOn
 
 /* GUESTBOOK + easter egg */
 function signbook(){const e=document.getElementById('gemail');const v=e.value.trim();if(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){try{const list=JSON.parse(localStorage.getItem('sb_list')||'[]');if(!list.includes(v)){list.push(v);localStorage.setItem('sb_list',JSON.stringify(list));}}catch(_){}e.value='';e.placeholder='✓ welcome to the slime ☠';burst(innerWidth/2,innerHeight*.7,20,'#8dff2b');snakeLunge();}else{e.value='';e.placeholder='✗ enter a valid email';}}
-let seq='';addEventListener('keydown',e=>{if(e.metaKey||e.ctrlKey||e.altKey||isTyping())return;seq=(seq+e.key.toLowerCase()).slice(-5);if(seq==='slime'){for(let i=0;i<60;i++)setTimeout(()=>burst(innerWidth*Math.random(),innerHeight,8,'#8dff2b'),i*20);stab();snakeLunge();}});
+let seq='';addEventListener('keydown',e=>{if(e.metaKey||e.ctrlKey||e.altKey||isTyping())return;seq=(seq+e.key.toLowerCase()).slice(-5);if(seq==='slime'){for(let i=0;i<60;i++)setTimeout(()=>burst(innerWidth*Math.random(),innerHeight,8,'#8dff2b'),i*20);stab();snakeLunge();toast('☠ SLIME UNLOCKED ☠');}});
+
+/* ===================== FLESH-OUT FEATURES ===================== */
+/* TOASTS */
+function toast(msg,type){const wrap=document.getElementById('toasts');const el=document.createElement('div');el.className='toast'+(type?' '+type:'');el.textContent=msg;wrap.appendChild(el);requestAnimationFrame(()=>el.classList.add('show'));setTimeout(()=>{el.classList.remove('show');setTimeout(()=>el.remove(),350);},2600);}
+
+/* MODAL */
+const modal=document.getElementById('modal'),modalContent=document.getElementById('modalContent');
+function openModal(html){modalContent.innerHTML=html;modal.classList.add('open');modal.setAttribute('aria-hidden','false');}
+function closeModal(){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');}
+document.getElementById('modalX').onclick=closeModal;
+modal.addEventListener('click',e=>{if(e.target===modal)closeModal();});
+addEventListener('keydown',e=>{if(e.key==='Escape'&&modal.classList.contains('open'))closeModal();});
+
+/* MUSIC FILTER */
+document.querySelectorAll('#mfilter button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#mfilter button').forEach(x=>x.classList.remove('on'));b.classList.add('on');const f=b.dataset.f;document.querySelectorAll('#mgrid .rel').forEach(c=>c.classList.toggle('hide',f!=='all'&&c.dataset.type!==f));});
+
+/* MERCH — drop alerts saved to localStorage */
+let drops=[];try{drops=JSON.parse(localStorage.getItem('sb_drops')||'[]');}catch(_){}
+function saveDrops(){try{localStorage.setItem('sb_drops',JSON.stringify(drops));}catch(_){}}
+document.querySelectorAll('#pgrid .prod').forEach(prod=>{if(drops.includes(prod.dataset.key))prod.classList.add('watched');prod.addEventListener('click',()=>openMerch(prod));});
+function openMerch(prod){const d=prod.dataset,svg=prod.querySelector('.part svg').outerHTML,sizes=d.sizes.split(','),multi=sizes.length>1,watched=drops.includes(d.key);
+  openModal(`<div class="mhead">${svg}</div><div class="mbody"><span class="kicker">slime shop</span><h3>${d.name}</h3><div class="mlabel" style="margin-top:8px;color:var(--slime)">${d.price} · ${d.sub}</div><p>${d.desc}</p>${multi?`<div class="mlabel">select size</div><div class="sizes" id="szRow">${sizes.map(s=>`<button>${s}</button>`).join('')}</div>`:`<div class="mlabel">${sizes[0]}</div>`}<div class="mcta"><button class="bigbtn bSlime" id="notifyBtn">${watched?'✓ watching this drop':'☠ notify me on drop'}</button></div></div>`);
+  const szRow=document.getElementById('szRow');if(szRow)szRow.querySelectorAll('button').forEach(b=>b.onclick=()=>{szRow.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');});
+  document.getElementById('notifyBtn').onclick=()=>{const i=drops.indexOf(d.key);if(i>=0){drops.splice(i,1);prod.classList.remove('watched');toast('drop alert removed','blood');}else{drops.push(d.key);prod.classList.add('watched');burst(innerWidth/2,innerHeight*.6,16,'#8dff2b');toast('✓ drop alert set — you’re first in line');}saveDrops();document.getElementById('notifyBtn').textContent=drops.includes(d.key)?'✓ watching this drop':'☠ notify me on drop';};}
+
+/* VAULT — lightbox */
+document.querySelectorAll('#vault .vcard').forEach(card=>card.addEventListener('click',e=>{if(e.metaKey||e.ctrlKey||e.shiftKey)return;e.preventDefault();const img=card.querySelector('img').src,title=card.querySelector('.vt').textContent,sub=card.querySelector('.vs').textContent,href=card.getAttribute('href');openModal(`<div class="mhead wide" style="background-image:url('${img}')"></div><div class="mbody"><span class="kicker">${sub}</span><h3>${title}</h3><p>The full visual lives in the SB vault on YouTube. Tap in for the complete drop.</p><div class="mcta"><a class="bigbtn bSlime" href="${href}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);}));
+
+/* SHOWS — data-driven (add real dates to SHOWS to populate the list) */
+const SHOWS=[];/* e.g. {date:'JUL 12',venue:'The Queen',city:'Wilmington, DE',url:'https://...'} */
+(function renderShows(){const list=document.getElementById('showlist'),empty=document.getElementById('showsEmpty');if(!SHOWS.length){list.style.display='none';empty.style.display='';return;}empty.style.display='none';list.style.display='';list.innerHTML=SHOWS.map(s=>`<div class="showrow"><div class="date">${s.date}</div><div class="venue"><div class="v1">${s.venue}</div><div class="v2">${s.city}</div></div>${s.url?`<a class="tix" href="${s.url}" target="_blank" rel="noopener noreferrer">tickets</a>`:'<span class="tix" style="opacity:.5">soon</span>'}</div>`).join('');})();
+document.getElementById('tourAlertBtn').onclick=()=>{document.getElementById('connect').scrollIntoView({behavior:'smooth'});setTimeout(()=>document.getElementById('gemail').focus(),600);toast('drop your email below for tour alerts ☠');};
+
+/* SHORTCUTS HELP */
+const SHORTCUTS=[['Q','slime'],['W','ooze'],['E','808'],['R','sub'],['A','hat'],['S','open hat'],['D','snare'],['F','stab'],['Space','play / pause'],['Esc','close popups'],['slime','secret burst'],['?','this menu']];
+function openHelp(){openModal(`<div class="mbody" style="padding-top:26px"><span class="kicker">controls</span><h3>shortcuts</h3><p>the whole site plays. smash the pads, fill the rage meter, follow the snake.</p><div class="klist">${SHORTCUTS.map(s=>`<div class="krow"><kbd>${s[0]}</kbd><span>${s[1]}</span></div>`).join('')}</div></div>`);}
+document.getElementById('helpbtn').onclick=openHelp;
+addEventListener('keydown',e=>{if(e.key==='?'&&!isTyping()&&!modal.classList.contains('open'))openHelp();});
+
+/* SHARE */
+document.getElementById('shareBtn').onclick=async()=>{const data={title:'SLIME BY — official',text:'Delaware rap — green pressure, venom, motion.',url:location.href};try{if(navigator.share){await navigator.share(data);}else{await navigator.clipboard.writeText(location.href);toast('link copied to clipboard ☑');}}catch(_){}};
 </script>
 </body>
 </html>
