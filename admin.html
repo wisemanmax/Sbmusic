@@ -139,6 +139,10 @@ select.inp{appearance:none;cursor:pointer;background-image:url("data:image/svg+x
 .preview{border-left:1px solid var(--line);position:sticky;top:var(--topbar);height:calc(100vh - var(--topbar));display:flex;flex-direction:column;background:#000}
 .pvbar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--panel)}
 .pvbar .lbl{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-weight:700}
+#pvPageSel{background:transparent;border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:4px 8px;font-size:12px;font-family:inherit;cursor:pointer;max-width:170px}
+#pvPageSel:focus{outline:none;border-color:var(--slime)}
+#pvPageSel option{background:var(--panel);color:var(--ink)}
+.pvbar a.iconbtn{text-decoration:none}
 .pvbar .seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
 .pvbar .seg button{background:transparent;border:0;color:var(--soft);padding:5px 10px;cursor:pointer;font-size:12px}
 .pvbar .seg button.on{background:rgba(141,255,43,.14);color:var(--slime)}
@@ -220,7 +224,9 @@ table.tbl td.muted{color:var(--muted)}
     <main class="editor" id="editor"></main>
     <section class="preview" id="preview">
       <div class="pvbar">
-        <span class="lbl">live preview</span>
+        <span class="lbl">preview</span>
+        <select id="pvPageSel" title="preview which page"></select>
+        <a class="iconbtn" id="pvOpen" target="_blank" rel="noopener" title="open this page in a new tab">↗</a>
         <div class="topspacer"></div>
         <div class="seg" id="pvSeg"><button data-w="desk" class="on">desktop</button><button data-w="phone">phone</button></div>
         <button class="iconbtn" id="pvReload" title="reload preview">↻</button>
@@ -243,6 +249,10 @@ let model = null;           // working content
 let baseline = '{}';        // last-published JSON (for dirty check)
 let view = 'hero';          // active sidebar key
 let previewReady = false;
+/* remembers which array items the editor has collapsed, keyed by the item's own
+   object identity (a WeakSet) so the open/closed state survives a re-render and
+   correctly follows each item across reorder / duplicate / remove. */
+const collapsedObjs = new WeakSet();
 
 const $ = (id) => document.getElementById(id);
 const DRAFT_KEY = 'sb_draft_v1';
@@ -292,14 +302,35 @@ function schedulePreview(){ clearTimeout(pvTimer); pvTimer=setTimeout(pushPrevie
 function pushPreview(){ const f=$('pvframe'); if(f&&f.contentWindow) f.contentWindow.postMessage({__sb:'preview',content:model},'*'); }
 /* the site is multi-page now — point the preview at the page that holds the
    section being edited so edits are always visible. */
+const PAGE_FILE={home:'index.html',music:'music.html',lab:'lab.html',world:'world.html',vault:'vault.html',shows:'shows.html',connect:'connect.html'};
+let pagesPreviewSlug='';   // the custom page the editor last touched (preview target)
+let extrasPreviewKey='home';   // the built-in page the last-edited add-on targets
 function pageForView(key){
   // custom pages preview through page.html pointed at the page being edited
-  if(key==='pages'){ const ps=(model&&model.pages)||[]; return ps.length&&ps[0].slug ? 'page.html?p='+encodeURIComponent(ps[0].slug) : 'index.html'; }
+  if(key==='pages'){ const ps=(model&&model.pages)||[]; const pick=ps.find(p=>p&&p.slug===pagesPreviewSlug)||ps[0]; return pick&&pick.slug ? 'page.html?p='+encodeURIComponent(pick.slug) : 'index.html'; }
+  // add-ons preview the page the block you're editing is assigned to
+  if(key==='extras'){ return PAGE_FILE[extrasPreviewKey]||'index.html'; }
   return (window.SB_SECTION_PAGE&&SB_SECTION_PAGE[key])||'index.html';
 }
 function withPreview(pg){ return pg+(pg.indexOf('?')>=0?'&':'?')+'preview=1'; }
 let pvPage='';
-function ensurePreviewPage(key){ const pg=pageForView(key); if(pg!==pvPage){ pvPage=pg; previewReady=false; const f=$('pvframe'); if(f) f.src=withPreview(pg); return true; } return false; }
+function ensurePreviewPage(key){ const pg=pageForView(key); if(pg!==pvPage){ pvPage=pg; previewReady=false; const f=$('pvframe'); if(f) f.src=withPreview(pg); syncPreviewPicker(); return true; } syncPreviewPicker(); return false; }
+/* the preview toolbar dropdown — preview ANY page (built-in or custom) while you
+   edit, so global things (footer, add-ons, nav) are easy to check anywhere. */
+function buildPreviewPicker(){
+  const sel=$('pvPageSel'); if(!sel)return;
+  const opts=[];
+  (window.SB_NAV||[]).forEach(n=>opts.push([n.href,n.label]));
+  ((model&&model.pages)||[]).forEach(p=>{ if(p&&p.slug)opts.push(['page.html?p='+encodeURIComponent(p.slug),(p.label||p.slug)+' · custom']); });
+  sel.innerHTML=opts.map(([v,l])=>`<option value="${escA(v)}">${escA(l)}</option>`).join('');
+  if(pvPage)sel.value=pvPage;
+}
+function syncPreviewPicker(){
+  const sel=$('pvPageSel'); if(!sel)return;
+  if(pvPage && ![...sel.options].some(o=>o.value===pvPage)) buildPreviewPicker();
+  if(pvPage && sel.value!==pvPage) sel.value=pvPage;
+  const open=$('pvOpen'); if(open)open.href=pvPage||'index.html';
+}
 function saveDraft(){ try{ localStorage.setItem(DRAFT_KEY,JSON.stringify({json:JSON.stringify(model),t:Date.now()})); }catch(_){} }
 function isDirty(){ return JSON.stringify(model)!==baseline; }
 function updateDirty(){
@@ -332,16 +363,18 @@ function buildSidebar(){
     it.onclick=()=>selectView(k);
     s.appendChild(it);
   });
+  buildPreviewPicker();   // keep the preview page dropdown in sync with custom pages
 }
-function selectView(key){
+function selectView(key,keep){
   view=key;
   document.querySelectorAll('.navitem').forEach(n=>n.classList.toggle('active',n.dataset.key===key));
   document.body.classList.remove('show-nav');
-  const ed=$('editor'); ed.scrollTop=0;
-  if(key==='__audience'){ renderAudience(ed); return; }
-  if(key==='__settings'){ renderSettings(ed); return; }
+  const ed=$('editor'); const top=keep?ed.scrollTop:0;
+  if(key==='__audience'){ ed.scrollTop=0; renderAudience(ed); return; }
+  if(key==='__settings'){ ed.scrollTop=0; renderSettings(ed); return; }
   if(!ensurePreviewPage(key)) pushPreview();   // reload preview only when the page changes
   renderSection(ed,key);
+  ed.scrollTop=top;   // keep your place when re-rendering after an edit
 }
 
 /* ---------- section rendering ---------- */
@@ -386,12 +419,17 @@ function arrayCard(k,path){
   const h=elt('div','cardhead'); h.appendChild(elt('h3',null,(m.label||k)));
   const arr=getByPath(path);
   h.appendChild(elt('span','sub','· '+arr.length+' item'+(arr.length===1?'':'s')));
+  if(arr.length>1){          // collapse / expand every (object) item in this list at once
+    const toggleAll=elt('button','iconbtn','⊟'); toggleAll.title='collapse / expand all'; toggleAll.style.marginLeft='auto';
+    toggleAll.onclick=()=>{ const objs=arr.filter(x=>x&&typeof x==='object'); const anyOpen=objs.some(o=>!collapsedObjs.has(o)); objs.forEach(o=>{ if(anyOpen)collapsedObjs.add(o); else collapsedObjs.delete(o); }); selectView(view,true); };
+    h.appendChild(toggleAll);
+  }
   c.appendChild(h);
   const list=elt('div','arr');
   arr.forEach((item,idx)=> list.appendChild(arrayItem(item,idx,path,m)));
   c.appendChild(list);
   const add=elt('button','addbtn','+ add '+(m.itemLabel||'item'));
-  add.onclick=()=>{ const t=window.SB_TEMPLATES&&SB_TEMPLATES[tkeyOf(path)]; arr.push(t!==undefined?sbClone(t):''); onChange(); selectView(view); };
+  add.onclick=()=>{ const t=window.SB_TEMPLATES&&SB_TEMPLATES[tkeyOf(path)]; arr.push(t!==undefined?sbClone(t):''); onChange(); selectView(view,true); };
   c.appendChild(add);
   return c;
 }
@@ -407,27 +445,32 @@ function arrayItem(item,idx,path,m){
   head.appendChild(elt('span','ttl',title));
   const tools=elt('div','aitools');
   const up=elt('button','iconbtn','↑'); up.title='move up'; up.disabled=idx===0;
-  up.onclick=ev=>{ev.stopPropagation(); if(idx>0){[arr[idx-1],arr[idx]]=[arr[idx],arr[idx-1]];onChange();selectView(view);}};
+  up.onclick=ev=>{ev.stopPropagation(); if(idx>0){[arr[idx-1],arr[idx]]=[arr[idx],arr[idx-1]];onChange();selectView(view,true);}};
   const dn=elt('button','iconbtn','↓'); dn.title='move down'; dn.disabled=idx===arr.length-1;
-  dn.onclick=ev=>{ev.stopPropagation(); if(idx<arr.length-1){[arr[idx+1],arr[idx]]=[arr[idx],arr[idx+1]];onChange();selectView(view);}};
+  dn.onclick=ev=>{ev.stopPropagation(); if(idx<arr.length-1){[arr[idx+1],arr[idx]]=[arr[idx],arr[idx+1]];onChange();selectView(view,true);}};
   const dup=elt('button','iconbtn','⧉'); dup.title='duplicate';
-  dup.onclick=ev=>{ev.stopPropagation(); arr.splice(idx+1,0,sbClone(arr[idx]));onChange();selectView(view);};
+  dup.onclick=ev=>{ev.stopPropagation(); arr.splice(idx+1,0,sbClone(arr[idx]));onChange();selectView(view,true);};
   const rm=elt('button','iconbtn danger','✕'); rm.title='remove';
-  rm.onclick=ev=>{ev.stopPropagation(); if(confirm('Remove this '+(m.itemLabel||'item')+'?')){arr.splice(idx,1);onChange();selectView(view);}};
+  rm.onclick=ev=>{ev.stopPropagation(); if(confirm('Remove this '+(m.itemLabel||'item')+'?')){arr.splice(idx,1);onChange();selectView(view,true);}};
   tools.append(up,dn,dup,rm);
   head.appendChild(tools);
   head.appendChild(elt('span','caret','▾'));
-  head.onclick=ev=>{ if(ev.target.closest('.iconbtn'))return; wrap.classList.toggle('closed'); };
+  const canRemember=item&&typeof item==='object';   // objects/tuples keep identity across re-render
+  if(canRemember&&collapsedObjs.has(item)) wrap.classList.add('closed');
+  head.onclick=ev=>{ if(ev.target.closest('.iconbtn'))return; wrap.classList.toggle('closed'); if(canRemember){ if(wrap.classList.contains('closed'))collapsedObjs.add(item); else collapsedObjs.delete(item); } };
   wrap.appendChild(head);
 
   const body=elt('div','aibody');
-  if(Array.isArray(item)){            // tuple e.g. ['power', 50]
+  if(Array.isArray(item)){            // tuple e.g. ['power', 50] → one [name | value] row
+    const t=elt('div','tuple');
     item.forEach((cell,ci)=>{
-      const t=elt('div','tuple');
-      const i1=document.createElement('input'); i1.className='inp'; i1.value=cell;
-      i1.oninput=()=>{ item[ci]=(typeof cell==='number')?(parseFloat(i1.value)||0):i1.value; onChange(); };
-      t.appendChild(i1); body.appendChild(t);
+      const isNum=typeof cell==='number';
+      const i1=document.createElement('input'); i1.className='inp'; i1.value=cell; i1.type=isNum?'number':'text';
+      i1.placeholder=isNum?'0–100':'name';
+      i1.oninput=()=>{ item[ci]=isNum?(parseFloat(i1.value)||0):i1.value; onChange(); };
+      t.appendChild(i1);
     });
+    body.appendChild(t);
   } else if(item&&typeof item==='object'){
     Object.keys(item).forEach(ck=>{
       const cv=item[ck], cp=path.concat(idx,ck);
@@ -459,7 +502,11 @@ function fieldRow(key,path){
   return row;
 }
 
-function commit(path,v){ setByPath(path,v); onChange(); }
+function commit(path,v){ setByPath(path,v);
+  if(path[0]==='pages'&&typeof path[1]==='number'){ const p=model.pages[path[1]]; if(p&&p.slug)pagesPreviewSlug=p.slug; }
+  if(path[0]==='extras'&&typeof path[1]==='number'){ const b=model.extras[path[1]]; if(b&&b.page)extrasPreviewKey=b.page; if(path[path.length-1]==='page'&&view==='extras')ensurePreviewPage('extras'); }
+  onChange();
+}
 
 function buildControl(key,value,path,m){
   const type=m.type || autoType(key,value);
@@ -478,6 +525,13 @@ function buildControl(key,value,path,m){
     const c=document.createElement('input'); c.type='datetime-local'; c.className='inp';
     c.value=toLocalInput(value);
     c.onchange=()=>commit(path, c.value?c.value.length===16?c.value+':00':c.value:'');
+    return c;
+  }
+  if(type==='slug'){       // keep URL slugs clean as you type (lowercase, dashes)
+    const c=document.createElement('input'); c.className='inp'; c.value=value==null?'':value; if(m.placeholder)c.placeholder=m.placeholder;
+    const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9-]+/g,'-');
+    c.oninput=()=>{ const p=c.selectionStart; c.value=norm(c.value); try{c.setSelectionRange(p,p);}catch(_){} commit(path,c.value); };
+    c.onblur=()=>{ c.value=c.value.replace(/^-+|-+$/g,''); commit(path,c.value); };
     return c;
   }
   let c;
@@ -549,6 +603,7 @@ $('publishBtn').onclick=async()=>{
 
 /* ---------- preview controls ---------- */
 $('pvReload').onclick=()=>{ previewReady=false; $('pvframe').src=withPreview(pvPage||'index.html'); };
+$('pvPageSel').onchange=()=>{ const pg=$('pvPageSel').value; if(!pg||pg===pvPage)return; const mm=pg.match(/^page\.html\?p=(.+)$/); if(mm)pagesPreviewSlug=decodeURIComponent(mm[1]); else { const fk=Object.keys(PAGE_FILE).find(k=>PAGE_FILE[k]===pg); if(fk)extrasPreviewKey=fk; } pvPage=pg; previewReady=false; $('pvframe').src=withPreview(pg); const o=$('pvOpen'); if(o)o.href=pg; };
 $('pvSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{
   $('pvSeg').querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
   $('pvWrap').classList.toggle('phone',b.dataset.w==='phone');

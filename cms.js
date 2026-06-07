@@ -111,6 +111,11 @@ const SB_DEFAULTS = {
 };
 window.SB_DEFAULTS = SB_DEFAULTS;
 
+/* One shared shape for a content block (used by Page Add-ons and Custom Pages),
+   so adding/renaming a block field is a single edit. `heading` gets a friendlier
+   default per use-site via spread below. */
+const SB_BLOCK = { style: 'centered', kicker: '', heading: '', text: '', image: '', buttonLabel: '', buttonUrl: '', youtube: '' };
+
 /* Blank-item templates so the admin "add" buttons create proper rows. Keyed by
    the array's dotted path (indices stripped). */
 const SB_TEMPLATES = {
@@ -123,11 +128,11 @@ const SB_TEMPLATES = {
   'vault.items': { title: '', sub: '', img: '', href: '' },
   'videos': { t: '', s: '', img: '', id: '' },
   'shows': { date: '', venue: '', city: '', url: '' },
-  // a freeform content block (every field optional except the layout)
-  'extras': { page: 'home', style: 'centered', kicker: '', heading: 'New section', text: '', image: '', buttonLabel: '', buttonUrl: '', youtube: '' },
+  // a freeform content block appended to an existing page (adds a target `page`)
+  'extras': { page: 'home', ...SB_BLOCK, heading: 'New section' },
   // a brand-new page, pre-seeded with one welcome block
-  'pages': { slug: 'new-page', label: 'New Page', nav: true, kicker: 'SB', intro: 'a new corner of the slime world', blocks: [{ style: 'centered', kicker: '', heading: 'Welcome', text: '', image: '', buttonLabel: '', buttonUrl: '', youtube: '' }] },
-  'pages.blocks': { style: 'centered', kicker: '', heading: 'New section', text: '', image: '', buttonLabel: '', buttonUrl: '', youtube: '' },
+  'pages': { slug: 'new-page', label: 'New Page', nav: true, kicker: 'SB', intro: 'a new corner of the slime world', blocks: [{ ...SB_BLOCK, heading: 'Welcome' }] },
+  'pages.blocks': { ...SB_BLOCK, heading: 'New section' },
 };
 window.SB_TEMPLATES = SB_TEMPLATES;
 
@@ -284,7 +289,7 @@ const SB_SCHEMA = {
 
   /* ---- Custom pages ---- */
   'pages':                 { label: 'Custom pages', itemLabel: 'page', titleKey: 'label' },
-  'pages.slug':            { label: 'URL slug', hint: 'Lowercase letters, numbers and dashes. The page lives at page.html?p=<slug>.' },
+  'pages.slug':            { label: 'URL slug', type: 'slug', hint: 'Lowercase letters, numbers and dashes. The page lives at page.html?p=<slug>.' },
   'pages.label':           { label: 'Title / nav label' },
   'pages.nav':             { label: 'Show in top nav' },
   'pages.kicker':          { label: 'Header kicker', hint: 'Small label above the big title.' },
