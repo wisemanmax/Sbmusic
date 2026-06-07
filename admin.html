@@ -276,7 +276,9 @@ $('pw').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click();
 async function enterEditor(){
   // Build the whole editor BEFORE revealing it. If anything here throws we stay on
   // the gate (with the error shown) instead of stranding the user on a blank page.
-  const server=await sbGetContent();
+  // Strict read: if the live content can't be fetched we fail loudly here rather than
+  // loading defaults — which would otherwise let a publish overwrite real content.
+  const server=await sbGetContentStrict();
   baseline=JSON.stringify(server);
   // offer to restore an unsaved local draft
   let draft=null; try{ draft=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null'); }catch(_){}

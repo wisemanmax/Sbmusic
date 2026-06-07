@@ -124,7 +124,9 @@ document.addEventListener('mouseover',e=>{if(e.target.closest(hoverEls))cursor.c
 document.addEventListener('mouseout',e=>{if(e.target.closest(hoverEls))cursor.classList.remove('big')});
 const tcv=document.getElementById('trail'),tctx=tcv.getContext('2d');
 let embers=[];const emberC=['#ff1f2e','#8dff2b','#9b3cff','#b6ff5a'];
-function emit(x,y,n){for(let i=0;i<n;i++){if(Math.random()<.5)embers.push({x,y,vx:(Math.random()-.5)*.6,vy:-Math.random()*1.2-.3,life:1,c:emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*2.4+.8})}if(embers.length>180)embers.splice(0,embers.length-180);}
+/* honor the OS "reduce motion" setting: no passive cursor-trail embers, calmer loops */
+const sbReduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function emit(x,y,n){if(sbReduceMotion)return;for(let i=0;i<n;i++){if(Math.random()<.5)embers.push({x,y,vx:(Math.random()-.5)*.6,vy:-Math.random()*1.2-.3,life:1,c:emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*2.4+.8})}if(embers.length>180)embers.splice(0,embers.length-180);}
 function burst(x,y,n,c){for(let i=0;i<n;i++){const a=Math.random()*7,sp=Math.random()*4+1;embers.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:1,c:c||emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*3+1})}}
 function sizeTrail(){tcv.width=innerWidth;tcv.height=innerHeight;}sizeTrail();
 
@@ -677,13 +679,18 @@ let parts=[];for(let i=0;i<34;i++)parts.push({x:Math.random(),y:Math.random(),s:
    the loop (cursor trail, visualizers) still runs every frame so it stays smooth. */
 let _snakeLast=-1e9; const SNAKE_DT=1000/40;
 function frame(t){updateLevels(t);const energy=levels.reduce((a,b)=>a+b,0)/levels.length+(rageOn?0.35:0);
-  // SNAKE PIT (full page, always visible) — throttled; WebGL clears its own canvases
-  if(!SB_PREVIEW && (t-_snakeLast)>=SNAKE_DT){ _snakeLast=t; drawSnakes(t,energy); }
+  // SNAKE PIT (full page) — throttled; runs much slower under reduced-motion
+  const snakeDt=sbReduceMotion?100:SNAKE_DT;
+  if(!SB_PREVIEW && (t-_snakeLast)>=snakeDt){ _snakeLast=t; drawSnakes(t,energy); }
+  // Visualizers: under reduced-motion, only animate while audio is actually playing
+  const drawViz=!sbReduceMotion||playing;
+  if(drawViz){
   if(H.w&&heroIn){const{x,w,h}=H;x.clearRect(0,0,w,h);x.save();parts.forEach(p=>{p.y-=p.v*(1+energy*3);if(p.y<0)p.y=1;x.globalAlpha=.3+energy*.5;x.fillStyle=p.c;x.beginPath();x.arc(p.x*w,p.y*h,p.s,0,7);x.fill();});x.restore();snakeWave(x,w,h,t,9+energy*8,3.5+energy*4,h*.62);}
   if(V.w&&vizIn){const{x,w,h}=V;x.clearRect(0,0,w,h);snakeWave(x,w,h,t,16+energy*18,6+energy*9,h*.5);snakeWave(x,w,h,t*.8+500,11,3+energy*6,h*.52);ring(x,w*.5,h*.5,Math.min(w,h)*.16,t);bars(x,w,h,h);}
   if(C.w&&conIn){const{x,w,h}=C;x.clearRect(0,0,w,h);snakeWave(x,w,h,t*.7,9+energy*6,3+energy*4,h*.5);}
   if(E.w&&musicIn)eqbars(E.x,E.w,E.h);
   if(SRW.w&&labIn){const{x,w,h}=SRW;x.clearRect(0,0,w,h);snakeWave(x,w,h,t*.6,7+energy*9,3+energy*4,h*.5);}
+  }
   if(embers.length){tctx.clearRect(0,0,tcv.width,tcv.height);tctx.globalCompositeOperation='lighter';
     for(const p of embers){p.life*=.95;p.x+=p.vx;p.y+=p.vy;p.vy+=.02;const s=p.s*p.life+.4;tctx.globalAlpha=p.life;tctx.fillStyle=p.c;tctx.shadowColor=p.c;tctx.shadowBlur=8;tctx.beginPath();tctx.arc(p.x,p.y,s,0,7);tctx.fill();}
     tctx.globalAlpha=1;embers=embers.filter(p=>p.life>.05);if(!embers.length)tctx.clearRect(0,0,tcv.width,tcv.height);}
@@ -750,13 +757,38 @@ let seq='';addEventListener('keydown',e=>{if(e.metaKey||e.ctrlKey||e.altKey||isT
 /* TOASTS */
 function toast(msg,type){const wrap=document.getElementById('toasts');const el=document.createElement('div');el.className='toast'+(type?' '+type:'');el.textContent=msg;wrap.appendChild(el);requestAnimationFrame(()=>el.classList.add('show'));setTimeout(()=>{el.classList.remove('show');setTimeout(()=>el.remove(),350);},2600);}
 
-/* MODAL */
+/* MODAL — accessible dialog: moves focus in, traps Tab, restores focus on close */
 const modal=document.getElementById('modal'),modalContent=document.getElementById('modalContent');
-function openModal(html){modalContent.innerHTML=html;modal.classList.add('open');modal.setAttribute('aria-hidden','false');}
-function closeModal(){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');}
+let _modalOpener=null;
+const _focSel='a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+function _modalFocusable(){return Array.from(modal.querySelectorAll(_focSel)).filter(el=>el.offsetWidth||el.offsetHeight||el===document.activeElement);}
+function openModal(html){
+  _modalOpener=document.activeElement;
+  modalContent.innerHTML=html;
+  const h=modalContent.querySelector('h2,h3');                 // label the dialog from its heading
+  if(h){if(!h.id)h.id='sbModalTitle';modal.setAttribute('aria-labelledby',h.id);}else modal.removeAttribute('aria-labelledby');
+  modal.classList.add('open');modal.setAttribute('aria-hidden','false');
+  /* the dialog fades in (visibility transition), so the close button isn't focusable
+     for a few frames — focus it the moment it actually becomes visible */
+  let _ft=0;(function focusIn(){const mx=document.getElementById('modalX');
+    if(mx&&getComputedStyle(mx).visibility!=='hidden'){mx.focus();return;}
+    if(_ft++<40)requestAnimationFrame(focusIn);})();
+}
+function closeModal(){
+  modal.classList.remove('open');modal.setAttribute('aria-hidden','true');
+  if(_modalOpener&&_modalOpener.focus){try{_modalOpener.focus();}catch(_){}}
+  _modalOpener=null;
+}
 document.getElementById('modalX').onclick=closeModal;
 modal.addEventListener('click',e=>{if(e.target===modal)closeModal();});
 addEventListener('keydown',e=>{if(e.key==='Escape'&&modal.classList.contains('open'))closeModal();});
+modal.addEventListener('keydown',e=>{                          // trap Tab within the dialog
+  if(e.key!=='Tab'||!modal.classList.contains('open'))return;
+  const f=_modalFocusable();if(!f.length)return;
+  const first=f[0],last=f[f.length-1];
+  if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+  else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+});
 
 /* MUSIC FILTER */
 function wireMfilter(){document.querySelectorAll('#mfilter button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#mfilter button').forEach(x=>x.classList.remove('on'));b.classList.add('on');const f=b.dataset.f;document.querySelectorAll('#mgrid .rel').forEach(c=>c.classList.toggle('hide',f!=='all'&&c.dataset.type!==f));});}
@@ -783,8 +815,10 @@ function wireShare(){const _shareBtn=document.getElementById('shareBtn');if(_sha
 /* ===================== FEATURED DROP ===================== */
 function previewFeatured(){startAudio();toast('▶ now spinning — Man Of My Word');}
 function notifyDrop(){gotoConnectJoin('☠ drop your email — first to know');}
-/* drop date is set from CMS content (drop.dropDate); counts down, then reads OUT NOW. */
-let dropDate=new Date('2026-07-04T00:00:00');
+/* drop date is set from CMS content (drop.dropDate); counts down, then reads OUT NOW.
+   Use an explicit offset so every visitor counts down to the same instant (else a
+   bare 'YYYY-MM-DDTHH:MM' is parsed in each visitor's own timezone). */
+let dropDate=new Date('2026-07-04T00:00:00-04:00');
 function tickCountdown(){const el=document.getElementById('cd');if(!el)return;const d=dropDate-Date.now();if(isNaN(d)||d<=0){el.innerHTML='<span class="cdlive">OUT NOW ☠</span>';return;}const u=(n,l)=>`<div class="cdu"><b>${String(n).padStart(2,'0')}</b><span>${l}</span></div>`;el.innerHTML=u(Math.floor(d/864e5),'days')+u(Math.floor(d/36e5)%24,'hrs')+u(Math.floor(d/6e4)%60,'min')+u(Math.floor(d/1e3)%60,'sec');}
 tickCountdown();setInterval(tickCountdown,1000);
 

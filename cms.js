@@ -336,6 +336,21 @@ async function sbGetContent() {
 }
 window.sbGetContent = sbGetContent;
 
+/* strict read for the ADMIN editor: throws on a failed read instead of silently
+   returning defaults, so the editor never loads — and therefore can't publish over —
+   the live content when the backend is unreachable. A missing/empty row is still fine
+   (a brand-new site legitimately starts from defaults). */
+async function sbGetContentStrict() {
+  const r = await fetch(SB_CFG.url + '/rest/v1/site_content?id=eq.1&select=data', {
+    headers: { apikey: SB_CFG.key, Authorization: 'Bearer ' + SB_CFG.key },
+  });
+  if (!r.ok) throw new Error('content read failed (HTTP ' + r.status + ')');
+  const rows = await r.json();
+  const remote = (rows && rows[0] && rows[0].data) || {};
+  return sbMerge(SB_DEFAULTS, remote);
+}
+window.sbGetContentStrict = sbGetContentStrict;
+
 /* call the password-checked edge function: actions = login | save | upload */
 async function sbAdmin(password, action, payload) {
   const r = await fetch(SB_CFG.url + '/functions/v1/admin', {
