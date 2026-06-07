@@ -722,31 +722,36 @@ function enterRage(){
 const _rageBtn=document.getElementById('rageBtn');if(_rageBtn)_rageBtn.onclick=()=>{enterRage();setMenu(false);};
 
 /* GUESTBOOK + easter egg */
-/* JOIN THE SLIME — captures email + (optional) SMS number to localStorage.
-   To deliver for real, POST sb_list / sb_sms to your provider (Mailchimp/ConvertKit
-   for email, Community/SimpleTexting/Twilio for SMS) — swap the storeLocal calls below. */
 function storeLocal(key,val){try{const a=JSON.parse(localStorage.getItem(key)||'[]');if(!a.includes(val)){a.push(val);localStorage.setItem(key,JSON.stringify(a));}}catch(_){}}
+/* JOIN THE SLIME — sends the sign-up to the backend (Supabase). Personal data is NOT
+   kept in a permanent localStorage list anymore; if the backend write fails we queue
+   the entry under sb_pending and retry, clearing it once it lands, so PII isn't
+   retained longer than needed. Requires an explicit consent opt-in. */
+function pendingGet(){try{return JSON.parse(localStorage.getItem('sb_pending')||'[]');}catch(_){return[];}}
+function pendingSet(a){try{if(a.length)localStorage.setItem('sb_pending',JSON.stringify(a.slice(-50)));else localStorage.removeItem('sb_pending');}catch(_){}}
+async function flushPending(){if(typeof sbSubscribe!=='function')return;const a=pendingGet();if(!a.length)return;const keep=[];for(const x of a){let ok=false;try{ok=await sbSubscribe(x.email,x.phone||'');}catch(_){ok=false;}if(!ok)keep.push(x);}pendingSet(keep);}
 async function signbook(){
-  const e=document.getElementById('gemail'),p=document.getElementById('gphone'),note=document.getElementById('joinnote');
+  const e=document.getElementById('gemail'),p=document.getElementById('gphone'),note=document.getElementById('joinnote'),consent=document.getElementById('gconsent');
   if(!e||!p||!note)return;
   const ev=e.value.trim(),pv=p.value.trim(),digits=pv.replace(/[^\d]/g,'');
   const emailOk=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ev);
   const phoneOk=pv===''||digits.length>=10;
   if(!emailOk){note.textContent='✗ enter a valid email';note.classList.add('bad');e.focus();return;}
   if(!phoneOk){note.textContent='✗ enter a valid phone, or leave it blank';note.classList.add('bad');p.focus();return;}
+  if(consent&&!consent.checked){note.textContent='✗ tick the box to opt in first';note.classList.add('bad');consent.focus();return;}
   const gotPhone=digits.length>=10;
-  /* keep a local copy first so a sign-up is never lost if the backend is unreachable */
-  storeLocal('sb_list',ev);if(gotPhone)storeLocal('sb_sms',digits);
   note.classList.remove('bad');note.textContent='… adding you to the slime';
   /* report the REAL outcome instead of always claiming success */
   let ok=false;
   try{ if(typeof sbSubscribe==='function') ok=await sbSubscribe(ev,gotPhone?digits:''); }catch(_){ ok=false; }
-  e.value='';p.value='';
+  e.value='';p.value='';if(consent)consent.checked=false;
   if(ok){
     note.textContent=gotPhone?'✓ you in — email + SMS. welcome to the slime ☠':'✓ you in — welcome to the slime ☠';
-    toast('☠ welcome to the slime');
+    toast('☠ welcome to the slime');flushPending();
   }else{
-    note.textContent='✓ saved on this device — we’ll sync you to the list soon ☠';
+    /* queue for retry rather than keeping a permanent PII list */
+    const q=pendingGet();q.push({email:ev,phone:gotPhone?digits:'',t:Date.now()});pendingSet(q);
+    note.textContent='✓ saved — we’ll add you when the connection’s back ☠';
     toast('saved — sync pending');
   }
   burst(innerWidth/2,innerHeight*.7,20,'#8dff2b');snakeLunge();
@@ -1243,3 +1248,6 @@ try{ if(sessionStorage.getItem('sb_wipe')){ sessionStorage.removeItem('sb_wipe')
 
 /* wire the page we landed on */
 sbInitPage();
+
+/* retry any sign-ups that were queued while the backend was unreachable, then forget them */
+if(!SB_PREVIEW){try{flushPending();}catch(_){}}

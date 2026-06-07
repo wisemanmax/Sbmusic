@@ -39,9 +39,11 @@ and publish live.
   (persisted to `localStorage`); the main CTA routes visitors to the slime list for first
   access when the shop drops.
 - **Shows** — data-driven list. Empty by default with a "get tour alerts" CTA.
-- **Join the slime (email + SMS)** — validates an email plus an optional phone number and
-  saves sign-ups to the Supabase `subscribers` table (viewable + exportable in the admin's
-  **Audience** tab), with `localStorage` (`sb_list` / `sb_sms`) as an offline fallback.
+- **Join the slime (email + SMS)** — validates an email plus an optional phone number,
+  requires an explicit consent opt-in, and saves sign-ups to the Supabase `subscribers`
+  table (viewable + exportable in the admin's **Audience** tab). If the backend write
+  fails the entry is queued in `localStorage` (`sb_pending`) and retried on the next
+  visit, then cleared — personal data isn't kept in a permanent local list.
 - **Motion & interaction** — a **slime page-wipe** between pages (armed before first paint
   so there's no flash), a **scroll-progress bar**, pointer-driven **3D tilt** on every
   card, and **magnetic** primary buttons. The pointer effects gracefully fall back on
