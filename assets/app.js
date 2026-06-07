@@ -76,6 +76,7 @@ buildChrome();
 function gotoConnectJoin(msg){
   const g=document.getElementById('gemail');
   if(g){const c=document.getElementById('connect');if(c)c.scrollIntoView({behavior:'smooth'});setTimeout(()=>g.focus(),500);if(msg)toast(msg);}
+  else if(typeof sbNavigate==='function'){ sbNavigate('connect.html#join',true); if(msg)setTimeout(()=>toast(msg),700); }
   else location.href='connect.html#join';
 }
 
@@ -104,7 +105,7 @@ function renderMarquee(words){const tr=document.getElementById('track');if(!tr)r
 
 /* REVEAL */
 const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.12});
-document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+function observeReveals(){document.querySelectorAll('.reveal').forEach(el=>io.observe(el));}
 
 /* CURSOR + EMBERS */
 const cursor=document.getElementById('cursor');
@@ -129,16 +130,24 @@ function sizeTrail(){tcv.width=innerWidth;tcv.height=innerHeight;}sizeTrail();
 
 /* AUDIO GRAPH */
 const audio=document.getElementById('audio');audio.volume=.55;
-const pbtn=document.getElementById('pbtn'),disc=document.getElementById('disc'),musicbar=document.getElementById('musicbar'),pwplay=document.getElementById('pwplay');
+const pbtn=document.getElementById('pbtn'),disc=document.getElementById('disc'),musicbar=document.getElementById('musicbar');
+let pwplay=null;   // music.html transport button — re-queried on every (client-side) page change
 let actx,analyser,srcNode,mix,shaper,dry,conv,wet,freq,graphReady=false,playing=false,noiseBuf;
-/* slowed + reverb state (drives the whole-site track) */
-let userRate=0.80,revAmt=0.30,roomP=0.55;
-/* ── audio continuity: the track follows you across pages ──
-   On each navigation we save position / volume / fx + play state, and restore
-   them here so the song picks up where it left off instead of restarting. */
-const SB_AUDIO_KEY='sb_audio';let _seekTo=null,_resumeWanted=false,_hadAudioState=false;
-try{const s=JSON.parse(sessionStorage.getItem(SB_AUDIO_KEY)||'null');if(s){_hadAudioState=true;if(typeof s.vol==='number')audio.volume=s.vol;if(typeof s.rate==='number')userRate=s.rate;if(typeof s.rev==='number')revAmt=s.rev;if(typeof s.room==='number')roomP=s.room;if(typeof s.t==='number'&&isFinite(s.t))_seekTo=s.t;_resumeWanted=!!s.playing;}}catch(_){}
-function saveAudioState(){try{sessionStorage.setItem(SB_AUDIO_KEY,JSON.stringify({t:audio.currentTime||0,vol:audio.volume,rate:userRate,rev:revAmt,room:roomP,playing:!audio.paused}));}catch(_){}}
+/* The always-on site player runs the track NORMALLY (full speed, no reverb). */
+let userRate=1.0,revAmt=0,roomP=0.40;
+/* The Lab is a SEPARATE slowed + reverb sandbox. It keeps its own bend for the
+   session so it can be re-applied on the lab page, but it never becomes the site
+   default — every other page plays the song normally. */
+let labRate=0.80,labRev=0.30,labRoom=0.55;
+/* ── audio continuity ──
+   Page-to-page moves are client-side (no reload), so the <audio> element is never
+   destroyed and playback simply continues across pages. We still persist transport
+   (position / volume / play state) so a hard reload picks up where it left off. */
+const SB_AUDIO_KEY='sb_audio',SB_LAB_KEY='sb_lab';let _seekTo=null,_resumeWanted=false,_hadAudioState=false;
+try{const s=JSON.parse(sessionStorage.getItem(SB_AUDIO_KEY)||'null');if(s){_hadAudioState=true;if(typeof s.vol==='number')audio.volume=s.vol;if(typeof s.t==='number'&&isFinite(s.t))_seekTo=s.t;_resumeWanted=!!s.playing;}}catch(_){}
+try{const l=JSON.parse(sessionStorage.getItem(SB_LAB_KEY)||'null');if(l){if(typeof l.rate==='number')labRate=l.rate;if(typeof l.rev==='number')labRev=l.rev;if(typeof l.room==='number')labRoom=l.room;}}catch(_){}
+function saveAudioState(){try{sessionStorage.setItem(SB_AUDIO_KEY,JSON.stringify({t:audio.currentTime||0,vol:audio.volume,playing:!audio.paused}));}catch(_){}}
+function saveLabState(){try{sessionStorage.setItem(SB_LAB_KEY,JSON.stringify({rate:labRate,rev:labRev,room:labRoom}));}catch(_){}}
 addEventListener('pagehide',saveAudioState);addEventListener('beforeunload',saveAudioState);
 try{audio.preservesPitch=false;audio.mozPreservesPitch=false;audio.webkitPreservesPitch=false;}catch(_){}
 audio.playbackRate=userRate;
@@ -166,11 +175,15 @@ function applyAudioFx(){if(!actx)return;const t=actx.currentTime;
   if(shaper)shaper.curve=rageOn?distc(7):null;
   try{audio.preservesPitch=false;audio.mozPreservesPitch=false;audio.webkitPreservesPitch=false;}catch(_){}
   audio.playbackRate=rageOn?rageRate():userRate;}
+/* Switch the live track between the two players. The site plays normal everywhere;
+   only the lab page swaps in its slowed + reverb bend. */
+function applyNormalFx(){userRate=1.0;revAmt=0;try{audio.playbackRate=rageOn?rageRate():1.0;}catch(_){}applyAudioFx();}
+function applyLabFx(){userRate=labRate;revAmt=labRev;roomP=labRoom;try{audio.playbackRate=rageOn?rageRate():userRate;}catch(_){}if(actx)rebuildImpulse();applyAudioFx();}
 function connectMedia(){if(graphReady)return;ensureCtx();try{srcNode=actx.createMediaElementSource(audio);srcNode.connect(mix);graphReady=true;}catch(e){}}
 function startAudio(){connectMedia();ensureCtx();applyAudioFx();armKick();audio.play().then(()=>setUI(true)).catch(()=>{});}
 function setUI(on){playing=on;const ic=on?'❚❚':'▶';if(pbtn)pbtn.textContent=ic;if(pwplay)pwplay.textContent=ic;if(disc)disc.classList.toggle('spin',on);if(musicbar)musicbar.classList.toggle('open',on);const sp=document.getElementById('srPlay');if(sp)sp.textContent=on?'❚❚ pause':'▶ play';const sa=document.getElementById('srArt');if(sa)sa.classList.toggle('spin',on);}
 function toggle(){if(audio.paused)startAudio();else{audio.pause();setUI(false);}}
-if(pbtn)pbtn.onclick=toggle;if(disc)disc.onclick=toggle;if(pwplay)pwplay.onclick=toggle;
+if(pbtn)pbtn.onclick=toggle;if(disc)disc.onclick=toggle;
 audio.addEventListener('play',()=>setUI(true));audio.addEventListener('pause',()=>setUI(false));
 function listenNow(){startAudio();const v=document.getElementById('visualizer');if(v)v.scrollIntoView({behavior:'smooth'});}
 /* Always arm a first-interaction fallback: the very first tap / scroll / key resumes the
@@ -178,13 +191,11 @@ function listenNow(){startAudio();const v=document.getElementById('visualizer');
    starts the track if the browser blocked autoplay outright. */
 let kicked=false,armed=false;
 function armKick(){if(kicked||armed)return;armed=true;const evs=['pointerdown','touchstart','keydown','wheel','scroll'];function kick(){if(kicked)return;kicked=true;evs.forEach(e=>removeEventListener(e,kick));ensureCtx();if(audio.paused){audio.play().then(()=>setUI(true)).catch(()=>{});}else setUI(true);}evs.forEach(e=>addEventListener(e,kick,{once:true,passive:true}));}
-const pwcur=document.getElementById('pwcur'),pwdur=document.getElementById('pwdur'),pwfill=document.getElementById('pwprogfill'),pwprog=document.getElementById('pwprog');
 function fmt(s){if(!isFinite(s))return'0:00';const m=Math.floor(s/60),x=Math.floor(s%60);return m+':'+String(x).padStart(2,'0');}
-audio.addEventListener('loadedmetadata',()=>{const d=fmt(audio.duration);if(pwdur)pwdur.textContent=d;const sd=document.getElementById('srDur');if(sd)sd.textContent=d;if(_seekTo!=null&&isFinite(audio.duration)){try{audio.currentTime=Math.max(0,Math.min(_seekTo,audio.duration-0.25));}catch(_){}_seekTo=null;}});
-audio.addEventListener('timeupdate',()=>{const c=fmt(audio.currentTime),pct=(audio.currentTime/audio.duration*100||0)+'%';if(pwcur)pwcur.textContent=c;if(pwfill)pwfill.style.width=pct;const sc=document.getElementById('srCur'),sf=document.getElementById('srProgFill');if(sc)sc.textContent=c;if(sf)sf.style.width=pct;});
-if(pwprog)pwprog.onclick=e=>{if(!isFinite(audio.duration))return;const r=pwprog.getBoundingClientRect();audio.currentTime=(e.clientX-r.left)/r.width*audio.duration;};
-/* VOLUME */
-const pwvol=document.getElementById('pwvol');if(pwvol){pwvol.value=Math.round(audio.volume*100);pwvol.addEventListener('input',()=>{audio.volume=pwvol.value/100;});}
+/* progress / time labels are looked up by id each tick so they always target the
+   current page's player (the player UI lives inside <main>, which is swapped on nav). */
+audio.addEventListener('loadedmetadata',()=>{const d=fmt(audio.duration);const pwdur=document.getElementById('pwdur');if(pwdur)pwdur.textContent=d;const sd=document.getElementById('srDur');if(sd)sd.textContent=d;if(_seekTo!=null&&isFinite(audio.duration)){try{audio.currentTime=Math.max(0,Math.min(_seekTo,audio.duration-0.25));}catch(_){}_seekTo=null;}});
+audio.addEventListener('timeupdate',()=>{const c=fmt(audio.currentTime),pct=(audio.currentTime/audio.duration*100||0)+'%';const pwcur=document.getElementById('pwcur'),pwfill=document.getElementById('pwprogfill');if(pwcur)pwcur.textContent=c;if(pwfill)pwfill.style.width=pct;const sc=document.getElementById('srCur'),sf=document.getElementById('srProgFill');if(sc)sc.textContent=c;if(sf)sf.style.width=pct;});
 /* BACK TO TOP */
 const totop=document.getElementById('totop');totop.onclick=()=>scrollTo({top:0,behavior:'smooth'});
 addEventListener('scroll',()=>totop.classList.toggle('show',scrollY>600));
@@ -207,8 +218,7 @@ function isTyping(){const a=document.activeElement;return a&&(a.tagName==='INPUT
 
 /* SLIME SPLASH (replaces bells) */
 function slimeSplash(x,y){stab();if(x!=null)burst(x,y,18,'#8dff2b');snakeLunge();}
-const _heroMono=document.getElementById('heroMono');if(_heroMono)_heroMono.onclick=e=>slimeSplash(e.clientX,e.clientY);
-const _contactMono=document.getElementById('contactMono');if(_contactMono)_contactMono.onclick=e=>slimeSplash(e.clientX,e.clientY);
+/* the hero / contact splash marks live inside <main> → wired in sbInitPage() */
 
 /* scroll progress (used by the snake pit + the top progress bar) */
 function scrollProg(){const m=document.documentElement.scrollHeight-innerHeight;return m>0?Math.min(1,Math.max(0,scrollY/m)):0;}
@@ -636,18 +646,20 @@ else { gl=null; setupFallback(); doSize(); spawn(); }
 
 /* ---------- VISUALIZER CANVAS ---------- */
 function fit(cv){if(!cv)return{};const dpr=Math.min(devicePixelRatio||1,2);const r=cv.getBoundingClientRect();cv.width=r.width*dpr;cv.height=r.height*dpr;const x=cv.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);return{x,w:r.width,h:r.height};}
-const heroCv=document.getElementById('heroCanvas'),vizCv=document.getElementById('vizCanvas'),conCv=document.getElementById('contactCanvas'),eqCv=document.getElementById('pweq'),srWaveCv=document.getElementById('srWave');
+let heroCv,vizCv,conCv,eqCv,srWaveCv;
 let H={},V={},C={},E={},SRW={};
-function resizeAll(){H=fit(heroCv);V=fit(vizCv);C=fit(conCv);E=fit(eqCv);SRW=fit(srWaveCv);}
-resizeAll();
+/* the visualizer canvases live inside <main>; re-grab them whenever it changes */
+function resizeAll(){heroCv=document.getElementById('heroCanvas');vizCv=document.getElementById('vizCanvas');conCv=document.getElementById('contactCanvas');eqCv=document.getElementById('pweq');srWaveCv=document.getElementById('srWave');H=fit(heroCv);V=fit(vizCv);C=fit(conCv);E=fit(eqCv);SRW=fit(srWaveCv);}
 
 /* ---------- VISIBILITY CULLING — only paint canvases that are on-screen ---------- */
-let heroIn=true,vizIn=false,conIn=false,labIn=false,musicIn=true;
-(function(){
+let heroIn=true,vizIn=false,conIn=false,labIn=false,musicIn=true,_cullOb=null;
+function setupCulling(){
+  if(_cullOb)_cullOb.disconnect();
+  heroIn=true;vizIn=false;conIn=false;labIn=false;musicIn=true;
   const set={hero:v=>heroIn=v,viz:v=>vizIn=v,con:v=>conIn=v,lab:v=>labIn=v,music:v=>musicIn=v};
-  const ob=new IntersectionObserver(es=>es.forEach(e=>{const k=e.target.getAttribute('data-vk');if(set[k])set[k](e.isIntersecting);}),{threshold:0,rootMargin:'120px'});
-  [['#top','hero'],['#visualizer','viz'],['#connect','con'],['#lab','lab'],['#music','music']].forEach(([sel,k])=>{const el=document.querySelector(sel);if(el){el.setAttribute('data-vk',k);ob.observe(el);}});
-})();
+  _cullOb=new IntersectionObserver(es=>es.forEach(e=>{const k=e.target.getAttribute('data-vk');if(set[k])set[k](e.isIntersecting);}),{threshold:0,rootMargin:'120px'});
+  [['#top','hero'],['#visualizer','viz'],['#connect','con'],['#lab','lab'],['#music','music']].forEach(([sel,k])=>{const el=document.querySelector(sel);if(el){el.setAttribute('data-vk',k);_cullOb.observe(el);}});
+}
 
 /* ---------- ONE debounced resize handler for every canvas + the snake pit ---------- */
 let _rzT;addEventListener('resize',()=>{clearTimeout(_rzT);_rzT=setTimeout(()=>{sizeTrail();sizeSnake();buildSnakes();resizeAll();},150);});
@@ -739,18 +751,17 @@ modal.addEventListener('click',e=>{if(e.target===modal)closeModal();});
 addEventListener('keydown',e=>{if(e.key==='Escape'&&modal.classList.contains('open'))closeModal();});
 
 /* MUSIC FILTER */
-document.querySelectorAll('#mfilter button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#mfilter button').forEach(x=>x.classList.remove('on'));b.classList.add('on');const f=b.dataset.f;document.querySelectorAll('#mgrid .rel').forEach(c=>c.classList.toggle('hide',f!=='all'&&c.dataset.type!==f));});
+function wireMfilter(){document.querySelectorAll('#mfilter button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#mfilter button').forEach(x=>x.classList.remove('on'));b.classList.add('on');const f=b.dataset.f;document.querySelectorAll('#mgrid .rel').forEach(c=>c.classList.toggle('hide',f!=='all'&&c.dataset.type!==f));});}
 
 /* MERCH — coming soon, route to the slime list */
-const merchAlertBtn=document.getElementById('merchAlertBtn');
-if(merchAlertBtn)merchAlertBtn.onclick=()=>{burst(innerWidth/2,innerHeight*.6,16,'#8dff2b');gotoConnectJoin('☠ drop your email — first access to the slime shop');};
+function wireMerchAlert(){const merchAlertBtn=document.getElementById('merchAlertBtn');if(merchAlertBtn)merchAlertBtn.onclick=()=>{burst(innerWidth/2,innerHeight*.6,16,'#8dff2b');gotoConnectJoin('☠ drop your email — first access to the slime shop');};}
 
-/* VAULT — lightbox */
-document.querySelectorAll('#vault .vcard').forEach(card=>card.addEventListener('click',e=>{if(e.metaKey||e.ctrlKey||e.shiftKey)return;e.preventDefault();const img=card.querySelector('img').src,title=card.querySelector('.vt').textContent,sub=card.querySelector('.vs').textContent,href=card.getAttribute('href');openModal(`<div class="mhead wide" style="background-image:url('${img}')"></div><div class="mbody"><span class="kicker">${sub}</span><h3>${title}</h3><p>The full visual lives in the SB vault on YouTube. Tap in for the complete drop.</p><div class="mcta"><a class="bigbtn bSlime" href="${href}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);}));
+/* VAULT — lightbox (static markup; the CMS rebuild rebinds its own cards) */
+function wireVault(){document.querySelectorAll('#vault .vcard').forEach(card=>card.addEventListener('click',e=>{if(e.metaKey||e.ctrlKey||e.shiftKey)return;e.preventDefault();const img=card.querySelector('img').src,title=card.querySelector('.vt').textContent,sub=card.querySelector('.vs').textContent,href=card.getAttribute('href');openModal(`<div class="mhead wide" style="background-image:url('${img}')"></div><div class="mbody"><span class="kicker">${sub}</span><h3>${title}</h3><p>The full visual lives in the SB vault on YouTube. Tap in for the complete drop.</p><div class="mcta"><a class="bigbtn bSlime" href="${href}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);}));}
 
 /* SHOWS — content-driven (edit in the admin page) */
 function renderShows(SHOWS){SHOWS=SHOWS||[];const list=document.getElementById('showlist'),empty=document.getElementById('showsEmpty');if(!list||!empty)return;if(!SHOWS.length){list.style.display='none';empty.style.display='';return;}empty.style.display='none';list.style.display='';list.innerHTML=SHOWS.map(s=>`<div class="showrow"><div class="date">${esc(s.date)}</div><div class="venue"><div class="v1">${esc(s.venue)}</div><div class="v2">${esc(s.city)}</div></div>${s.url?`<a class="tix" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">tickets</a>`:'<span class="tix" style="opacity:.5">soon</span>'}</div>`).join('');}
-const _tourBtn=document.getElementById('tourAlertBtn');if(_tourBtn)_tourBtn.onclick=()=>gotoConnectJoin('drop your email below for tour alerts ☠');
+function wireTour(){const _tourBtn=document.getElementById('tourAlertBtn');if(_tourBtn)_tourBtn.onclick=()=>gotoConnectJoin('drop your email below for tour alerts ☠');}
 
 /* SHORTCUTS HELP */
 const SHORTCUTS=[['Space','play / pause'],['Esc','close popups'],['slime','secret burst'],['?','this menu']];
@@ -759,7 +770,7 @@ document.getElementById('helpbtn').onclick=openHelp;
 addEventListener('keydown',e=>{if(e.key==='?'&&!isTyping()&&!modal.classList.contains('open'))openHelp();});
 
 /* SHARE */
-const _shareBtn=document.getElementById('shareBtn');if(_shareBtn)_shareBtn.onclick=async()=>{const data={title:'SLIME BY — official',text:'Delaware rap — green pressure, venom, motion.',url:location.href};try{if(navigator.share){await navigator.share(data);}else{await navigator.clipboard.writeText(location.href);toast('link copied to clipboard ☑');}}catch(_){}};
+function wireShare(){const _shareBtn=document.getElementById('shareBtn');if(_shareBtn)_shareBtn.onclick=async()=>{const data={title:'SLIME BY — official',text:'Delaware rap — green pressure, venom, motion.',url:location.href};try{if(navigator.share){await navigator.share(data);}else{await navigator.clipboard.writeText(location.href);toast('link copied to clipboard ☑');}}catch(_){}};}
 
 /* ===================== FEATURED DROP ===================== */
 function previewFeatured(){startAudio();toast('▶ now spinning — Man Of My Word');}
@@ -778,35 +789,45 @@ function renderVideos(list){VIDEOS=list||[];const g=document.getElementById('vid
     else{openModal(`<div class="mbody"><span class="kicker">${esc(v.s)}</span><h3>${esc(v.t)}</h3><p>Add this clip's YouTube video ID in the admin page to play it right here. For now, catch the full vault on YouTube.</p><div class="mcta"><a class="bigbtn bSlime" href="${esc((window.SB&&SB.vault&&SB.vault.youtube)||'https://youtube.com/@slimeby_')}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);}};});
 }
 
-/* ===================== THE LAB — slowed + reverb studio (drives the site track) ===================== */
-const srSpeed=document.getElementById('srSpeed'),srSpeedV=document.getElementById('srSpeedV'),
-      srReverb=document.getElementById('srReverb'),srReverbV=document.getElementById('srReverbV'),
-      srRoom=document.getElementById('srRoom'),srRoomV=document.getElementById('srRoomV'),
-      srPlayBtn=document.getElementById('srPlay'),srProgEl=document.getElementById('srProg'),
-      srModeEl=document.getElementById('srMode');
+/* ===================== THE LAB — a SEPARATE slowed + reverb sandbox =====================
+   The lab lives on lab.html. It bends the LIVE track only while you're on that page;
+   every other page (and a fresh load of the site) plays the song normally. The bend is
+   remembered for the session (labRate/labRev/labRoom) but never becomes the site default. */
+let srSpeed,srSpeedV,srReverb,srReverbV,srRoom,srRoomV,srPlayBtn,srProgEl,srModeEl;
 function roomLabel(p){return p<0.34?'small room':p<0.7?'medium hall':'cavern';}
 function srModeText(){if(rageOn)return'rage';const slow=userRate<0.97,fast=userRate>1.03,rev=revAmt>0.05;
   if(fast)return rev?'nightcore + reverb':'nightcore';
   if(slow&&rev)return'slowed + reverb';if(slow)return'slowed';if(rev)return'reverb';return'original';}
 function srSync(){if(srModeEl)srModeEl.textContent=srModeText();}
-function setSpeed(v){userRate=Math.max(.5,Math.min(1.25,v/100));if(srSpeedV)srSpeedV.textContent=userRate.toFixed(2)+'×';if(!rageOn)audio.playbackRate=userRate;srSync();}
-function setReverb(v){revAmt=Math.max(0,Math.min(1,v/100));if(srReverbV)srReverbV.textContent=Math.round(revAmt*100)+'%';applyAudioFx();srSync();}
-function setRoom(v){roomP=Math.max(0,Math.min(1,v/100));if(srRoomV)srRoomV.textContent=roomLabel(roomP);}
+function setSpeed(v){userRate=Math.max(.5,Math.min(1.25,v/100));labRate=userRate;if(srSpeedV)srSpeedV.textContent=userRate.toFixed(2)+'×';if(!rageOn)audio.playbackRate=userRate;saveLabState();srSync();}
+function setReverb(v){revAmt=Math.max(0,Math.min(1,v/100));labRev=revAmt;if(srReverbV)srReverbV.textContent=Math.round(revAmt*100)+'%';applyAudioFx();saveLabState();srSync();}
+function setRoom(v){roomP=Math.max(0,Math.min(1,v/100));labRoom=roomP;if(srRoomV)srRoomV.textContent=roomLabel(roomP);saveLabState();}
 const SR_PRESETS={slowrev:[80,30,55],deep:[70,58,80],night:[118,8,26],clean:[100,0,40]};
 function markPreset(name){document.querySelectorAll('.srpresets button').forEach(b=>b.classList.toggle('on',!!name&&b.dataset.preset===name));}
 function applyPreset(name){const p=SR_PRESETS[name];if(!p)return;if(srSpeed)srSpeed.value=p[0];if(srReverb)srReverb.value=p[1];if(srRoom)srRoom.value=p[2];setSpeed(p[0]);setReverb(p[1]);setRoom(p[2]);rebuildImpulse();markPreset(name);}
-if(srSpeed)srSpeed.oninput=()=>{setSpeed(+srSpeed.value);markPreset(null);};
-if(srReverb)srReverb.oninput=()=>{setReverb(+srReverb.value);markPreset(null);};
-if(srRoom){srRoom.oninput=()=>{setRoom(+srRoom.value);markPreset(null);};srRoom.onchange=()=>rebuildImpulse();}
-document.querySelectorAll('.srpresets button').forEach(b=>b.onclick=()=>{ensureCtx();applyPreset(b.dataset.preset);if(audio.paused)startAudio();});
-if(srPlayBtn)srPlayBtn.onclick=toggle;
-if(srProgEl)srProgEl.onclick=e=>{if(!isFinite(audio.duration))return;const r=srProgEl.getBoundingClientRect();audio.currentTime=(e.clientX-r.left)/r.width*audio.duration;};
 /* which preset (if any) matches the current speed/reverb/room state */
 function matchPreset(){const cur=[Math.round(userRate*100),Math.round(revAmt*100),Math.round(roomP*100)];for(const k in SR_PRESETS){const p=SR_PRESETS[k];if(p[0]===cur[0]&&p[1]===cur[1]&&p[2]===cur[2])return k;}return null;}
-/* push the live state onto the lab sliders + labels (used when resuming across pages) */
-function syncLab(){setSpeed(Math.round(userRate*100));setReverb(Math.round(revAmt*100));setRoom(Math.round(roomP*100));if(srSpeed)srSpeed.value=Math.round(userRate*100);if(srReverb)srReverb.value=Math.round(revAmt*100);if(srRoom)srRoom.value=Math.round(roomP*100);rebuildImpulse();markPreset(matchPreset());}
-/* boot the vibe: resume the carried-over fx if we have them, else open slowed + reverb */
-if(_hadAudioState)syncLab();else applyPreset('slowrev');
+/* push the lab's remembered bend onto its sliders + labels and engage it on the live track */
+function syncLab(){userRate=labRate;revAmt=labRev;roomP=labRoom;
+  if(srSpeed)srSpeed.value=Math.round(labRate*100);if(srReverb)srReverb.value=Math.round(labRev*100);if(srRoom)srRoom.value=Math.round(labRoom*100);
+  if(srSpeedV)srSpeedV.textContent=labRate.toFixed(2)+'×';if(srReverbV)srReverbV.textContent=Math.round(labRev*100)+'%';if(srRoomV)srRoomV.textContent=roomLabel(labRoom);
+  if(!rageOn)audio.playbackRate=userRate;if(actx)rebuildImpulse();applyAudioFx();markPreset(matchPreset());srSync();}
+/* wire the lab controls + engage the bend — called from sbInitPage() on lab.html only */
+function wireLab(){
+  srSpeed=document.getElementById('srSpeed');srSpeedV=document.getElementById('srSpeedV');
+  srReverb=document.getElementById('srReverb');srReverbV=document.getElementById('srReverbV');
+  srRoom=document.getElementById('srRoom');srRoomV=document.getElementById('srRoomV');
+  srPlayBtn=document.getElementById('srPlay');srProgEl=document.getElementById('srProg');srModeEl=document.getElementById('srMode');
+  if(!srSpeed&&!srReverb&&!srPlayBtn)return false;   // not the lab page
+  if(srSpeed)srSpeed.oninput=()=>{setSpeed(+srSpeed.value);markPreset(null);};
+  if(srReverb)srReverb.oninput=()=>{setReverb(+srReverb.value);markPreset(null);};
+  if(srRoom){srRoom.oninput=()=>{setRoom(+srRoom.value);markPreset(null);};srRoom.onchange=()=>rebuildImpulse();}
+  document.querySelectorAll('.srpresets button').forEach(b=>b.onclick=()=>{ensureCtx();applyPreset(b.dataset.preset);if(audio.paused)startAudio();});
+  if(srPlayBtn)srPlayBtn.onclick=toggle;
+  if(srProgEl)srProgEl.onclick=e=>{if(!isFinite(audio.duration))return;const r=srProgEl.getBoundingClientRect();audio.currentTime=(e.clientX-r.left)/r.width*audio.duration;};
+  syncLab();
+  return true;
+}
 
 /* ===================== SB UNIVERSE — five powers map (content-driven) ===================== */
 let POWERS=[];
@@ -960,9 +981,56 @@ function playWipeOut(done){ if(!wipeEl||reducedMotion){done&&done();return;} wip
 /* ENTER: the new page paints already covered (html.wipe-armed::before, armed in the
    page <head> before first paint → no flash). CSS slides it away; we just clean up. */
 function clearWipeArmed(){ const h=document.documentElement; if(reducedMotion)h.classList.remove('wipe-armed'); else setTimeout(()=>h.classList.remove('wipe-armed'),650); }
-/* intercept internal page links and wipe before navigating */
+/* ENTER (client-side): the cover is up after the swap; slide it off the top to reveal. */
+function pjaxReveal(){ if(!wipeEl||reducedMotion)return;
+  wipeEl.style.transition='transform .5s cubic-bezier(.76,0,.24,1)';
+  requestAnimationFrame(()=>{ wipeEl.style.transform='translateY(-100%)'; });
+  const done=()=>{ wipeEl.removeEventListener('transitionend',done); wipeEl.classList.remove('in'); wipeEl.style.transition=''; wipeEl.style.transform=''; };
+  wipeEl.addEventListener('transitionend',done); setTimeout(done,700);
+}
+
+/* ===================== CLIENT-SIDE ROUTER =====================
+   The whole point: the music never stops between pages. The <audio> element and the
+   rest of the page chrome live OUTSIDE <main>, so we navigate by fetching the target
+   page and swapping ONLY its <main> — no full reload, the audio graph keeps playing.
+   Falls back to a normal hard navigation if anything looks off. */
+function pageFromUrl(u){const p=(u.split('#')[0].split('?')[0].split('/').pop()||'').toLowerCase();return p===''?'index.html':p;}
+function navKey(u){const p=pageFromUrl(u);let s='';if(p==='page.html'){const q=new URLSearchParams(u.split('#')[0].split('?')[1]||'');s=q.get('p')||'';}return p+'|'+s;}
+function setActiveNav(){const here=currentPage(),slug=currentSlug();
+  document.querySelectorAll('#nav .navlinks a').forEach(a=>{const h=a.getAttribute('href')||'';let on=pageFromUrl(h)===here;
+    if(on&&pageFromUrl(h)==='page.html'){const q=new URLSearchParams(h.split('#')[0].split('?')[1]||'');on=(q.get('p')||'')===slug;}
+    a.classList.toggle('active',on);});}
+let _navBusy=false,_curKey=navKey(location.href);
+async function sbNavigate(url,push){
+  if(_navBusy)return; _navBusy=true;
+  let html;
+  try{const r=await fetch(url,{credentials:'same-origin'});if(!r.ok)throw 0;html=await r.text();}
+  catch(_){location.href=url;return;}
+  let doc;try{doc=new DOMParser().parseFromString(html,'text/html');}catch(_){location.href=url;return;}
+  const newMain=doc.getElementById('main')||doc.querySelector('main');
+  const curMain=document.getElementById('main')||document.querySelector('main');
+  if(!newMain||!curMain){location.href=url;return;}
+  const swap=()=>{
+    try{document.adoptNode(newMain);}catch(_){}
+    curMain.replaceWith(newMain);
+    if(!document.getElementById('sbBlocks')){const bc=document.createElement('div');bc.id='sbBlocks';newMain.appendChild(bc);}
+    if(doc.title)document.title=doc.title;
+    if(push){try{history.pushState({sb:1},'',url);}catch(_){}}
+    _curKey=navKey(location.href);
+    document.body.className=document.body.className.replace(/\bpage-\S+/g,'').trim();
+    document.body.classList.add('page-'+currentPage().replace(/\.html$/,''));
+    setActiveNav();
+    try{scrollTo(0,0);}catch(_){}
+    sbInitPage();
+    _navBusy=false;
+    pjaxReveal();
+  };
+  if(reducedMotion)swap(); else playWipeOut(swap);
+}
+/* intercept internal page links → client-side navigate (no reload, music keeps playing) */
 document.addEventListener('click',e=>{
-  if(reducedMotion||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+  if(SB_PREVIEW)return;   // the admin preview iframe drives navigation itself
+  if(e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
   const a=e.target.closest('a[href]'); if(!a||a.target==='_blank'||a.hasAttribute('download'))return;
   const href=a.getAttribute('href'); if(!href||/^(https?:|mailto:|tel:|#)/i.test(href)||!/\.html(\?|#|$)/i.test(href))return;
   const tgt=href.split('#')[0].split('?')[0].toLowerCase();
@@ -971,9 +1039,10 @@ document.addEventListener('click',e=>{
   let same=tgt===currentPage();
   if(same&&tgt==='page.html'){ const q=new URLSearchParams(href.split('#')[0].split('?')[1]||''); same=(q.get('p')||'')===currentSlug(); }
   if(same){ if(!href.includes('#')){ e.preventDefault(); try{scrollTo({top:0,behavior:'smooth'});}catch(_){} } return; }
-  e.preventDefault(); try{saveAudioState();}catch(_){} try{sessionStorage.setItem('sb_wipe','1');}catch(_){}
-  playWipeOut(()=>{ location.href=href; });
+  e.preventDefault(); sbNavigate(href,true);
 });
+/* back / forward — re-render the target page in place (skip pure #hash changes) */
+addEventListener('popstate',()=>{ if(navKey(location.href)===_curKey)return; sbNavigate(location.href,false); });
 
 /* ---- scroll-progress bar ---- */
 const progressEl=document.getElementById('progress');
@@ -994,10 +1063,12 @@ if(finePointer&&!reducedMotion){
     card.style.transform=`perspective(820px) rotateX(${(-py*max).toFixed(2)}deg) rotateY(${(px*max).toFixed(2)}deg) translateY(-6px)`;
   },{passive:true});
   document.addEventListener('pointerleave',()=>{reset(cur);cur=null;});
-  /* ---- magnetic primary buttons ---- */
+}
+/* ---- magnetic primary buttons (re-bound per page since most live in <main>) ---- */
+function wireMagnetic(){ if(!(finePointer&&!reducedMotion))return;
   document.querySelectorAll('.bigbtn,.btnX').forEach(b=>{
-    b.addEventListener('pointermove',e=>{const r=b.getBoundingClientRect();b.style.transform=`translate(${((e.clientX-r.left)/r.width-.5)*10}px,${((e.clientY-r.top)/r.height-.5)*10}px)`;});
-    b.addEventListener('pointerleave',()=>{b.style.transform='';});
+    b.onpointermove=e=>{const r=b.getBoundingClientRect();b.style.transform=`translate(${((e.clientX-r.left)/r.width-.5)*10}px,${((e.clientY-r.top)/r.height-.5)*10}px)`;};
+    b.onpointerleave=()=>{b.style.transform='';};
   });
 }
 
@@ -1019,20 +1090,22 @@ function openMerch(card){
   const nb=document.getElementById('merchNotify');
   if(nb)nb.onclick=()=>{ const was=isWatched(name); setWatched(name); markWatchedCards(); nb.textContent='✓ on the list ☠'; nb.disabled=true; burst(innerWidth/2,innerHeight*.5,14,'#8dff2b'); toast(was?('already watching '+name):('☠ watching '+name+' — first access when it drops')); };
 }
-(function initMerch(){ const pg=document.getElementById('pgrid'); if(!pg)return;
+function initMerch(){ const pg=document.getElementById('pgrid'); if(!pg)return;
   pg.querySelectorAll('.prod').forEach(c=>{ io.observe(c); c.tabIndex=0; c.setAttribute('role','button'); c.setAttribute('aria-label',(c.dataset.name||'product')+' — coming soon');
-    c.addEventListener('click',()=>openMerch(c));
-    c.addEventListener('keydown',e=>{if(e.key==='Enter'||e.code==='Space'){e.preventDefault();openMerch(c);}}); });
+    c.onclick=()=>openMerch(c);
+    c.onkeydown=e=>{if(e.key==='Enter'||e.code==='Space'){e.preventDefault();openMerch(c);}}; });
   markWatchedCards();
-})();
+}
 
-/* boot: render defaults instantly, then overlay whatever's published in Supabase.
+/* boot content: render defaults instantly, then overlay whatever's published in Supabase.
    Guarded so a missing/failed cms.js can never break the rest of the page. */
 var SB_PREVIEW=/[?&]preview\b/.test(location.search);
-try{ if(typeof SB_DEFAULTS!=='undefined') applyContent(SB_DEFAULTS); }catch(e){}
-/* In preview the admin drives the content via postMessage, so skip the remote
-   fetch — otherwise it could resolve late and clobber the live edits. */
-if(!SB_PREVIEW){ try{ if(typeof sbGetContent==='function') sbGetContent().then(applyContent).catch(()=>{}); }catch(e){} }
+function loadContent(){
+  try{ if(typeof SB_DEFAULTS!=='undefined') applyContent(SB_DEFAULTS); }catch(e){}
+  /* In preview the admin drives the content via postMessage, so skip the remote
+     fetch — otherwise it could resolve late and clobber the live edits. */
+  if(!SB_PREVIEW){ try{ if(typeof sbGetContent==='function') sbGetContent().then(applyContent).catch(()=>{}); }catch(e){} }
+}
 
 /* ===================== LIVE PREVIEW CHANNEL =====================
    When this page is embedded in the admin's preview pane it renders edits in
@@ -1046,8 +1119,33 @@ if(SB_PREVIEW){
 }
 
 /* deep-link: arriving at connect.html#join lands the visitor on the email field */
-if(/join/.test(location.hash)){const g=document.getElementById('gemail');if(g)setTimeout(()=>{const c=document.getElementById('connect');if(c)c.scrollIntoView({behavior:'smooth'});g.focus();},350);}
+function deepLinkJoin(){ if(/join/.test(location.hash)){const g=document.getElementById('gemail');if(g)setTimeout(()=>{const c=document.getElementById('connect');if(c)c.scrollIntoView({behavior:'smooth'});g.focus();},350);} }
 
-/* if we arrived via an internal page link, the enter wipe is already covering
-   (armed in <head>); clear it once it has slid away */
+/* ===================== PER-PAGE INIT =====================
+   Runs on first load AND after every client-side navigation. Re-wires everything that
+   lives inside <main> against the freshly-swapped DOM, and engages the right audio
+   character: the lab is slowed + reverb, everywhere else the song plays normally. The
+   one-time chrome / audio graph / snake pit / global listeners set up above are never
+   re-run here, so nothing double-binds and the music keeps playing. */
+function sbInitPage(){
+  resizeAll();            // re-grab + size this page's visualizer canvases
+  setupCulling();         // re-observe on-screen sections for render culling
+  observeReveals();       // reveal-on-scroll for the new content
+  pwplay=document.getElementById('pwplay'); if(pwplay)pwplay.onclick=toggle;
+  const pwprog=document.getElementById('pwprog'); if(pwprog)pwprog.onclick=e=>{if(!isFinite(audio.duration))return;const r=pwprog.getBoundingClientRect();audio.currentTime=(e.clientX-r.left)/r.width*audio.duration;};
+  const pwvol=document.getElementById('pwvol'); if(pwvol){pwvol.value=Math.round(audio.volume*100);pwvol.oninput=()=>{audio.volume=pwvol.value/100;};}
+  const hm=document.getElementById('heroMono'); if(hm)hm.onclick=e=>slimeSplash(e.clientX,e.clientY);
+  const cm=document.getElementById('contactMono'); if(cm)cm.onclick=e=>slimeSplash(e.clientX,e.clientY);
+  wireMfilter(); wireMerchAlert(); wireVault(); wireTour(); wireShare(); initMerch(); wireMagnetic();
+  tickCountdown();
+  if(currentPage()==='lab.html') wireLab(); else applyNormalFx();   // lab = slowed+reverb, else normal
+  loadContent();          // apply CMS defaults + fetch published content for this page
+  deepLinkJoin();
+  setUI(!audio.paused);   // reflect play state on the new page's transport UI
+}
+
+/* legacy full-load wipe cleanup (kept for hard navigations / no-JS-router fallbacks) */
 try{ if(sessionStorage.getItem('sb_wipe')){ sessionStorage.removeItem('sb_wipe'); clearWipeArmed(); } else { document.documentElement.classList.remove('wipe-armed'); } }catch(_){}
+
+/* wire the page we landed on */
+sbInitPage();
