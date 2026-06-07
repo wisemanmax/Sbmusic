@@ -108,13 +108,19 @@ document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
 
 /* CURSOR + EMBERS */
 const cursor=document.getElementById('cursor');
-let mx=innerWidth/2,my=innerHeight/2,cxp=mx,cyp=my;
+let mx=innerWidth/2,my=innerHeight/2;
 const hoverEls='a,button,.rel,.vcard,.upanel,.prod,.disc,.pwplay,.sbmono';
-addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;emit(e.clientX,e.clientY,1);
-  const hx=(e.clientX/innerWidth-.5),hy=(e.clientY/innerHeight-.5);const hi=document.getElementById('heroinner');if(hi){hi.style.setProperty('--px',(hx*16)+'px');hi.style.setProperty('--py',(hy*12)+'px');}});
+/* The native cursor is hidden (body{cursor:none}), so this ring IS the pointer.
+   It used to be eased toward the mouse on its own rAF loop — but when the render
+   loop got busy that rAF starved and the ring crawled (the "slow cursor"). Position
+   it straight from the pointer event with a GPU transform so it tracks 1:1 and never
+   depends on frame budget. */
+function placeCursor(x,y){ if(cursor) cursor.style.transform='translate3d('+x+'px,'+y+'px,0) translate(-50%,-50%)'; }
+placeCursor(mx,my);
+addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;placeCursor(mx,my);emit(e.clientX,e.clientY,1);
+  const hx=(e.clientX/innerWidth-.5),hy=(e.clientY/innerHeight-.5);const hi=document.getElementById('heroinner');if(hi){hi.style.setProperty('--px',(hx*16)+'px');hi.style.setProperty('--py',(hy*12)+'px');}},{passive:true});
 document.addEventListener('mouseover',e=>{if(e.target.closest(hoverEls))cursor.classList.add('big')});
 document.addEventListener('mouseout',e=>{if(e.target.closest(hoverEls))cursor.classList.remove('big')});
-(function cl(){cxp+=(mx-cxp)*.25;cyp+=(my-cyp)*.25;cursor.style.left=cxp+'px';cursor.style.top=cyp+'px';requestAnimationFrame(cl)})();
 const tcv=document.getElementById('trail'),tctx=tcv.getContext('2d');
 let embers=[];const emberC=['#ff1f2e','#8dff2b','#9b3cff','#b6ff5a'];
 function emit(x,y,n){for(let i=0;i<n;i++){if(Math.random()<.5)embers.push({x,y,vx:(Math.random()-.5)*.6,vy:-Math.random()*1.2-.3,life:1,c:emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*2.4+.8})}if(embers.length>180)embers.splice(0,embers.length-180);}
@@ -585,8 +591,13 @@ function renderFallback(){
 /* ----------------------------- SIZE / BOOT ----------------------------- */
 function doSize(){
   const ow=W||innerWidth, oh=H||innerHeight;
-  DPR=Math.min(window.devicePixelRatio||1,2);
   W=innerWidth; H=innerHeight;
+  // The snake pit is a soft, blurred full-page background — rendering it at the
+  // display's full DPR (2 on most laptops/desktops) just burns GPU for no visible
+  // gain. Cap it, and taper harder on big monitors, so a full-screen shader stops
+  // saturating the compositor (which showed up as desktop lag + a sluggish cursor).
+  const cap=(W*H>2200*1300)?1.25:1.5;
+  DPR=Math.max(1,Math.min(window.devicePixelRatio||1,cap));
   canvas.width=Math.floor(W*DPR); canvas.height=Math.floor(H*DPR);
   canvas.style.width=W+'px'; canvas.style.height=H+'px';
   if(gl) gl.viewport(0,0,canvas.width,canvas.height);
@@ -649,9 +660,13 @@ function ring(ctx,cx,cy,r,t){const n=48,cols=['#ff1f2e','#8dff2b','#9b3cff'];ctx
 function eqbars(ctx,w,h){const n=22,bw=w/n,cols=['#ff1f2e','#8dff2b','#9b3cff'];ctx.clearRect(0,0,w,h);for(let i=0;i<n;i++){const bh=Math.max(2,levels[i*2%levels.length]*h);ctx.fillStyle=cols[i%3];ctx.fillRect(i*bw+1,h-bh,bw-2,bh);}}
 let parts=[];for(let i=0;i<34;i++)parts.push({x:Math.random(),y:Math.random(),s:Math.random()*2+.5,v:Math.random()*.0004+.0001,c:emberC[Math.floor(Math.random()*4)]});
 
+/* The snake pit (full-page WebGL + a 2D overlay) is the heavy part of this loop.
+   Cap it to ~40fps and skip it entirely inside the admin preview iframe. The rest of
+   the loop (cursor trail, visualizers) still runs every frame so it stays smooth. */
+let _snakeLast=-1e9; const SNAKE_DT=1000/40;
 function frame(t){updateLevels(t);const energy=levels.reduce((a,b)=>a+b,0)/levels.length+(rageOn?0.35:0);
-  // SNAKE PIT (full page, always visible) — WebGL engine clears its own canvases
-  drawSnakes(t,energy);
+  // SNAKE PIT (full page, always visible) — throttled; WebGL clears its own canvases
+  if(!SB_PREVIEW && (t-_snakeLast)>=SNAKE_DT){ _snakeLast=t; drawSnakes(t,energy); }
   if(H.w&&heroIn){const{x,w,h}=H;x.clearRect(0,0,w,h);x.save();parts.forEach(p=>{p.y-=p.v*(1+energy*3);if(p.y<0)p.y=1;x.globalAlpha=.3+energy*.5;x.fillStyle=p.c;x.beginPath();x.arc(p.x*w,p.y*h,p.s,0,7);x.fill();});x.restore();snakeWave(x,w,h,t,9+energy*8,3.5+energy*4,h*.62);}
   if(V.w&&vizIn){const{x,w,h}=V;x.clearRect(0,0,w,h);snakeWave(x,w,h,t,16+energy*18,6+energy*9,h*.5);snakeWave(x,w,h,t*.8+500,11,3+energy*6,h*.52);ring(x,w*.5,h*.5,Math.min(w,h)*.16,t);bars(x,w,h,h);}
   if(C.w&&conIn){const{x,w,h}=C;x.clearRect(0,0,w,h);snakeWave(x,w,h,t*.7,9+energy*6,3+energy*4,h*.5);}

@@ -274,8 +274,8 @@ $('loginBtn').onclick=async()=>{
 $('pw').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click();});
 
 async function enterEditor(){
-  $('gate').style.display='none';
-  $('app').style.display='';
+  // Build the whole editor BEFORE revealing it. If anything here throws we stay on
+  // the gate (with the error shown) instead of stranding the user on a blank page.
   const server=await sbGetContent();
   baseline=JSON.stringify(server);
   // offer to restore an unsaved local draft
@@ -287,6 +287,11 @@ async function enterEditor(){
   buildSidebar();
   selectView(view);
   updateDirty();
+  // Reveal the editor. Must be an explicit display value: setting display=''
+  // only clears the inline style, so #app falls back to the stylesheet's
+  // `#app{display:none}` and the page stays black — the post-login blackout bug.
+  $('gate').style.display='none';
+  $('app').style.display='block';
 }
 
 /* ---------- model path helpers ---------- */
