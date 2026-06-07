@@ -54,6 +54,7 @@ nav.scrolled{background:rgba(8,5,4,.8);backdrop-filter:blur(12px);border-bottom:
 .logo .mk{width:34px;height:34px;filter:drop-shadow(0 0 8px var(--slime))}
 .logo .mk path{stroke:var(--slime);stroke-width:6;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .logo .wm{font-family:var(--disp);font-size:24px;letter-spacing:.5px;color:var(--ink);text-shadow:1px 0 var(--blood),-1px 0 var(--slime)}
+.navmenu{display:flex;align-items:center;gap:20px}
 .navlinks{display:flex;gap:22px;font-weight:600;font-size:12px;letter-spacing:2px;text-transform:uppercase}
 .navlinks a{position:relative;color:#fff;opacity:.82;transition:.2s}
 .navlinks a:hover{opacity:1;color:var(--slime);text-shadow:0 0 10px var(--slime)}
@@ -362,9 +363,11 @@ body.rage .rmtag{opacity:1}
 .reveal.d1{transition-delay:.08s}.reveal.d2{transition-delay:.16s}.reveal.d3{transition-delay:.24s}.reveal.d4{transition-delay:.32s}
 
 @media(max-width:820px){
-  .navlinks,nav>.btnX{display:none}
+  .navmenu{display:none}
   .burger{display:flex}
-  nav.open .navlinks{display:flex;position:absolute;top:100%;left:0;right:0;flex-direction:column;gap:16px;background:rgba(8,5,4,.97);padding:22px;border-bottom:1px solid rgba(141,255,43,.3)}
+  nav.open .navmenu{display:flex;flex-direction:column;align-items:stretch;position:absolute;top:100%;left:0;right:0;gap:16px;background:rgba(8,5,4,.97);padding:20px 22px;border-bottom:1px solid rgba(141,255,43,.3);box-shadow:0 18px 40px rgba(0,0,0,.5)}
+  nav.open .navmenu .navlinks{flex-direction:column;gap:16px;font-size:15px}
+  nav.open .navmenu .btnX{align-self:flex-start;margin-top:4px}
   .about{grid-template-columns:1fr}
   .sticker{display:none}
 }
@@ -506,3 +509,28 @@ html.wipe-armed::before{content:"";position:fixed;inset:0;z-index:10850;pointer-
 .prod:focus-visible{outline:2px solid var(--slime);outline-offset:3px}
 .prod .part svg{width:58%;height:58%;animation:pulse 3s ease-in-out infinite}
 .prod .part svg path{stroke:var(--slime);stroke-width:6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+/* ===================== MOBILE / TOUCH POLISH ===================== */
+/* kill the grey tap-flash on touch */
+*{-webkit-tap-highlight-color:transparent}
+
+@media(hover:none){
+  /* tactile press feedback — the touch stand-in for desktop hover/tilt */
+  .rel,.vcard,.vid,.upanel,.prod,.dropfeat,.dropcard{transition:transform .18s ease,box-shadow .25s,border-color .25s}
+  .rel:active,.vcard:active,.vid:active,.upanel:active,.prod:active,.dropfeat:active,.dropcard:active{transform:scale(.97)}
+  .bigbtn:active,.btnX:active,.srplay:active,.srpresets button:active,.smartlinks a:active,.smartlinks button:active,.mfilter button:active,.sizes button:active,.showrow .tix:active,.shead .link:active,.clinks a:active{transform:scale(.95)}
+  /* there's no hover on touch, so keep the play/enter affordances visible */
+  .rel .art .play,.vcard .pico,.upanel .uenter{opacity:1}
+}
+
+@media(max-width:640px){
+  /* 16px inputs so iOS doesn't auto-zoom the page on focus */
+  .joinrow input{font-size:16px}
+  /* a touch less top space under the compact mobile nav */
+  .pagehead{padding-top:96px}
+  /* float toasts above the bottom player + buttons */
+  #toasts{bottom:88px}
+  /* lighten the heavy backdrop blur for smoother scrolling on phones */
+  .blob{filter:blur(46px);opacity:.4}
+  .blob.b3{display:none}
+}

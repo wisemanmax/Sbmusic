@@ -44,8 +44,13 @@ and publish live.
   **Audience** tab), with `localStorage` (`sb_list` / `sb_sms`) as an offline fallback.
 - **Motion & interaction** — a **slime page-wipe** between pages (armed before first paint
   so there's no flash), a **scroll-progress bar**, pointer-driven **3D tilt** on every
-  card, and **magnetic** primary buttons. All of it is automatically disabled for
-  touch / `prefers-reduced-motion`.
+  card, and **magnetic** primary buttons. The pointer effects gracefully fall back on
+  touch (`prefers-reduced-motion` too): cards get **press feedback**, the play / enter
+  affordances stay visible (no hover to reveal them), and everything else — page wipes,
+  the rage toggle, the slowed studio, modals — works the same.
+- **Fully mobile** — one collapsible nav (a burger menu that holds the links **and** the
+  rage toggle), no grey tap-flash, 16px inputs so iOS doesn't zoom on focus, toasts that
+  clear the bottom player, and lighter backdrop blur for smooth scrolling on phones.
 - **Extras** — active-page nav, back-to-top, share button (Web Share API + clipboard
   fallback), keyboard-shortcut help (`?`), per-session visitor counter, and a
   `type "slime"` easter egg.

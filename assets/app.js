@@ -35,9 +35,11 @@ function buildChrome(){
     <svg class="mk" viewBox="0 0 100 100"><path d="${SNAKE_PATH}"/></svg>
     <div class="wm">SLIME BY</div>
   </a>
-  <div class="navlinks">${links}</div>
-  <button class="btnX" type="button" id="rageBtn">☠ rage mode</button>
-  <button class="burger" id="burger" aria-label="menu" aria-expanded="false" aria-controls="nav"><span></span><span></span><span></span></button>
+  <div class="navmenu" id="navmenu">
+    <div class="navlinks">${links}</div>
+    <button class="btnX" type="button" id="rageBtn">☠ rage mode</button>
+  </div>
+  <button class="burger" id="burger" aria-label="menu" aria-expanded="false" aria-controls="navmenu"><span></span><span></span><span></span></button>
 </nav>`;
   const bottom=`
 <footer>
@@ -340,7 +342,7 @@ function enterRage(){
     clearInterval(rageTimer);rageTimer=null;applyAudioFx();toast('rage off — back to the slime');
   }
 }
-const _rageBtn=document.getElementById('rageBtn');if(_rageBtn)_rageBtn.onclick=()=>enterRage();
+const _rageBtn=document.getElementById('rageBtn');if(_rageBtn)_rageBtn.onclick=()=>{enterRage();setMenu(false);};
 
 /* GUESTBOOK + easter egg */
 /* JOIN THE SLIME — captures email + (optional) SMS number to localStorage.
@@ -539,7 +541,7 @@ document.addEventListener('click',e=>{
   const a=e.target.closest('a[href]'); if(!a||a.target==='_blank'||a.hasAttribute('download'))return;
   const href=a.getAttribute('href'); if(!href||/^(https?:|mailto:|tel:|#)/i.test(href)||!/\.html(\?|#|$)/i.test(href))return;
   const tgt=href.split('#')[0].split('?')[0].toLowerCase();
-  if(tgt===currentPage()){ if(!href.includes('#')){ e.preventDefault(); scrollTo({top:0,behavior:'smooth'}); } return; }
+  if(tgt===currentPage()){ if(!href.includes('#')){ e.preventDefault(); try{scrollTo({top:0,behavior:'smooth'});}catch(_){} } return; }
   e.preventDefault(); try{saveAudioState();}catch(_){} try{sessionStorage.setItem('sb_wipe','1');}catch(_){}
   playWipeOut(()=>{ location.href=href; });
 });
