@@ -153,6 +153,19 @@ python3 -m http.server 8000   # then visit http://localhost:8000
    Branch = `main`, Folder = `/ (root)`. Save.
 3. Live in ~1 min at `https://<your-user>.github.io/<repo>/`.
 
+### Custom domain — `slimeby.com`
+The repo ships a [`CNAME`](CNAME) file (`slimeby.com`), so GitHub Pages serves the site
+on the apex domain. To finish hooking it up:
+1. At your DNS host (registrar or Cloudflare), point the apex `@` record at GitHub Pages
+   using **four A records** — `185.199.108.153`, `185.199.109.153`, `185.199.110.153`,
+   `185.199.111.153` — (and the AAAA equivalents `2606:50c0:8000::153` … `8003::153` for
+   IPv6). Add a `www` **CNAME** → `<your-user>.github.io` if you also want `www`.
+2. **Settings → Pages → Custom domain**: confirm `slimeby.com`, then tick **Enforce
+   HTTPS** once the cert is issued (can take a few minutes to an hour).
+3. If you front the domain with Cloudflare, set SSL/TLS mode to **Full** and either keep
+   the apex records **DNS-only** (grey cloud) until GitHub verifies the domain, or use
+   Cloudflare's CNAME-flattening to `<your-user>.github.io`.
+
 ## Notes
 - The background track **auto-plays on load**. Browsers block *audible* autoplay until a
   visitor interacts, so when it's blocked the track starts on the **first** tap / scroll /
