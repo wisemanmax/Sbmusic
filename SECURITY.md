@@ -84,20 +84,21 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains
 
 ---
 
-## 2. Admin session — replace the stored password  (review #4)
+## 2. Admin session token  (review #4 — implemented)
 
-Today `admin.html` keeps the raw admin password in `sessionStorage` (`sb_pw`) and replays
-it on every call. Any XSS on the admin origin could read it. Recommended:
+The raw password is **no longer stored client-side**. `login` verifies the password once
+and returns a short-lived **HMAC-signed token** (8h, signed with a key derived from the
+service-role key); the client keeps the *token* in `sessionStorage` and sends it on every
+other call. Old `sb_pw` sessions are migrated to a token on next load and the stored
+password is deleted. The function still accepts the password as a fallback, so an expired
+token can never lock the admin out. Source: [`supabase/functions/admin/index.ts`](supabase/functions/admin/index.ts).
 
-1. The `login` edge-function action returns a **short-lived signed token** (e.g. a JWT with
-   ~30–60 min expiry) instead of the client re-sending the password.
-2. Store it in an **HttpOnly, Secure, SameSite=Strict cookie** set by the function so JS
-   can't read it. If a cookie isn't workable on the chosen host, keep the token (not the
-   password) in memory and re-auth on expiry — never persist the raw password.
-3. `save` / `upload` / `list_subs` / `set_password` validate the token server-side.
-4. Add basic rate-limiting / lockout on `login`.
-
-Do the in-repo XSS hardening first (done) so a token can't simply be stolen another way.
+Remaining (recommended, see the function README):
+1. **Hash** the password in `admin_config` (currently plaintext) — `set_password` writes a
+   hash, `login` compares it.
+2. Move the token into an **HttpOnly, Secure, SameSite cookie** if the admin is served
+   same-site with the function (so page JS can't read it at all).
+3. Rate-limit / lockout on `login`.
 
 ---
 
@@ -119,16 +120,14 @@ Applied via MCP this round: `20260607230350_harden_media_storage_listing`,
 `20260607230428_constrain_subscriber_inserts`. After these, `get_advisors(security)`
 returns only the intended `admin_config` INFO.
 
-**Still to add — the `admin` edge function source.** It's the real security boundary
-(service-role writer / subscribers reader) but isn't in the repo yet; the MCP read was
-declined this session. Export and commit it:
+The **`admin` edge function source is now committed** at
+[`supabase/functions/admin/index.ts`](supabase/functions/admin/index.ts) (deployed v3,
+`verify_jwt = false`). Env it relies on: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+(both injected by Supabase) and the admin password row in `admin_config`. Redeploy with:
 
 ```
-supabase functions download admin   # → supabase/functions/admin/index.ts
+supabase functions deploy admin --no-verify-jwt
 ```
-
-Document required env vars (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, admin password
-in `admin_config`) and deploy with `supabase functions deploy admin`.
 
 > The publishable key in `cms.js` is the anon key. It's safe to ship because RLS is
 > correct — confirmed this session: no anon `SELECT` on `subscribers`, `admin_config`

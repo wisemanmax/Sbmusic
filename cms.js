@@ -351,15 +351,18 @@ async function sbGetContentStrict() {
 }
 window.sbGetContentStrict = sbGetContentStrict;
 
-/* call the password-checked edge function: actions = login | save | upload */
-async function sbAdmin(password, action, payload) {
+/* call the password-checked edge function: actions = login | save | upload | list_subs | set_password.
+   `auth` is the credential: a password string (login) or { token } / { password } object. login
+   returns a short-lived token; subsequent calls send the token so the raw password isn't replayed. */
+async function sbAdmin(auth, action, payload) {
+  const cred = (typeof auth === 'string') ? { password: auth } : (auth || {});
   const r = await fetch(SB_CFG.url + '/functions/v1/admin', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: SB_CFG.key, Authorization: 'Bearer ' + SB_CFG.key },
-    body: JSON.stringify({ password, action, payload }),
+    body: JSON.stringify({ ...cred, action, payload }),
   });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  if (!r.ok) { const e = new Error(j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; }
   return j;
 }
 window.sbAdmin = sbAdmin;

@@ -1,34 +1,34 @@
 # `admin` edge function
 
-The admin UI (`admin.html`) talks to a single password-checked Edge Function named
-**`admin`** via `sbAdmin(password, action, payload)` in `cms.js`.
+The admin UI (`admin.html`) calls this single password-checked Edge Function via
+`sbAdmin(auth, action, payload)` in `cms.js`. Actions: `login` · `save` · `upload` ·
+`list_subs` · `set_password`. It runs with the **service role** and is the only writer
+to `site_content` / `admin_config` and the only reader of the `subscribers` list — the
+real security boundary for the CMS.
 
-Actions: `login` · `save` · `upload` · `list_subs` · `set_password`.
+Source: [`index.ts`](index.ts) (deployed; `verify_jwt = false` — it does its own auth).
 
-It runs with the **service role** and is the only writer to `site_content` /
-`admin_config` and the only reader of the `subscribers` list — i.e. it is the real
-security boundary for the whole CMS.
+## Session token (implemented — review #4)
 
-> The function source is **not in this repo yet.** Export it from the project and add
-> it here as `index.ts` so the boundary is reviewable/reproducible:
->
-> ```
-> supabase functions download admin
-> ```
+`login` verifies the password once and returns a short-lived **HMAC-signed token**
+(8h, signed with a key derived from the service-role key — no extra secret needed).
+Every other call sends the **token** instead of the raw password, and the client stores
+the token, not the password. The raw password is still accepted as a fallback, so an
+expired token can never lock the admin out.
 
-## Recommended hardening (review #4 — admin session token)
+```
+supabase functions deploy admin --no-verify-jwt
+```
 
-Today the admin keeps the raw password in `sessionStorage` and replays it on every
-call. Instead:
+## Remaining hardening (recommended)
 
-1. `login` returns a short-lived **signed token** (e.g. JWT, ~30–60 min) — ideally set
-   as an `HttpOnly; Secure; SameSite=Strict` cookie so page JS can't read it.
-2. `save` / `upload` / `list_subs` / `set_password` validate that token server-side
-   rather than re-checking a replayed password.
-3. Add basic rate-limiting / lockout on `login`.
-
-## Phone-merge for subscribers (review #6)
-
-Anon has INSERT-only on `subscribers` (no UPDATE), so a later "email + phone" sign-up
-can't update an earlier email-only row from the client. Do the upsert/merge **inside
-this function** (service role) keyed on `email`.
+- **Hash the stored password.** `admin_config.password` is currently plaintext. Have
+  `set_password` store a hash (e.g. scrypt/bcrypt) and `login` compare against it.
+  Migrate by accepting the existing plaintext once, then writing the hash.
+- **HttpOnly cookie tokens.** The token currently rides in JSON and is kept in
+  `sessionStorage`. If the admin is served same-site with the function, set it as an
+  `HttpOnly; Secure; SameSite=Strict` cookie so page JS can't read it at all.
+- **Phone-merge (review #6).** Sign-ups are inserted client-side (anon INSERT). To merge
+  a later phone onto an existing email, add a `subscribe` action here (service role,
+  upsert on `email`) and route the join form through it.
+- **Rate-limit `login`.**
