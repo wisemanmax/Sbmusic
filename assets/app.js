@@ -12,7 +12,7 @@ const SB_NAV_FALLBACK = [
   { href: 'index.html', label: 'home' }, { href: 'music.html', label: 'music' },
   { href: 'lab.html', label: 'slowed' }, { href: 'world.html', label: 'sb world' },
   { href: 'vault.html', label: 'vault' }, { href: 'shows.html', label: 'shows' },
-  { href: 'connect.html', label: 'tap in' },
+  { href: 'connect.html', label: 'tap in' }, { href: 'links.html', label: 'links' },
 ];
 function currentPage(){ const p=(location.pathname.split('/').pop()||'').toLowerCase(); return p===''?'index.html':p; }
 function buildChrome(){
@@ -1004,6 +1004,85 @@ function renderCustomPageHead(c){
   }
 }
 
+/* ===================== SMART LINKS (link-in-bio) =====================
+   Short URLs for music: each link lives at slimeby.com/<slug> (served via
+   404.html routing) and at link.html?l=<slug>, landing on a themed card with a
+   button per platform. They all collect on the /links portal. All data-driven
+   from the CMS `links` array — created/edited in the admin, no code edits. */
+function currentLinkSlug(){try{return new URLSearchParams(location.search).get('l')||'';}catch(_){return'';}}
+function linkBySlug(c,slug){slug=String(slug||'').toLowerCase();return ((c&&c.links)||[]).find(x=>x&&String(x.slug||'').toLowerCase()===slug)||null;}
+function platMeta(p){const M=window.SB_PLATFORMS||{};return M[p]||M.custom||{name:'Link',cls:'bAlien'};}
+/* true once the published content has arrived (or we're in the admin preview), so
+   a real link slug doesn't flash "not found" while defaults render first. */
+function contentSettled(){return !!window.__sbContentLoaded||SB_PREVIEW;}
+/* forward incoming tracking params (utm_*, fbclid, igshid …) onto each outbound
+   button so campaign attribution flows through the smart link. */
+function trackingQS(){
+  const out=new URLSearchParams();
+  try{new URLSearchParams(location.search).forEach((v,k)=>{ if(/^utm_/i.test(k)||/^(fbclid|gclid|igshid|igsh|ttclid|ref|src|mc_cid|mc_eid|si)$/i.test(k))out.append(k,v); });}catch(_){}
+  return out.toString();
+}
+function withTracking(url){const t=trackingQS();return t?url+(url.indexOf('?')>=0?'&':'?')+t:url;}
+function serviceBtnHTML(s){
+  if(!s)return'';const u=safeUrl(s.url);if(!u)return'';
+  const meta=platMeta(s.platform||'custom'),label=esc(s.label||meta.name);
+  return `<a class="sl-btn bigbtn ${meta.cls}" href="${esc(withTracking(u))}" target="_blank" rel="noopener noreferrer"><span class="sl-btn-l">${label}</span><span class="sl-btn-go">↗</span></a>`;
+}
+function shareUrlFor(slug){const base=(location.origin&&location.origin!=='null')?location.origin:'';return base+'/'+encodeURIComponent(slug||'');}
+function smartCardHTML(link){
+  const art=cssUrl(link.artwork);
+  const btns=(link.services||[]).map(serviceBtnHTML).join('');
+  return `<div class="sl-card reveal">
+    ${art?`<div class="sl-art" style="background-image:${art}"></div>`:`<div class="sl-art sl-art-blank"><svg viewBox="0 0 100 100"><path d="${SNAKE_PATH}"/></svg></div>`}
+    <div class="sl-meta"><span class="kicker">slime by</span><h1 class="sl-title" data-t="${esc((link.title||'').toUpperCase())}">${esc(link.title||'')}</h1>${link.subtitle?`<p class="sl-sub">${esc(link.subtitle)}</p>`:''}</div>
+    <div class="sl-btns">${btns||'<p class="sl-empty">links dropping soon ☠</p>'}</div>
+    <div class="sl-share"><button class="btnX" type="button" data-share="${esc(shareUrlFor(link.slug))}">⤴ share</button></div>
+  </div>`;
+}
+function smartLoadingHTML(){return `<div class="sl-card"><div class="sl-art sl-art-blank"><svg viewBox="0 0 100 100"><path d="${SNAKE_PATH}"/></svg></div><div class="sl-meta"><span class="kicker">slime by</span><h1 class="sl-title">loading…</h1></div></div>`;}
+function smartNotFoundHTML(){return `<div class="sl-card reveal"><div class="sl-art sl-art-blank"><svg viewBox="0 0 100 100"><path d="${SNAKE_PATH}"/></svg></div>
+  <div class="sl-meta"><span class="kicker">404</span><h1 class="sl-title" data-t="NOT FOUND">link not found</h1><p class="sl-sub">this slime link doesn’t exist (yet).</p></div>
+  <div class="sl-btns"><a class="sl-btn bigbtn bSlime" href="links.html"><span class="sl-btn-l">all links</span><span class="sl-btn-go">↗</span></a><a class="sl-btn bigbtn bAlien" href="index.html"><span class="sl-btn-l">home</span><span class="sl-btn-go">↗</span></a></div></div>`;}
+function wireSmartShare(host){host.querySelectorAll('[data-share]').forEach(b=>{b.onclick=async()=>{const url=b.getAttribute('data-share')||location.href;try{if(navigator.share){await navigator.share({title:document.title,url});}else{await navigator.clipboard.writeText(url);toast('link copied ☑');}}catch(_){}};});}
+function paintSmart(host,link){
+  host.innerHTML=link?smartCardHTML(link):(contentSettled()?smartNotFoundHTML():smartLoadingHTML());
+  if(link)document.title=(link.title||'SLIME BY')+' — SLIME BY';
+  host.querySelectorAll('.reveal').forEach(el=>io.observe(el));wireSmartShare(host);wireMagnetic();
+}
+/* link.html?l=<slug> */
+function renderSmartLink(c){const host=document.getElementById('smartlink');if(!host)return;paintSmart(host,linkBySlug(c,currentLinkSlug()));}
+/* 404.html — clean-URL router: slimeby.com/<slug> → smart link, else custom page, else 404 */
+function renderRoute(c){
+  const host=document.getElementById('routeZone');if(!host)return;
+  let slug='';try{slug=decodeURIComponent((location.pathname.split('/').filter(Boolean).pop()||'').toLowerCase().replace(/\.html?$/,''));}catch(_){slug='';}
+  const link=linkBySlug(c,slug);
+  if(link){paintSmart(host,link);return;}
+  const pg=(c.pages||[]).find(p=>p&&String(p.slug||'').toLowerCase()===slug);
+  if(pg){location.replace('page.html?p='+encodeURIComponent(pg.slug)+(location.search||'')+(location.hash||''));return;}
+  paintSmart(host,null);
+}
+/* links.html — the link-in-bio portal hub */
+function renderPortal(c){
+  const host=document.getElementById('portal');if(!host)return;
+  const ct=c.contact||{};
+  const socials=[['spotify',ct.spotify],['apple',ct.apple],['youtube',ct.youtube],['instagram',ct.instagram],['tiktok',ct.tiktok]]
+    .filter(x=>x[1]).map(([p,u])=>{const meta=platMeta(p),su=safeUrl(u);return su?`<a class="sl-btn bigbtn ${meta.cls}" href="${esc(su)}" target="_blank" rel="noopener noreferrer"><span class="sl-btn-l">${esc(meta.name)}</span><span class="sl-btn-go">↗</span></a>`:'';}).join('');
+  const items=(c.links||[]).filter(l=>l&&l.slug&&l.portal!==false).map(l=>{
+    const art=cssUrl(l.artwork);
+    return `<a class="pt-item reveal" href="link.html?l=${encodeURIComponent(l.slug)}">${art?`<span class="pt-art" style="background-image:${art}"></span>`:`<span class="pt-art pt-art-blank">♫</span>`}<span class="pt-meta"><span class="pt-t">${esc(l.title||l.slug)}</span>${l.subtitle?`<span class="pt-s">${esc(l.subtitle)}</span>`:''}</span><span class="pt-go">↗</span></a>`;
+  }).join('');
+  host.innerHTML=`<div class="pt-wrap reveal">
+    <svg class="sbmono" viewBox="0 0 100 100"><path d="${SNAKE_PATH}"/></svg>
+    <span class="kicker" style="justify-content:center">all my links</span>
+    <h1 class="pt-name glitch" data-t="SLIME BY">SLIME BY</h1>
+    <p class="pt-sub">stream the catalog · drops · the world ☠</p>
+    ${items?`<div class="pt-list">${items}</div>`:`<p class="sl-empty" style="text-align:center">links dropping soon ☠</p>`}
+    ${socials?`<div class="pt-social"><span class="pt-label">follow</span><div class="sl-btns">${socials}</div></div>`:''}
+    <div class="pt-join"><a class="bigbtn bSlime" href="connect.html#join">☠ join the slime list</a></div>
+  </div>`;
+  host.querySelectorAll('.reveal').forEach(el=>io.observe(el));wireMagnetic();
+}
+
 function applyContent(c){
   if(!c)return;window.SB=c;
   const q=s=>document.querySelector(s);
@@ -1055,6 +1134,9 @@ function applyContent(c){
   renderCustomPageHead(c);   // custom-page title/intro (page.html only)
   refreshNav(c);             // surface custom pages in the nav
   renderBlocks(c);           // add-on blocks for this page
+  renderSmartLink(c);        // link.html?l=<slug>
+  renderPortal(c);           // links.html portal hub
+  renderRoute(c);            // 404.html clean-URL routing (slimeby.com/<slug>)
 }
 
 /* ===================== INTERACTION LAYER =====================
@@ -1086,7 +1168,7 @@ function pjaxReveal(){ if(!wipeEl||reducedMotion)return;
    page and swapping ONLY its <main> — no full reload, the audio graph keeps playing.
    Falls back to a normal hard navigation if anything looks off. */
 function pageFromUrl(u){const p=(u.split('#')[0].split('?')[0].split('/').pop()||'').toLowerCase();return p===''?'index.html':p;}
-function navKey(u){const p=pageFromUrl(u);let s='';if(p==='page.html'){const q=new URLSearchParams(u.split('#')[0].split('?')[1]||'');s=q.get('p')||'';}return p+'|'+s;}
+function navKey(u){const p=pageFromUrl(u);let s='';const q=new URLSearchParams(u.split('#')[0].split('?')[1]||'');if(p==='page.html')s=q.get('p')||'';else if(p==='link.html')s=q.get('l')||'';return p+'|'+s;}
 function setActiveNav(){const here=currentPage(),slug=currentSlug();
   document.querySelectorAll('#nav .navlinks a').forEach(a=>{const h=a.getAttribute('href')||'';let on=pageFromUrl(h)===here;
     if(on&&pageFromUrl(h)==='page.html'){const q=new URLSearchParams(h.split('#')[0].split('?')[1]||'');on=(q.get('p')||'')===slug;}
@@ -1129,6 +1211,7 @@ document.addEventListener('click',e=>{
   // with different ?p= slugs are different pages and must still navigate.
   let same=tgt===currentPage();
   if(same&&tgt==='page.html'){ const q=new URLSearchParams(href.split('#')[0].split('?')[1]||''); same=(q.get('p')||'')===currentSlug(); }
+  if(same&&tgt==='link.html'){ const q=new URLSearchParams(href.split('#')[0].split('?')[1]||''); same=(q.get('l')||'')===currentLinkSlug(); }
   if(same){ if(!href.includes('#')){ e.preventDefault(); try{scrollTo({top:0,behavior:'smooth'});}catch(_){} } return; }
   e.preventDefault(); sbNavigate(href,true);
 });
@@ -1195,7 +1278,7 @@ function loadContent(){
   try{ if(typeof SB_DEFAULTS!=='undefined') applyContent(SB_DEFAULTS); }catch(e){}
   /* In preview the admin drives the content via postMessage, so skip the remote
      fetch — otherwise it could resolve late and clobber the live edits. */
-  if(!SB_PREVIEW){ try{ if(typeof sbGetContent==='function') sbGetContent().then(applyContent).catch(()=>{}); }catch(e){} }
+  if(!SB_PREVIEW){ try{ if(typeof sbGetContent==='function') sbGetContent().then(c=>{window.__sbContentLoaded=true;applyContent(c);}).catch(()=>{window.__sbContentLoaded=true;}); }catch(e){} }
 }
 
 /* ===================== LIVE PREVIEW CHANNEL =====================

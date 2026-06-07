@@ -302,6 +302,18 @@ function getByPath(p){let o=model;for(const k of p)o=o[k];return o;}
 function setByPath(p,v){let o=model;for(let i=0;i<p.length-1;i++)o=o[p[i]];o[p[p.length-1]]=v;}
 function tkeyOf(path){return path.filter(s=>typeof s!=='number').join('.');}
 function meta(path){return (window.SB_SCHEMA&&SB_SCHEMA[tkeyOf(path)])||{};}
+/* slugs for custom pages (?p=) and smart links (?l=) share the clean-URL space
+   (slimeby.com/<slug>), so a slug must be unique across BOTH lists and must not
+   shadow a real page / file. */
+const RESERVED_SLUGS=['index','music','lab','world','vault','shows','connect','links','link','page','admin','404','assets','cms','supabase','tests','package','package-lock','readme','security','cname','sitemap','robots','favicon'];
+function slugClash(v,path){
+  if(!v)return false;
+  const here=path[0],idx=path[1];
+  const within=((model&&model[here])||[]).some((x,i)=>i!==idx&&x&&x.slug===v);   // same list
+  const other=here==='pages'?'links':(here==='links'?'pages':null);
+  const cross=other&&((model&&model[other])||[]).some(x=>x&&x.slug===v);          // the other list
+  return within||cross||RESERVED_SLUGS.indexOf(v)>=0;
+}
 
 /* ---------- change pipeline ---------- */
 let pvTimer=null;
@@ -312,10 +324,13 @@ function pushPreview(){ const f=$('pvframe'); if(f&&f.contentWindow) f.contentWi
    section being edited so edits are always visible. */
 const PAGE_FILE={home:'index.html',music:'music.html',lab:'lab.html',world:'world.html',vault:'vault.html',shows:'shows.html',connect:'connect.html'};
 let pagesPreviewSlug='';   // the custom page the editor last touched (preview target)
+let linksPreviewSlug='';   // the smart link the editor last touched (preview target)
 let extrasPreviewKey='home';   // the built-in page the last-edited add-on targets
 function pageForView(key){
   // custom pages preview through page.html pointed at the page being edited
   if(key==='pages'){ const ps=(model&&model.pages)||[]; const pick=ps.find(p=>p&&p.slug===pagesPreviewSlug)||ps[0]; return pick&&pick.slug ? 'page.html?p='+encodeURIComponent(pick.slug) : 'index.html'; }
+  // smart links preview through link.html pointed at the link being edited
+  if(key==='links'){ const ls=(model&&model.links)||[]; const pick=ls.find(l=>l&&l.slug===linksPreviewSlug)||ls[0]; return pick&&pick.slug ? 'link.html?l='+encodeURIComponent(pick.slug) : 'links.html'; }
   // add-ons preview the page the block you're editing is assigned to
   if(key==='extras'){ return PAGE_FILE[extrasPreviewKey]||'index.html'; }
   return (window.SB_SECTION_PAGE&&SB_SECTION_PAGE[key])||'index.html';
@@ -330,6 +345,7 @@ function buildPreviewPicker(){
   const opts=[];
   (window.SB_NAV||[]).forEach(n=>opts.push([n.href,n.label]));
   ((model&&model.pages)||[]).forEach(p=>{ if(p&&p.slug)opts.push(['page.html?p='+encodeURIComponent(p.slug),(p.label||p.slug)+' · custom']); });
+  ((model&&model.links)||[]).forEach(l=>{ if(l&&l.slug)opts.push(['link.html?l='+encodeURIComponent(l.slug),(l.title||l.slug)+' · link']); });
   sel.innerHTML=opts.map(([v,l])=>`<option value="${escA(v)}">${escA(l)}</option>`).join('');
   if(pvPage)sel.value=pvPage;
 }
@@ -512,6 +528,7 @@ function fieldRow(key,path){
 
 function commit(path,v){ setByPath(path,v);
   if(path[0]==='pages'&&typeof path[1]==='number'){ const p=model.pages[path[1]]; if(p&&p.slug)pagesPreviewSlug=p.slug; }
+  if(path[0]==='links'&&typeof path[1]==='number'){ const l=model.links[path[1]]; if(l&&l.slug)linksPreviewSlug=l.slug; if(view==='links'&&path[path.length-1]==='slug')ensurePreviewPage('links'); }
   if(path[0]==='extras'&&typeof path[1]==='number'){ const b=model.extras[path[1]]; if(b&&b.page)extrasPreviewKey=b.page; if(path[path.length-1]==='page'&&view==='extras')ensurePreviewPage('extras'); }
   onChange();
 }
@@ -538,7 +555,7 @@ function buildControl(key,value,path,m){
   if(type==='slug'){       // keep URL slugs clean as you type (lowercase, dashes)
     const c=document.createElement('input'); c.className='inp'; c.value=value==null?'':value; if(m.placeholder)c.placeholder=m.placeholder;
     const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9-]+/g,'-');
-    const dup=v=>!!v&&((model&&model.pages)||[]).some((p,i)=>i!==path[1]&&p&&p.slug===v);   // clashes with another page
+    const dup=v=>slugClash(v,path);   // clashes with another page/link or a reserved name
     c.oninput=()=>{ const p=c.selectionStart; c.value=norm(c.value); try{c.setSelectionRange(p,p);}catch(_){} commit(path,c.value); c.classList.toggle('bad',dup(c.value)); };
     c.onblur=()=>{ c.value=c.value.replace(/^-+|-+$/g,''); commit(path,c.value); c.classList.toggle('bad',dup(c.value)); };
     c.classList.toggle('bad',dup(c.value));
@@ -607,6 +624,13 @@ $('publishBtn').onclick=async()=>{
   if(slugs.some(s=>!s)){ toast('✗ every custom page needs a slug before publishing',true); return; }
   const dupes=[...new Set(slugs.filter((s,i)=>slugs.indexOf(s)!==i))];
   if(dupes.length){ toast('✗ duplicate page slug: '+dupes.join(', ')+' — make each unique',true); return; }
+  // smart-link slugs: required, unique, and not clashing with a page slug (shared clean-URL space)
+  const lslugs=((model&&model.links)||[]).map(l=>(l&&l.slug)||'');
+  if(lslugs.some(s=>!s)){ toast('✗ every smart link needs a slug before publishing',true); return; }
+  const ldupes=[...new Set(lslugs.filter((s,i)=>lslugs.indexOf(s)!==i))];
+  if(ldupes.length){ toast('✗ duplicate link slug: '+ldupes.join(', ')+' — make each unique',true); return; }
+  const clash=[...new Set(lslugs.filter(s=>slugs.indexOf(s)>=0))];
+  if(clash.length){ toast('✗ link slug also used by a page: '+clash.join(', '),true); return; }
   const issues=document.querySelectorAll('#editor .inp.bad').length;
   if(issues && !confirm(issues+' field(s) look invalid (check links/email). Publish anyway?'))return;
   const p=$('savePill'),t=$('savePillTxt'); p.className='savepill saving'; t.textContent='publishing…';

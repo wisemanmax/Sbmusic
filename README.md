@@ -73,6 +73,13 @@ admin at `admin.html`.
 - **Custom Pages** — build **brand-new pages** from the admin. Give it a slug + title, add
   blocks, and (optionally) it appears in the top nav automatically. New pages render through
   a shared `page.html` template driven entirely by the published content — nothing to deploy.
+- **Smart Links** — a **link-in-bio portal** for the catalog (like Linkfire / Symphony, in SB
+  theme). Create a short link from the admin — give it a slug, title, artwork and a button per
+  platform (Spotify, Apple, YouTube, SoundCloud, TIDAL, …) — and it lands at
+  **`slimeby.com/<slug>`** (e.g. `slimeby.com/slime-love`) on a themed card with one tap to every
+  service. Incoming tracking params (`utm_*`, `fbclid`, …) are forwarded to the outbound buttons.
+  Every link with *Show on portal* on collects at **`/links`** (the `links.html` hub). Clean URLs
+  are served by `404.html`, which routes any unknown path to its matching link (or custom page).
 - **Friendly, labelled forms** — every field has a human label, hint, and the right input:
   URL / email / date-time / colour pickers, dropdowns, rich-text (HTML) areas, image uploads
   with live thumbnails, and on/off toggles. (Labels/types come from `SB_SCHEMA` in `cms.js`.)
@@ -153,6 +160,19 @@ python3 -m http.server 8000   # then visit http://localhost:8000
    Branch = `main`, Folder = `/ (root)`. Save.
 3. Live in ~1 min at `https://<your-user>.github.io/<repo>/`.
 
+### Custom domain — `slimeby.com`
+The repo ships a [`CNAME`](CNAME) file (`slimeby.com`), so GitHub Pages serves the site
+on the apex domain. To finish hooking it up:
+1. At your DNS host (registrar or Cloudflare), point the apex `@` record at GitHub Pages
+   using **four A records** — `185.199.108.153`, `185.199.109.153`, `185.199.110.153`,
+   `185.199.111.153` — (and the AAAA equivalents `2606:50c0:8000::153` … `8003::153` for
+   IPv6). Add a `www` **CNAME** → `<your-user>.github.io` if you also want `www`.
+2. **Settings → Pages → Custom domain**: confirm `slimeby.com`, then tick **Enforce
+   HTTPS** once the cert is issued (can take a few minutes to an hour).
+3. If you front the domain with Cloudflare, set SSL/TLS mode to **Full** and either keep
+   the apex records **DNS-only** (grey cloud) until GitHub verifies the domain, or use
+   Cloudflare's CNAME-flattening to `<your-user>.github.io`.
+
 ## Notes
 - The background track **auto-plays on load**. Browsers block *audible* autoplay until a
   visitor interacts, so when it's blocked the track starts on the **first** tap / scroll /
@@ -160,5 +180,12 @@ python3 -m http.server 8000   # then visit http://localhost:8000
   (so the visualizer and reverb engage too).
 - Booking email in the contact section (`booking@slimeby.com`) is a placeholder — update
   it in `connect.html` (or via the admin's **Contact** tab).
+- **Smart-link clean URLs** (`slimeby.com/<slug>`) rely on GitHub Pages serving `404.html`
+  for unknown paths; `404.html` reads the path and renders the matching link client-side.
+  This needs the custom apex domain (it sets `<base href="/">`). The internal/SPA-smooth form
+  `link.html?l=<slug>` always works too. Caveat: because the clean URL is served as a 404 and
+  content is loaded from the CMS at runtime, link-preview scrapers (iMessage/Slack/Facebook)
+  won't see per-link Open Graph tags — they'll show the generic SB card. The link itself opens
+  and renders correctly for real visitors.
 
 © 2026 Slime By · 100% Independent · Delaware

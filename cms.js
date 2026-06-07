@@ -108,8 +108,37 @@ const SB_DEFAULTS = {
   /* Brand-new pages created from the admin. Each renders through page.html and
      (when nav:true) shows up in the top navigation automatically. */
   pages: [],
+  /* Smart links (link-in-bio). Each is a short URL — slimeby.com/<slug> — that
+     lands on a themed page with a button per platform, and (when portal:true)
+     collects on the /links portal. Edited in admin → "Smart Links". */
+  links: [],
 };
 window.SB_DEFAULTS = SB_DEFAULTS;
+
+/* Platform metadata for smart-link buttons: display name + which themed button
+   class to paint it (slime / blood / alien). Shared by the admin select and the
+   public renderer so they never drift. `custom` is the catch-all. */
+const SB_PLATFORMS = {
+  spotify:      { name: 'Spotify',       cls: 'bSlime' },
+  apple:        { name: 'Apple Music',   cls: 'bBlood' },
+  itunes:       { name: 'iTunes',        cls: 'bBlood' },
+  youtube:      { name: 'YouTube',       cls: 'bAlien' },
+  youtubeMusic: { name: 'YouTube Music', cls: 'bAlien' },
+  soundcloud:   { name: 'SoundCloud',    cls: 'bBlood' },
+  tidal:        { name: 'TIDAL',         cls: 'bAlien' },
+  amazonMusic:  { name: 'Amazon Music',  cls: 'bSlime' },
+  deezer:       { name: 'Deezer',        cls: 'bSlime' },
+  audiomack:    { name: 'Audiomack',     cls: 'bSlime' },
+  pandora:      { name: 'Pandora',       cls: 'bBlood' },
+  bandcamp:     { name: 'Bandcamp',      cls: 'bAlien' },
+  instagram:    { name: 'Instagram',     cls: 'bSlime' },
+  tiktok:       { name: 'TikTok',        cls: 'bBlood' },
+  presave:      { name: 'Pre-Save',      cls: 'bSlime' },
+  download:     { name: 'Download',      cls: 'bAlien' },
+  buy:          { name: 'Buy / Merch',   cls: 'bBlood' },
+  custom:       { name: 'Link',          cls: 'bAlien' },
+};
+window.SB_PLATFORMS = SB_PLATFORMS;
 
 /* One shared shape for a content block (used by Page Add-ons and Custom Pages),
    so adding/renaming a block field is a single edit. `heading` gets a friendlier
@@ -133,6 +162,9 @@ const SB_TEMPLATES = {
   // a brand-new page, pre-seeded with one welcome block
   'pages': { slug: 'new-page', label: 'New Page', nav: true, kicker: 'SB', intro: 'a new corner of the slime world', blocks: [{ ...SB_BLOCK, heading: 'Welcome' }] },
   'pages.blocks': { ...SB_BLOCK, heading: 'New section' },
+  // a smart link, pre-seeded with the three core platforms
+  'links': { slug: 'new-link', title: 'New Drop', subtitle: 'out now everywhere', artwork: '', portal: true, services: [{ platform: 'spotify', label: '', url: '' }, { platform: 'apple', label: '', url: '' }, { platform: 'youtube', label: '', url: '' }] },
+  'links.services': { platform: 'spotify', label: '', url: '' },
 };
 window.SB_TEMPLATES = SB_TEMPLATES;
 
@@ -153,6 +185,7 @@ const SB_NAV = [
   { href: 'vault.html',   label: 'vault' },
   { href: 'shows.html',   label: 'shows' },
   { href: 'connect.html', label: 'tap in' },
+  { href: 'links.html',   label: 'links' },
 ];
 window.SB_NAV = SB_NAV;
 
@@ -168,6 +201,8 @@ const SB_SECTION_PAGE = {
   // add-ons preview on the home page; custom pages preview through page.html
   // (the admin retargets these dynamically to the page/slug being edited).
   extras: 'index.html', pages: 'page.html',
+  // smart links preview through link.html (admin retargets to the link being edited).
+  links: 'links.html',
 };
 window.SB_SECTION_PAGE = SB_SECTION_PAGE;
 
@@ -186,6 +221,7 @@ const SB_SECTIONS = [
   { key: 'footer',   label: 'Footer',      icon: '⚑', desc: 'Footer badges and copyright line.' },
   { key: 'extras',   label: 'Page Add-ons', icon: '➕', desc: 'Add extra content blocks (heading, text, image, button, or video) to the bottom of any existing page — no code.' },
   { key: 'pages',    label: 'Custom Pages', icon: '❏', desc: 'Build brand-new pages. They appear in the top nav and render from the blocks you add here.' },
+  { key: 'links',    label: 'Smart Links', icon: '🔗', desc: 'Link-in-bio smart links for your music. Each lives at slimeby.com/<slug> with a button per platform, and they all collect on your /links portal.' },
 ];
 window.SB_SECTIONS = SB_SECTIONS;
 
@@ -303,6 +339,18 @@ const SB_SCHEMA = {
   'pages.blocks.buttonLabel': { label: 'Button label' },
   'pages.blocks.buttonUrl':   { label: 'Button link', type: 'url' },
   'pages.blocks.youtube':  { label: 'YouTube video', hint: 'Paste a YouTube link or ID. Optional.' },
+
+  /* ---- Smart links (link-in-bio) ---- */
+  'links':                 { label: 'Smart links', itemLabel: 'link', titleKey: 'title' },
+  'links.slug':            { label: 'URL slug', type: 'slug', hint: 'Lowercase letters, numbers and dashes. The link lives at slimeby.com/<slug> (also link.html?l=<slug>).' },
+  'links.title':           { label: 'Title', hint: 'Song / release name shown big on the landing.' },
+  'links.subtitle':        { label: 'Subtitle', hint: 'Small line under the title. Optional.' },
+  'links.artwork':         { label: 'Artwork', type: 'image', hint: 'Cover art / photo at the top of the link.' },
+  'links.portal':          { label: 'Show on /links portal', hint: 'List this link on your public links hub.' },
+  'links.services':        { label: 'Platform buttons', itemLabel: 'button', titleKey: 'platform' },
+  'links.services.platform': { label: 'Platform', type: 'select', options: Object.keys(SB_PLATFORMS) },
+  'links.services.label':  { label: 'Button label', hint: 'Leave blank to use the platform name.' },
+  'links.services.url':    { label: 'Link', type: 'url' },
 };
 window.SB_SCHEMA = SB_SCHEMA;
 
