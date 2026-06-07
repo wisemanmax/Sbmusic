@@ -201,84 +201,424 @@ function slimeSplash(x,y){stab();if(x!=null)burst(x,y,18,'#8dff2b');snakeLunge()
 const _heroMono=document.getElementById('heroMono');if(_heroMono)_heroMono.onclick=e=>slimeSplash(e.clientX,e.clientY);
 const _contactMono=document.getElementById('contactMono');if(_contactMono)_contactMono.onclick=e=>slimeSplash(e.clientX,e.clientY);
 
-/* ---------- INTERACTIVE BACKGROUND SNAKES (a whole pit) ---------- */
-const snakeCv=document.getElementById('snake'),sctx=snakeCv.getContext('2d');
-let SW=0,SH=0,sdpr=1;
-function sizeSnake(){sdpr=Math.min(devicePixelRatio||1,2);SW=innerWidth;SH=innerHeight;snakeCv.width=SW*sdpr;snakeCv.height=SH*sdpr;sctx.setTransform(sdpr,0,0,sdpr,0,0);}
-let snakes=[],tongueT=0;
-function buildSnakes(){
-  const big=innerWidth>900,mid=innerWidth>620;
-  const count=big?5:(mid?4:3); // fewer on small screens to stay smooth
-  snakes=[];
-  for(let i=0;i<count;i++){
-    const main=i===0,seg=main?44:(big?30:22),sx=Math.random()*SW,sy=Math.random()*SH,pts=[];
-    for(let j=0;j<seg;j++)pts.push({x:sx,y:sy});
-    snakes.push({main,seg,pts,headX:sx,headY:sy,
-      phase:Math.random()*1000,off:Math.random()*2000,
-      sp:main?1:(0.45+Math.random()*0.8),
-      amp:main?Math.min(SW*0.34,260):(50+Math.random()*150),
-      band:0.12+Math.random()*0.72,vamp:0.10+Math.random()*0.16,
-      width:main?16:(4+Math.random()*7),light:main?1:(0.4+Math.random()*0.45),
-      dir:Math.random()<0.5?1:-1,lungeT:0});
-  }
-}
-sizeSnake();buildSnakes();
-function snakeLunge(){if(snakes[0])snakes[0].lungeT=1;for(let i=1;i<snakes.length;i++)snakes[i].lungeT=0.5;}
+/* scroll progress (used by the snake pit + the top progress bar) */
 function scrollProg(){const m=document.documentElement.scrollHeight-innerHeight;return m>0?Math.min(1,Math.max(0,scrollY/m)):0;}
-function snakeColors(s){const a=(0.14*s.light+0.05).toFixed(3);
-  if(rageOn)return{g22:'rgba(255,31,46,0.22)',glow:'rgba(255,70,60,'+a+')',c0:'#ff6a55',c1:'#ff1f2e',c2:'#6e0006',blur:28};
-  return{g22:'rgba(141,255,43,0.22)',glow:'rgba(141,255,43,'+a+')',c0:'#b6ff5a',c1:'#8dff2b',c2:'#2a7a00',blur:22};}
-function moveSnake(s,t,energy){
-  const rs=rageOn?1.7:1;let tx,ty;
-  if(s.main){ // the lead snake tracks scroll + the cursor, like before
-    const sp=scrollProg(),weave=Math.sin(t*0.0011*rs+sp*7)*s.amp+Math.sin(t*0.0023*rs)*40;
-    tx=SW*0.5+weave+(mx-SW*0.5)*0.12;ty=70+sp*(SH-150);
-  }else{ // the rest roam across the page at their own depth, speed + direction
-    const span=SW+360,travel=((t*0.018*s.sp*rs+s.off)%span);
-    tx=(s.dir>0?travel:span-travel)-180;
-    ty=SH*s.band+Math.sin(t*0.0009*s.sp*rs+s.phase)*SH*s.vamp;
-  }
-  if(s.lungeT>0){tx+=(mx-tx)*0.6*s.lungeT;ty+=(my-ty)*0.6*s.lungeT;s.lungeT*=0.9;if(s.lungeT<0.02)s.lungeT=0;}
-  const ease=s.main?0.09:0.06;s.headX+=(tx-s.headX)*ease;s.headY+=(ty-s.headY)*ease;
-  const p=s.pts;p[0].x=s.headX;p[0].y=s.headY;
-  const wbase=(rageOn?5:2)+(energy||0)*4;
-  for(let i=1;i<s.seg;i++){const q=p[i-1],wig=Math.sin(i*0.5+t*0.012*rs+s.phase)*wbase*(0.5+s.light);
-    p[i].x+=((q.x+(i%2?wig:-wig))-p[i].x)*0.5;p[i].y+=(q.y-p[i].y)*0.5;}
+
+/* =====================================================================
+   INTERACTIVE BACKGROUND SNAKES — photoreal procedural WebGL pit.
+   Renders into the full-page #snake canvas. Exposes the same hooks the
+   rest of the site already calls (sizeSnake / buildSnakes / drawSnakes /
+   snakeLunge) so it's a drop-in for the old 2D pit. It reacts to the
+   shared cursor (mx,my), RAGE MODE (rageOn) and audio energy. Falls back
+   to a soft 2D render where WebGL is unavailable.
+   ===================================================================== */
+let sizeSnake,buildSnakes,drawSnakes,snakeLunge;
+(function(){
+"use strict";
+const canvas=document.getElementById('snake');
+const glOpts={antialias:true,premultipliedAlpha:false,alpha:true};
+let gl=canvas.getContext('webgl',glOpts)||canvas.getContext('experimental-webgl',glOpts);
+
+const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const isMobile=matchMedia('(pointer:coarse)').matches||innerWidth<700;
+const lowPower=reduceMotion;
+
+let W=0,H=0,DPR=1;
+const SEG=isMobile?40:64;
+const startT=performance.now();
+let lastT=performance.now();
+let gEnergy=0,rageMix=0;
+function snoise(x){return Math.sin(x)*0.5+Math.sin(x*2.13+1.7)*0.25+Math.sin(x*4.31+0.3)*0.15+Math.sin(x*0.51+2.9)*0.10;}
+
+/* ----------------------- Snake factory ----------------------- */
+function makeSnake(o){
+  const s={
+    spine:[],head:{x:0,y:0,a:0,speed:0},
+    tN:Math.random()*1000,slowPhase:Math.random()*10,
+    tongueT:0,flickTimer:Math.random()*2000,nextFlick:1800+Math.random()*2200,
+    slime:[],mInf:0,lastSlimeX:0,lastSlimeY:0,
+    sizeMul:o.sizeMul,speedMul:o.speedMul,mouseAmt:o.mouseAmt,
+    dim:o.dim,hueShift:o.hueShift||0,seed:Math.random()*100,
+    mesh:new Float32Array((SEG-1)*6*6)
+  };
+  for(let i=0;i<SEG;i++)s.spine.push({x:0,y:0});
+  return s;
 }
-function drawSnakeBody(s){
-  const p=s.pts,col=snakeColors(s);
-  sctx.save();sctx.lineCap='round';sctx.lineJoin='round';
-  if(s.main){
-    for(let pass=0;pass<2;pass++){
-      sctx.beginPath();sctx.moveTo(p[0].x,p[0].y);for(let i=1;i<s.seg;i++)sctx.lineTo(p[i].x,p[i].y);
-      if(pass===0){sctx.strokeStyle=col.g22;sctx.lineWidth=30;sctx.shadowColor=col.c1;sctx.shadowBlur=col.blur;}
-      else{const g=sctx.createLinearGradient(p[0].x,p[0].y,p[s.seg-1].x,p[s.seg-1].y);g.addColorStop(0,col.c0);g.addColorStop(.5,col.c1);g.addColorStop(1,col.c2);sctx.strokeStyle=g;sctx.lineWidth=s.width;sctx.shadowColor=col.c1;sctx.shadowBlur=14;}
-      sctx.stroke();
+let snakes=[];
+function spawn(){
+  snakes=[
+    makeSnake({sizeMul:0.55,speedMul:1.35,mouseAmt:0.0,dim:0.55,hueShift:0.15}),
+    makeSnake({sizeMul:0.78,speedMul:1.05,mouseAmt:0.25,dim:0.78,hueShift:0.0}),
+    makeSnake({sizeMul:1.15,speedMul:0.82,mouseAmt:0.6,dim:1.0,hueShift:-0.05}),
+  ];
+  for(const s of snakes){
+    const sx=W*(0.25+Math.random()*0.5),sy=H*(0.25+Math.random()*0.5);
+    for(let i=0;i<SEG;i++){s.spine[i].x=sx;s.spine[i].y=sy;}
+    s.head.x=sx;s.head.y=sy;s.head.a=Math.random()*6.28;
+    s.lastSlimeX=sx;s.lastSlimeY=sy;
+  }
+  lastT=performance.now();
+}
+/* rescale all positions to a new viewport (smooth, no jump) */
+function repositionSnakes(rx,ry){
+  for(const s of snakes){
+    for(let i=0;i<SEG;i++){s.spine[i].x*=rx;s.spine[i].y*=ry;}
+    s.head.x*=rx;s.head.y*=ry;s.lastSlimeX*=rx;s.lastSlimeY*=ry;
+    for(const sl of s.slime){sl.x*=rx;sl.y*=ry;}
+  }
+}
+
+const mouse={x:0,y:0,active:false};
+function segLen(s){return Math.max(8,Math.min(W,H)*0.018*s.sizeMul);}
+function radiusAt(s,i){
+  const t=i/(SEG-1),base=Math.min(W,H)*s.sizeMul;
+  const maxR=base*0.030,headR=base*0.034;
+  if(t<0.06)return headR;
+  const b=(t-0.06)/0.94;
+  const swell=Math.sin(Math.min(b*1.15,1)*Math.PI*0.5);
+  const taper=Math.pow(1-b,0.85);
+  return maxR*(0.55+0.45*swell)*(0.22+0.78*taper);
+}
+function pad(){return Math.min(W,H)*0.10;}
+function steer(p,tx,ty){let d=Math.atan2(ty-p.y,tx-p.x)-p.a;while(d>Math.PI)d-=6.283;while(d<-Math.PI)d+=6.283;return d*0.35;}
+
+function updateHead(s,dt){
+  const h=s.head;
+  const boost=(1+gEnergy*0.6)*(1+rageMix*0.7);   // audio + RAGE drive speed
+  s.tN+=dt*0.00045*s.speedMul*boost;
+  const wander=snoise(s.tN+s.seed)*1.4+snoise(s.tN*0.37+10+s.seed)*0.9;
+  s.slowPhase+=dt*0.0007;
+  const slow=(Math.sin(s.slowPhase)+Math.sin(s.slowPhase*0.6+2))*0.5;
+  const coil=Math.max(0,slow);
+  const targetSpeed=(0.92-coil*0.62)*Math.min(W,H)*0.0016*s.speedMul*boost;
+  let turn=wander*0.9+coil*Math.sin(s.tN*3.0)*1.6;
+  if(s.mouseAmt>0){
+    s.mInf+=((mouse.active?1:0)-s.mInf)*0.02;
+    if(s.mInf>0.001){
+      let d=Math.atan2(mouse.y-h.y,mouse.x-h.x)-h.a;
+      while(d>Math.PI)d-=6.283;while(d<-Math.PI)d+=6.283;
+      turn+=Math.max(-1,Math.min(1,d))*s.mInf*s.mouseAmt*0.7;
     }
-    sctx.beginPath();sctx.moveTo(p[0].x,p[0].y-3);for(let i=1;i<s.seg;i++)sctx.lineTo(p[i].x,p[i].y-3);
-    sctx.strokeStyle='rgba(255,255,255,0.25)';sctx.lineWidth=3;sctx.shadowBlur=0;sctx.stroke();
-  }else{ // cheaper glow for background snakes: a wide translucent stroke instead of shadowBlur
-    sctx.beginPath();sctx.moveTo(p[0].x,p[0].y);for(let i=1;i<s.seg;i++)sctx.lineTo(p[i].x,p[i].y);
-    sctx.strokeStyle=col.glow;sctx.lineWidth=s.width*2.6;sctx.stroke();
-    const g=sctx.createLinearGradient(p[0].x,p[0].y,p[s.seg-1].x,p[s.seg-1].y);g.addColorStop(0,col.c0);g.addColorStop(1,col.c2);
-    sctx.globalAlpha=0.35+s.light*0.5;sctx.strokeStyle=g;sctx.lineWidth=s.width;sctx.stroke();sctx.globalAlpha=1;
   }
-  sctx.restore();
-  // head
-  const hx=p[0].x,hy=p[0].y,ang=Math.atan2(p[0].y-p[2].y,p[0].x-p[2].x),hr=s.main?16:Math.max(6,s.width*0.7);
-  sctx.save();sctx.translate(hx,hy);sctx.rotate(ang);
-  if(s.main){sctx.shadowColor=col.c1;sctx.shadowBlur=18;}
-  sctx.fillStyle=col.c0;sctx.beginPath();sctx.ellipse(0,0,hr,hr*0.78,0,0,7);sctx.fill();sctx.shadowBlur=0;
-  if(s.main){
-    sctx.fillStyle='#fff';sctx.beginPath();sctx.arc(5,-5,3.2,0,7);sctx.arc(5,5,3.2,0,7);sctx.fill();
-    sctx.fillStyle='#ff1f2e';sctx.beginPath();sctx.arc(6,-5,1.5,0,7);sctx.arc(6,5,1.5,0,7);sctx.fill();
-    const flick=(Math.sin(tongueT*0.8)>.6)?1:0.3,tl=10+flick*10;
-    sctx.strokeStyle='#ff1f2e';sctx.lineWidth=2;sctx.shadowColor='#ff1f2e';sctx.shadowBlur=8;
-    sctx.beginPath();sctx.moveTo(14,0);sctx.lineTo(14+tl,0);sctx.moveTo(14+tl,0);sctx.lineTo(14+tl+5,-4);sctx.moveTo(14+tl,0);sctx.lineTo(14+tl+5,4);sctx.stroke();
-  }else{sctx.fillStyle='rgba(255,255,255,0.7)';sctx.beginPath();sctx.arc(hr*0.3,-hr*0.3,hr*0.2,0,7);sctx.arc(hr*0.3,hr*0.3,hr*0.2,0,7);sctx.fill();}
-  sctx.restore();
+  const m=pad();
+  if(h.x<m)   turn+=steer(h,m,h.y);
+  if(h.x>W-m) turn+=steer(h,W-m,h.y);
+  if(h.y<m)   turn+=steer(h,h.x,m);
+  if(h.y>H-m) turn+=steer(h,h.x,H-m);
+  h.a+=turn*dt*0.0016;
+  h.speed+=(targetSpeed-h.speed)*0.04;
+  h.x+=Math.cos(h.a)*h.speed*dt;
+  h.y+=Math.sin(h.a)*h.speed*dt;
+  h.x=Math.max(m*0.5,Math.min(W-m*0.5,h.x));
+  h.y=Math.max(m*0.5,Math.min(H-m*0.5,h.y));
+  s.spine[0].x=h.x;s.spine[0].y=h.y;
 }
-function drawSnakes(t,energy){tongueT+=0.05;for(const s of snakes){moveSnake(s,t,energy);drawSnakeBody(s);}}
+function updateBody(s){
+  const len=segLen(s);
+  for(let i=1;i<SEG;i++){const p=s.spine[i],l=s.spine[i-1];
+    let dx=l.x-p.x,dy=l.y-p.y;const d=Math.hypot(dx,dy)||1e-4;
+    const k=(d-len)/d;p.x+=dx*k;p.y+=dy*k;}
+}
+/* throttle slime by tail travel distance, not per-frame */
+function pushSlime(s){
+  const t=s.spine[SEG-1];
+  const dx=t.x-s.lastSlimeX,dy=t.y-s.lastSlimeY;
+  if(dx*dx+dy*dy<100)return;             // ~10px threshold
+  s.lastSlimeX=t.x;s.lastSlimeY=t.y;
+  s.slime.push({x:t.x,y:t.y,r:radiusAt(s,SEG-1)*2.4,life:1});
+  if(s.slime.length>60)s.slime.shift();
+}
+function tickTongue(s,dt){
+  s.flickTimer+=dt;
+  if(s.tongueT>0){s.tongueT-=dt*0.0016;if(s.tongueT<0)s.tongueT=0;}
+  else if(s.flickTimer>s.nextFlick*(1-Math.min(0.6,gEnergy))){s.tongueT=1;s.flickTimer=0;s.nextFlick=1800+Math.random()*2600;}
+}
+
+/* ----------------------------- WEBGL ----------------------------- */
+let prog,fogProg,buf,fogBuf,fogArr;
+let aPos,aUV,aRad,aSeg,uRes,uLight,uTime,uScale,uDim,uHue,uRage;
+let fAPos,fAUV,fAA,fAHue,fURes,fURage;
+
+function compile(src,type){const sh=gl.createShader(type);gl.shaderSource(sh,src);gl.compileShader(sh);
+  if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS)){console.error(gl.getShaderInfoLog(sh),src);return null;}return sh;}
+function glink(vs,fs){const p=gl.createProgram();const a=compile(vs,gl.VERTEX_SHADER),b=compile(fs,gl.FRAGMENT_SHADER);
+  if(!a||!b)return null;gl.attachShader(p,a);gl.attachShader(p,b);gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)){console.error(gl.getProgramInfoLog(p));return null;}return p;}
+
+const VS=`precision highp float;
+attribute vec2 aPos; attribute vec2 aUV; attribute float aRad; attribute float aSeg;
+uniform vec2 uRes; varying vec2 vUV; varying float vRad; varying float vSeg;
+void main(){ vUV=aUV; vRad=aRad; vSeg=aSeg;
+  vec2 c=(aPos/uRes)*2.0-1.0; c.y=-c.y; gl_Position=vec4(c,0.0,1.0); }`;
+
+const FS=`precision highp float;
+varying vec2 vUV; varying float vRad; varying float vSeg;
+uniform vec3 uLight; uniform float uTime; uniform float uScale; uniform float uDim; uniform float uHue; uniform float uRage;
+float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+float vnoise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f);
+  float a=hash(i),b=hash(i+vec2(1,0)),c=hash(i+vec2(0,1)),d=hash(i+vec2(1,1));
+  return mix(mix(a,b,f.x),mix(c,d,f.x),f.y); }
+void main(){
+  float across=clamp(vUV.x,-1.0,1.0);
+  float nz=sqrt(max(0.0,1.0-across*across));
+  vec3 N=normalize(vec3(across,0.0,nz));
+  float along=vUV.y;
+  float rows=42.0*uScale;
+  float cols=7.0*uScale;
+  float row=along*rows;
+  float stagger=mod(floor(row),2.0)*0.5;
+  vec2 cell=vec2((across*0.5+0.5)*cols+stagger,row);
+  vec2 g=fract(cell)-0.5;
+  float d=length(g*vec2(1.0,0.78));
+  float bump=smoothstep(0.5,0.12,d);
+  vec2 grad=g/(d+1e-3)*bump;
+  vec3 sN=normalize(vec3(grad*0.9,1.0));
+  float breathe=0.85+0.15*sin(uTime*6.0+along*8.0);
+  float scaleMask=smoothstep(0.0,0.06,vSeg)*(1.0-smoothstep(0.85,1.0,vSeg))*(1.0-smoothstep(0.7,1.0,abs(across)));
+  N=normalize(mix(N,normalize(N+vec3(sN.xy,0.0)*1.3*breathe),scaleMask*0.85));
+  N.xy+=(vnoise(vUV*vec2(120.0,420.0))-0.5)*0.06; N=normalize(N);
+  vec3 V=vec3(0.0,0.0,1.0); vec3 L=normalize(uLight);
+  float diff=max(dot(N,L),0.0);
+  vec3 Hh=normalize(L+V);
+  float spec=pow(max(dot(N,Hh),0.0),60.0);
+  float coat=pow(max(dot(N,Hh),0.0),220.0);
+  float fres=pow(1.0-max(dot(N,V),0.0),3.0);
+  float bellyGreen=smoothstep(0.55,0.0,abs(across));
+  float lengthGreen=smoothstep(0.05,0.25,vSeg)*(1.0-smoothstep(0.7,0.95,vSeg));
+  vec3 black=vec3(0.012,0.02,0.016);
+  vec3 green=vec3(0.02,0.22,0.13)+vec3(uHue,-uHue*0.3,uHue*0.5);
+  vec3 albedo=mix(black,green,bellyGreen*lengthGreen*0.9);
+  float groove=smoothstep(0.5,0.46,d);
+  albedo*=mix(1.0,0.45,groove*scaleMask);
+  float ao=mix(0.35,1.0,nz);
+  float tailDark=mix(1.0,0.5,smoothstep(0.6,1.0,vSeg));
+  vec3 col=vec3(0.0);
+  col+=albedo*(0.18+0.82*diff)*ao*tailDark;
+  col+=vec3(0.10,0.45,0.30)*spec*1.4*scaleMask;
+  col+=vec3(0.8,1.0,0.92)*coat*1.2;
+  col+=vec3(0.0,0.96,0.62)*fres*0.5*tailDark;
+  col*=uDim;
+  float edge=smoothstep(1.0,0.92,abs(across));
+  col=col/(col+0.6); col=pow(col,vec3(0.85));
+  vec3 rageC=vec3(max(max(col.r,col.g),col.b)*1.55+0.16, col.g*0.16+0.015, col.b*0.10);
+  col=mix(col,rageC,uRage);   // RAGE MODE bleeds the venom red
+  gl_FragColor=vec4(col,edge);
+}`;
+
+const FOG_VS=`precision highp float; attribute vec2 aPos; attribute vec2 aUV; attribute float aA; attribute float aHue;
+uniform vec2 uRes; varying vec2 vUV; varying float vA; varying float vHue;
+void main(){ vUV=aUV; vA=aA; vHue=aHue; vec2 c=(aPos/uRes)*2.0-1.0; c.y=-c.y; gl_Position=vec4(c,0.0,1.0);}`;
+const FOG_FS=`precision highp float; varying vec2 vUV; varying float vA; varying float vHue; uniform float uRage;
+void main(){ float d=length(vUV-0.5)*2.0; float f=smoothstep(1.0,0.0,d);
+  vec3 g=mix(vec3(0.0,0.96,0.63),vec3(0.0,0.85,0.96),vHue);
+  g=mix(g,vec3(1.0,0.14,0.10),uRage);
+  gl_FragColor=vec4(g*f*vA, 1.0); }`;
+
+const puffs=[];
+function initPuffs(){ puffs.length=0;
+  for(let i=0;i<(isMobile?10:16);i++) puffs.push({x:Math.random()*W,y:Math.random()*H,r:140+Math.random()*300,
+    dx:(Math.random()-0.5)*0.05,dy:(Math.random()-0.5)*0.035,a:0.05+Math.random()*0.07,hue:Math.random()<0.5?0:1});
+  fogArr=new Float32Array(puffs.length*6*6);
+}
+
+function setupGL(){
+  prog=glink(VS,FS); if(!prog) return false;
+  aPos=gl.getAttribLocation(prog,'aPos'); aUV=gl.getAttribLocation(prog,'aUV');
+  aRad=gl.getAttribLocation(prog,'aRad'); aSeg=gl.getAttribLocation(prog,'aSeg');
+  uRes=gl.getUniformLocation(prog,'uRes'); uLight=gl.getUniformLocation(prog,'uLight'); uTime=gl.getUniformLocation(prog,'uTime');
+  uScale=gl.getUniformLocation(prog,'uScale'); uDim=gl.getUniformLocation(prog,'uDim'); uHue=gl.getUniformLocation(prog,'uHue');
+  uRage=gl.getUniformLocation(prog,'uRage');
+  buf=gl.createBuffer();
+  fogProg=glink(FOG_VS,FOG_FS); if(!fogProg) return false;
+  fAPos=gl.getAttribLocation(fogProg,'aPos'); fAUV=gl.getAttribLocation(fogProg,'aUV');
+  fAA=gl.getAttribLocation(fogProg,'aA'); fAHue=gl.getAttribLocation(fogProg,'aHue');
+  fURes=gl.getUniformLocation(fogProg,'uRes'); fURage=gl.getUniformLocation(fogProg,'uRage'); fogBuf=gl.createBuffer();
+  gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND);
+  return true;
+}
+const stride=6;
+function buildMesh(s){
+  const out=s.mesh; let o=0;
+  const lx=new Float64Array(SEG),ly=new Float64Array(SEG),rx=new Float64Array(SEG),ry=new Float64Array(SEG),sg=new Float64Array(SEG);
+  for(let i=0;i<SEG;i++){ const p=s.spine[i]; let tx,ty;
+    if(i<SEG-1){tx=s.spine[i+1].x-p.x;ty=s.spine[i+1].y-p.y;} else {tx=p.x-s.spine[i-1].x;ty=p.y-s.spine[i-1].y;}
+    const tl=Math.hypot(tx,ty)||1e-4;tx/=tl;ty/=tl; const nx=-ty,ny=tx,r=radiusAt(s,i);
+    lx[i]=p.x+nx*r; ly[i]=p.y+ny*r; rx[i]=p.x-nx*r; ry[i]=p.y-ny*r; sg[i]=i/(SEG-1);
+  }
+  for(let i=0;i<SEG-1;i++){
+    o=put(out,o,lx[i],ly[i],1,sg[i]); o=put(out,o,rx[i],ry[i],-1,sg[i]); o=put(out,o,lx[i+1],ly[i+1],1,sg[i+1]);
+    o=put(out,o,rx[i],ry[i],-1,sg[i]); o=put(out,o,rx[i+1],ry[i+1],-1,sg[i+1]); o=put(out,o,lx[i+1],ly[i+1],1,sg[i+1]);
+  }
+  return o/stride;
+}
+function put(a,o,x,y,u,v){ a[o]=x;a[o+1]=y;a[o+2]=u;a[o+3]=v;a[o+4]=0;a[o+5]=v; return o+6; }
+
+function buildFog(){
+  const a=fogArr; let o=0;
+  for(const p of puffs){ p.x+=p.dx*16; p.y+=p.dy*16;
+    if(p.x<-p.r)p.x=W+p.r; if(p.x>W+p.r)p.x=-p.r; if(p.y<-p.r)p.y=H+p.r; if(p.y>H+p.r)p.y=-p.r;
+    const x0=p.x-p.r,x1=p.x+p.r,y0=p.y-p.r,y1=p.y+p.r;
+    o=putF(a,o,x0,y0,0,0,p.a,p.hue); o=putF(a,o,x1,y0,1,0,p.a,p.hue); o=putF(a,o,x1,y1,1,1,p.a,p.hue);
+    o=putF(a,o,x0,y0,0,0,p.a,p.hue); o=putF(a,o,x1,y1,1,1,p.a,p.hue); o=putF(a,o,x0,y1,0,1,p.a,p.hue);
+  }
+  return o/6;
+}
+function putF(a,o,x,y,u,v,al,hue){ a[o]=x;a[o+1]=y;a[o+2]=u;a[o+3]=v;a[o+4]=al;a[o+5]=hue; return o+6; }
+
+function bindSnakeAttribs(){ const s=stride*4;
+  gl.enableVertexAttribArray(aPos); gl.vertexAttribPointer(aPos,2,gl.FLOAT,false,s,0);
+  gl.enableVertexAttribArray(aUV);  gl.vertexAttribPointer(aUV,2,gl.FLOAT,false,s,8);
+  gl.enableVertexAttribArray(aRad); gl.vertexAttribPointer(aRad,1,gl.FLOAT,false,s,16);
+  gl.enableVertexAttribArray(aSeg); gl.vertexAttribPointer(aSeg,1,gl.FLOAT,false,s,20);
+}
+function renderGL(){
+  gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+  // fog (additive)
+  gl.useProgram(fogProg); gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
+  const fcount=buildFog(); gl.bindBuffer(gl.ARRAY_BUFFER,fogBuf);
+  gl.bufferData(gl.ARRAY_BUFFER,fogArr,gl.DYNAMIC_DRAW);
+  const fs=6*4;
+  gl.enableVertexAttribArray(fAPos); gl.vertexAttribPointer(fAPos,2,gl.FLOAT,false,fs,0);
+  gl.enableVertexAttribArray(fAUV);  gl.vertexAttribPointer(fAUV,2,gl.FLOAT,false,fs,8);
+  gl.enableVertexAttribArray(fAA);   gl.vertexAttribPointer(fAA,1,gl.FLOAT,false,fs,16);
+  gl.enableVertexAttribArray(fAHue); gl.vertexAttribPointer(fAHue,1,gl.FLOAT,false,fs,20);
+  gl.uniform2f(fURes,W,H); gl.uniform1f(fURage,rageMix);
+  gl.drawArrays(gl.TRIANGLES,0,fcount);
+  // snakes back->front
+  gl.useProgram(prog); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+  gl.uniform2f(uRes,W,H);
+  const tt=lowPower?0.0:(performance.now()-startT)*0.0004;
+  gl.uniform3f(uLight,Math.cos(tt)*0.5,0.45+Math.sin(tt*0.7)*0.2,0.75);
+  gl.uniform1f(uTime,tt); gl.uniform1f(uRage,rageMix);
+  gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+  for(const s of snakes){
+    const vc=buildMesh(s);
+    gl.bufferData(gl.ARRAY_BUFFER,s.mesh,gl.DYNAMIC_DRAW);
+    bindSnakeAttribs();
+    gl.uniform1f(uScale,s.sizeMul); gl.uniform1f(uDim,s.dim*(1+gEnergy*0.5)); gl.uniform1f(uHue,s.hueShift);
+    gl.drawArrays(gl.TRIANGLES,0,vc);
+  }
+  drawOverlay();
+}
+
+/* eyes / tongue / slime overlay (its own full-page 2D canvas) */
+const ov=document.createElement('canvas');
+ov.style.cssText='position:fixed;inset:0;z-index:-1;pointer-events:none';
+ov.setAttribute('aria-hidden','true');
+let octx;
+function setupOverlay(){ document.body.appendChild(ov); octx=ov.getContext('2d'); }
+function sizeOverlay(){ ov.width=W*DPR; ov.height=H*DPR; ov.style.width=W+'px'; ov.style.height=H+'px'; octx.setTransform(DPR,0,0,DPR,0,0); }
+function drawSnakeDetails(s){
+  octx.save(); octx.globalCompositeOperation='lighter';
+  for(const sl of s.slime){ if(!lowPower) sl.life-=0.012; if(sl.life<=0)continue;
+    const g=octx.createRadialGradient(sl.x,sl.y,0,sl.x,sl.y,sl.r);
+    g.addColorStop(0,`rgba(0,245,160,${0.08*sl.life*s.dim})`); g.addColorStop(0.5,`rgba(0,120,90,${0.035*sl.life*s.dim})`); g.addColorStop(1,'rgba(0,0,0,0)');
+    octx.fillStyle=g; octx.beginPath(); octx.arc(sl.x,sl.y,sl.r,0,6.283); octx.fill(); }
+  while(s.slime.length&&s.slime[0].life<=0) s.slime.shift();
+  octx.restore();
+  const h=s.spine[0],n=s.spine[1];
+  let tx=h.x-n.x,ty=h.y-n.y; const tl=Math.hypot(tx,ty)||1; tx/=tl; ty/=tl;
+  const nx=-ty,ny=tx,r=radiusAt(s,0),a=Math.atan2(ty,tx);
+  const ex=h.x-tx*r*0.1, ey=h.y-ty*r*0.1;
+  octx.globalAlpha=s.dim;
+  for(const side of [1,-1]){
+    const px=ex+nx*r*0.6*side, py=ey+ny*r*0.6*side;
+    octx.fillStyle='rgba(0,0,0,0.85)'; octx.beginPath(); octx.arc(px,py,r*0.33,0,6.283); octx.fill();
+    const eg=octx.createRadialGradient(px,py,0.5,px,py,r*0.29);
+    eg.addColorStop(0,'rgba(190,255,150,0.97)'); eg.addColorStop(0.4,'rgba(50,200,120,0.92)'); eg.addColorStop(1,'rgba(5,28,18,1)');
+    octx.fillStyle=eg; octx.beginPath(); octx.arc(px,py,r*0.25,0,6.283); octx.fill();
+    octx.save(); octx.translate(px,py); octx.rotate(a);
+    octx.fillStyle='rgba(0,0,0,0.96)'; octx.beginPath(); octx.ellipse(0,0,r*0.05,r*0.19,0,0,6.283); octx.fill(); octx.restore();
+    octx.fillStyle='rgba(255,255,255,0.9)'; octx.beginPath();
+    octx.arc(px-nx*r*0.08*side-tx*r*0.05,py-ny*r*0.08*side-ty*r*0.05,r*0.055,0,6.283); octx.fill();
+  }
+  if(s.tongueT>0){
+    const reach=Math.sin(s.tongueT*Math.PI)*r*2.4;
+    const bx=h.x+tx*r*1.0, by=h.y+ty*r*1.0, fx=bx+tx*reach, fy=by+ty*reach;
+    octx.strokeStyle='rgba(255,40,80,0.92)'; octx.lineWidth=Math.max(1.2,r*0.07); octx.lineCap='round';
+    octx.beginPath(); octx.moveTo(bx,by); octx.lineTo(fx,fy); octx.stroke();
+    const fk=r*0.5, wob=Math.sin(s.tongueT*20)*r*0.15;
+    octx.beginPath();
+    octx.moveTo(fx,fy); octx.lineTo(fx+tx*fk+nx*(fk*0.5+wob),fy+ty*fk+ny*(fk*0.5+wob));
+    octx.moveTo(fx,fy); octx.lineTo(fx+tx*fk-nx*(fk*0.5-wob),fy+ty*fk-ny*(fk*0.5-wob));
+    octx.stroke();
+  }
+  octx.globalAlpha=1;
+}
+function drawOverlay(){ octx.clearRect(0,0,W,H); for(const s of snakes) drawSnakeDetails(s); }
+
+/* ----------------------------- 2D FALLBACK ----------------------------- */
+let useFallback=false,f2d,fcv;
+function setupFallback(){ useFallback=true;
+  fcv=document.createElement('canvas');
+  fcv.style.cssText='position:fixed;inset:0;z-index:-1;pointer-events:none';
+  fcv.setAttribute('aria-hidden','true');
+  document.body.appendChild(fcv); f2d=fcv.getContext('2d'); }
+function sizeFallbackCanvas(){ fcv.width=W*DPR; fcv.height=H*DPR; fcv.style.width=W+'px'; fcv.style.height=H+'px'; f2d.setTransform(DPR,0,0,DPR,0,0); }
+function outline(s){ const L=[],R=[];
+  for(let i=0;i<SEG;i++){ const p=s.spine[i]; let tx,ty;
+    if(i<SEG-1){tx=s.spine[i+1].x-p.x;ty=s.spine[i+1].y-p.y;} else {tx=p.x-s.spine[i-1].x;ty=p.y-s.spine[i-1].y;}
+    const tl=Math.hypot(tx,ty)||1;tx/=tl;ty/=tl; const nx=-ty,ny=tx,r=radiusAt(s,i);
+    L.push({x:p.x+nx*r,y:p.y+ny*r}); R.push({x:p.x-nx*r,y:p.y-ny*r}); } return {L,R}; }
+function bpath(c,L,R){ c.beginPath(); c.moveTo(L[0].x,L[0].y); for(let i=1;i<L.length;i++)c.lineTo(L[i].x,L[i].y);
+  for(let i=R.length-1;i>=0;i--)c.lineTo(R[i].x,R[i].y); c.closePath(); }
+function renderFallback(){
+  f2d.clearRect(0,0,W,H);
+  for(const s of snakes){
+    f2d.globalAlpha=s.dim; const {L,R}=outline(s);
+    f2d.save(); f2d.translate(0,Math.min(W,H)*0.02); f2d.filter='blur(8px)'; bpath(f2d,L,R); f2d.fillStyle='rgba(0,0,0,0.55)'; f2d.fill(); f2d.restore();
+    const mid=s.spine[Math.floor(SEG*0.35)]; const nxt=s.spine[Math.floor(SEG*0.35)+1];
+    let tx=nxt.x-mid.x,ty=nxt.y-mid.y; const l=Math.hypot(tx,ty)||1;tx/=l;ty/=l; const nx=-ty,ny=tx,rr=radiusAt(s,Math.floor(SEG*0.35));
+    const g=f2d.createLinearGradient(mid.x+nx*rr,mid.y+ny*rr,mid.x-nx*rr,mid.y-ny*rr);
+    if(rageMix>0.5){ g.addColorStop(0,'#2a0606');g.addColorStop(.5,'#7a0a0a');g.addColorStop(1,'#150000'); }
+    else { g.addColorStop(0,'#0c1410');g.addColorStop(.32,'#04130d');g.addColorStop(.5,'#0a3322');g.addColorStop(.62,'#021109');g.addColorStop(1,'#000402'); }
+    bpath(f2d,L,R); f2d.fillStyle=g; f2d.fill();
+    bpath(f2d,L,R); f2d.lineWidth=1.4; f2d.strokeStyle=rageMix>0.5?'rgba(255,60,60,0.22)':'rgba(0,245,160,0.22)'; f2d.stroke();
+    f2d.globalAlpha=1;
+    const real=octx; octx=f2d; drawSnakeDetails(s); octx=real;
+  }
+}
+
+/* ----------------------------- SIZE / BOOT ----------------------------- */
+function doSize(){
+  const ow=W||innerWidth, oh=H||innerHeight;
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  W=innerWidth; H=innerHeight;
+  canvas.width=Math.floor(W*DPR); canvas.height=Math.floor(H*DPR);
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  if(gl) gl.viewport(0,0,canvas.width,canvas.height);
+  const rx=ow?W/ow:1, ry=oh?H/oh:1;
+  if(snakes.length&&(Math.abs(rx-1)>1e-4||Math.abs(ry-1)>1e-4)) repositionSnakes(rx,ry);
+  if(octx) sizeOverlay();
+  if(useFallback&&f2d) sizeFallbackCanvas();
+  if(gl&&!useFallback) initPuffs();
+}
+
+/* WebGL context-loss recovery */
+canvas.addEventListener('webglcontextlost',(e)=>{ e.preventDefault(); },false);
+canvas.addEventListener('webglcontextrestored',()=>{
+  gl=canvas.getContext('webgl',glOpts)||canvas.getContext('experimental-webgl',glOpts);
+  if(gl&&setupGL()){ doSize(); }
+},false);
+
+/* ---- public hooks (drop-in for the old 2D pit) ---- */
+sizeSnake=function(){ doSize(); };
+buildSnakes=function(){ if(!snakes.length) spawn(); };   // resize keeps the snakes; doSize repositions them
+snakeLunge=function(){ for(const s of snakes){ s.tongueT=1; s.mInf=Math.min(1,s.mInf+0.6); } };
+drawSnakes=function(t,energy){
+  gEnergy=energy||0;
+  rageMix+=((rageOn?1:0)-rageMix)*0.05;
+  let now=performance.now(),dt=now-lastT; lastT=now; if(dt>50)dt=50; if(dt<0)dt=0;
+  mouse.x=mx; mouse.y=my; mouse.active=true;        // follow the shared cursor
+  for(const s of snakes){ updateHead(s,dt); updateBody(s); pushSlime(s); tickTongue(s,dt); }
+  if(useFallback) renderFallback(); else renderGL();
+};
+
+/* boot */
+setupOverlay();
+if(gl && setupGL()){ doSize(); spawn(); }
+else { gl=null; setupFallback(); doSize(); spawn(); }
+})();
 
 /* ---------- VISUALIZER CANVAS ---------- */
 function fit(cv){if(!cv)return{};const dpr=Math.min(devicePixelRatio||1,2);const r=cv.getBoundingClientRect();cv.width=r.width*dpr;cv.height=r.height*dpr;const x=cv.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);return{x,w:r.width,h:r.height};}
@@ -307,8 +647,8 @@ function eqbars(ctx,w,h){const n=22,bw=w/n,cols=['#ff1f2e','#8dff2b','#9b3cff'];
 let parts=[];for(let i=0;i<34;i++)parts.push({x:Math.random(),y:Math.random(),s:Math.random()*2+.5,v:Math.random()*.0004+.0001,c:emberC[Math.floor(Math.random()*4)]});
 
 function frame(t){updateLevels(t);const energy=levels.reduce((a,b)=>a+b,0)/levels.length+(rageOn?0.35:0);
-  // SNAKE PIT (full page, always visible)
-  sctx.clearRect(0,0,SW,SH);drawSnakes(t,energy);
+  // SNAKE PIT (full page, always visible) — WebGL engine clears its own canvases
+  drawSnakes(t,energy);
   if(H.w&&heroIn){const{x,w,h}=H;x.clearRect(0,0,w,h);x.save();parts.forEach(p=>{p.y-=p.v*(1+energy*3);if(p.y<0)p.y=1;x.globalAlpha=.3+energy*.5;x.fillStyle=p.c;x.beginPath();x.arc(p.x*w,p.y*h,p.s,0,7);x.fill();});x.restore();snakeWave(x,w,h,t,9+energy*8,3.5+energy*4,h*.62);}
   if(V.w&&vizIn){const{x,w,h}=V;x.clearRect(0,0,w,h);snakeWave(x,w,h,t,16+energy*18,6+energy*9,h*.5);snakeWave(x,w,h,t*.8+500,11,3+energy*6,h*.52);ring(x,w*.5,h*.5,Math.min(w,h)*.16,t);bars(x,w,h,h);}
   if(C.w&&conIn){const{x,w,h}=C;x.clearRect(0,0,w,h);snakeWave(x,w,h,t*.7,9+energy*6,3+energy*4,h*.5);}
