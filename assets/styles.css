@@ -73,7 +73,7 @@ nav.scrolled{background:rgba(8,5,4,.8);backdrop-filter:blur(12px);border-bottom:
 
 /* HERO */
 .hero{min-height:100svh;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:90px 18px 40px;overflow:hidden}
-.herobg{position:absolute;inset:0;z-index:0;background-image:url('assets/sb-portrait.jpg');background-size:cover;background-position:center 25%}
+.herobg{position:absolute;inset:0;z-index:0;background-image:url('sb-portrait.jpg');background-size:cover;background-position:center 25%}
 .herobg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,4,3,.7),rgba(6,4,3,.55) 40%,rgba(6,4,3,.92)),radial-gradient(60% 60% at 50% 45%,transparent,rgba(6,4,3,.6))}
 #heroCanvas{position:absolute;inset:0;z-index:1;opacity:.85}
 .heroinner{position:relative;z-index:3;transform:translate(var(--px,0),var(--py,0))}
