@@ -244,7 +244,8 @@ table.tbl td.muted{color:var(--muted)}
    Schema-driven forms (SB_SECTIONS / SB_SCHEMA from cms.js), a live preview
    pane, drafts, dirty-tracking, an Audience list, and account settings.
    ========================================================================= */
-let PW = sessionStorage.getItem('sb_pw') || '';
+let TOKEN = sessionStorage.getItem('sb_token') || '';   // short-lived admin session token (not the password)
+function authCred(){ return { token: TOKEN }; }
 let model = null;           // working content
 let baseline = '{}';        // last-published JSON (for dirty check)
 let view = 'hero';          // active sidebar key
@@ -262,7 +263,7 @@ function elt(tag, cls, txt){const e=document.createElement(tag);if(cls)e.classNa
 
 /* ---------- auth ---------- */
 $('pwEye').onclick=()=>{const p=$('pw');p.type=p.type==='password'?'text':'password';};
-async function tryLogin(pw){ await sbAdmin(pw,'login'); PW=pw; sessionStorage.setItem('sb_pw',pw); await enterEditor(); }
+async function tryLogin(pw){ const r=await sbAdmin(pw,'login'); if(r&&r.token){ TOKEN=r.token; sessionStorage.setItem('sb_token',TOKEN); } await enterEditor(); }
 $('loginBtn').onclick=async()=>{
   const pw=$('pw').value.trim(); $('gerr').textContent='';
   if(!pw)return;
@@ -276,7 +277,9 @@ $('pw').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click();
 async function enterEditor(){
   // Build the whole editor BEFORE revealing it. If anything here throws we stay on
   // the gate (with the error shown) instead of stranding the user on a blank page.
-  const server=await sbGetContent();
+  // Strict read: if the live content can't be fetched we fail loudly here rather than
+  // loading defaults — which would otherwise let a publish overwrite real content.
+  const server=await sbGetContentStrict();
   baseline=JSON.stringify(server);
   // offer to restore an unsaved local draft
   let draft=null; try{ draft=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null'); }catch(_){}
@@ -304,7 +307,7 @@ function meta(path){return (window.SB_SCHEMA&&SB_SCHEMA[tkeyOf(path)])||{};}
 let pvTimer=null;
 function onChange(){ updateDirty(); saveDraft(); schedulePreview(); }
 function schedulePreview(){ clearTimeout(pvTimer); pvTimer=setTimeout(pushPreview,180); }
-function pushPreview(){ const f=$('pvframe'); if(f&&f.contentWindow) f.contentWindow.postMessage({__sb:'preview',content:model},'*'); }
+function pushPreview(){ const f=$('pvframe'); if(f&&f.contentWindow) f.contentWindow.postMessage({__sb:'preview',content:model},location.origin); }
 /* the site is multi-page now — point the preview at the page that holds the
    section being edited so edits are always visible. */
 const PAGE_FILE={home:'index.html',music:'music.html',lab:'lab.html',world:'world.html',vault:'vault.html',shows:'shows.html',connect:'connect.html'};
@@ -344,7 +347,7 @@ function updateDirty(){
   if(isDirty()){ p.className='savepill dirty'; t.textContent='unsaved changes'; }
   else { p.className='savepill saved'; t.textContent='all changes saved'; }
 }
-window.addEventListener('message',e=>{ if(e.data&&e.data.__sb==='ready'){ previewReady=true; pushPreview(); } });
+window.addEventListener('message',e=>{ const f=$('pvframe'); if(e.origin!==location.origin||!f||e.source!==f.contentWindow)return; if(e.data&&e.data.__sb==='ready'){ previewReady=true; pushPreview(); } });
 window.addEventListener('beforeunload',e=>{ if(isDirty()){ e.preventDefault(); e.returnValue=''; } });
 
 /* ---------- sidebar ---------- */
@@ -535,8 +538,10 @@ function buildControl(key,value,path,m){
   if(type==='slug'){       // keep URL slugs clean as you type (lowercase, dashes)
     const c=document.createElement('input'); c.className='inp'; c.value=value==null?'':value; if(m.placeholder)c.placeholder=m.placeholder;
     const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9-]+/g,'-');
-    c.oninput=()=>{ const p=c.selectionStart; c.value=norm(c.value); try{c.setSelectionRange(p,p);}catch(_){} commit(path,c.value); };
-    c.onblur=()=>{ c.value=c.value.replace(/^-+|-+$/g,''); commit(path,c.value); };
+    const dup=v=>!!v&&((model&&model.pages)||[]).some((p,i)=>i!==path[1]&&p&&p.slug===v);   // clashes with another page
+    c.oninput=()=>{ const p=c.selectionStart; c.value=norm(c.value); try{c.setSelectionRange(p,p);}catch(_){} commit(path,c.value); c.classList.toggle('bad',dup(c.value)); };
+    c.onblur=()=>{ c.value=c.value.replace(/^-+|-+$/g,''); commit(path,c.value); c.classList.toggle('bad',dup(c.value)); };
+    c.classList.toggle('bad',dup(c.value));
     return c;
   }
   let c;
@@ -586,7 +591,7 @@ function imageControl(value,path){
   file.onchange=async()=>{ const f=file.files[0]; if(!f)return;
     if(f.size>6*1024*1024){ stat.textContent='✗ image too big (max ~6MB)'; return; }
     stat.textContent='uploading…';
-    try{ const b64=await fileToB64(f); const r=await sbAdmin(PW,'upload',{filename:f.name,contentType:f.type,dataB64:b64});
+    try{ const b64=await fileToB64(f); const r=await sbAdmin(authCred(),'upload',{filename:f.name,contentType:f.type,dataB64:b64});
       commit(path,r.url); inp.value=r.url; prev.style.backgroundImage=`url('${r.url}')`; stat.textContent='✓ uploaded'; }
     catch(e){ stat.textContent='✗ '+(e.message||e); } };
   row.append(inp,btn);
@@ -597,11 +602,16 @@ function imageControl(value,path){
 
 /* ---------- publish ---------- */
 $('publishBtn').onclick=async()=>{
+  // custom-page slugs must be present and unique — duplicates clash on page.html?p= (only the first wins)
+  const slugs=((model&&model.pages)||[]).map(p=>(p&&p.slug)||'');
+  if(slugs.some(s=>!s)){ toast('✗ every custom page needs a slug before publishing',true); return; }
+  const dupes=[...new Set(slugs.filter((s,i)=>slugs.indexOf(s)!==i))];
+  if(dupes.length){ toast('✗ duplicate page slug: '+dupes.join(', ')+' — make each unique',true); return; }
   const issues=document.querySelectorAll('#editor .inp.bad').length;
   if(issues && !confirm(issues+' field(s) look invalid (check links/email). Publish anyway?'))return;
   const p=$('savePill'),t=$('savePillTxt'); p.className='savepill saving'; t.textContent='publishing…';
   $('publishBtn').disabled=true; $('publishBtn').textContent='publishing…';
-  try{ await sbAdmin(PW,'save',model); baseline=JSON.stringify(model); localStorage.removeItem(DRAFT_KEY); p.classList.remove('saving'); updateDirty(); toast('✓ published — live for visitors'); }
+  try{ await sbAdmin(authCred(),'save',model); baseline=JSON.stringify(model); localStorage.removeItem(DRAFT_KEY); p.classList.remove('saving'); updateDirty(); toast('✓ published — live for visitors'); }
   catch(e){ p.classList.remove('saving'); updateDirty(); toast('✗ '+(e.message||e),true); }
   finally{ $('publishBtn').disabled=false; $('publishBtn').textContent='▲ publish'; }
 };
@@ -631,7 +641,7 @@ async function renderAudience(root){
   async function load(){
     host.innerHTML='<div class="empty">loading…</div>';
     try{
-      const r=await sbAdmin(PW,'list_subs');
+      const r=await sbAdmin(authCred(),'list_subs');
       subs=(r&&r.subs)||[];
       draw();
     }catch(e){ host.innerHTML='<div class="empty">✗ '+(e.message||e)+'</div>'; }
@@ -679,7 +689,7 @@ function renderSettings(root){
     if(np.value.length<6){toast('password too short',true);return;}
     if(np.value!==np2.value){toast('passwords don’t match',true);return;}
     pbtn.disabled=true; pbtn.textContent='updating…';
-    try{ await sbAdmin(PW,'set_password',{newPassword:np.value}); PW=np.value; sessionStorage.setItem('sb_pw',PW); np.value=np2.value=''; toast('✓ password updated'); }
+    try{ const r=await sbAdmin(authCred(),'set_password',{newPassword:np.value}); if(r&&r.token){ TOKEN=r.token; sessionStorage.setItem('sb_token',TOKEN); } np.value=np2.value=''; toast('✓ password updated'); }
     catch(e){ toast('✗ '+(e.message||e),true); }
     finally{ pbtn.disabled=false; pbtn.textContent='update password'; }
   };
@@ -707,13 +717,19 @@ function renderSettings(root){
   rst.onclick=()=>{ if(confirm('Reset all sections to the built-in defaults? (You can still discard by reloading before you publish.)')){ model=sbClone(SB_DEFAULTS); onChange(); buildSidebar(); selectView('hero'); toast('reset to defaults — review, then publish'); } };
   dz.appendChild(rst);
   const lo=elt('button','btn neutral sm','log out'); lo.style.marginLeft='8px';
-  lo.onclick=()=>{ if(isDirty()&&!confirm('You have unsaved changes. Log out anyway?'))return; sessionStorage.removeItem('sb_pw'); localStorage.removeItem(DRAFT_KEY); location.reload(); };
+  lo.onclick=()=>{ if(isDirty()&&!confirm('You have unsaved changes. Log out anyway?'))return; TOKEN=''; sessionStorage.removeItem('sb_token'); sessionStorage.removeItem('sb_pw'); localStorage.removeItem(DRAFT_KEY); location.reload(); };
   dz.appendChild(lo);
   root.appendChild(dz);
 }
 
 /* ---------- boot: resume a valid session ---------- */
-(async()=>{ if(PW){ try{ await tryLogin(PW); }catch(_){ sessionStorage.removeItem('sb_pw'); } } })();
+(async()=>{
+  // resume with a still-valid token (refreshes it); fall back to migrating a legacy
+  // persisted password into a token once, then drop the stored password for good.
+  if(TOKEN){ try{ const r=await sbAdmin({token:TOKEN},'login'); if(r&&r.token){ TOKEN=r.token; sessionStorage.setItem('sb_token',TOKEN); } await enterEditor(); return; }catch(_){ TOKEN=''; sessionStorage.removeItem('sb_token'); } }
+  const legacyPw=sessionStorage.getItem('sb_pw');
+  if(legacyPw){ try{ await tryLogin(legacyPw); }catch(_){ } finally{ sessionStorage.removeItem('sb_pw'); } }
+})();
 </script>
 </body>
 </html>

@@ -124,7 +124,9 @@ document.addEventListener('mouseover',e=>{if(e.target.closest(hoverEls))cursor.c
 document.addEventListener('mouseout',e=>{if(e.target.closest(hoverEls))cursor.classList.remove('big')});
 const tcv=document.getElementById('trail'),tctx=tcv.getContext('2d');
 let embers=[];const emberC=['#ff1f2e','#8dff2b','#9b3cff','#b6ff5a'];
-function emit(x,y,n){for(let i=0;i<n;i++){if(Math.random()<.5)embers.push({x,y,vx:(Math.random()-.5)*.6,vy:-Math.random()*1.2-.3,life:1,c:emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*2.4+.8})}if(embers.length>180)embers.splice(0,embers.length-180);}
+/* honor the OS "reduce motion" setting: no passive cursor-trail embers, calmer loops */
+const sbReduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function emit(x,y,n){if(sbReduceMotion)return;for(let i=0;i<n;i++){if(Math.random()<.5)embers.push({x,y,vx:(Math.random()-.5)*.6,vy:-Math.random()*1.2-.3,life:1,c:emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*2.4+.8})}if(embers.length>180)embers.splice(0,embers.length-180);}
 function burst(x,y,n,c){for(let i=0;i<n;i++){const a=Math.random()*7,sp=Math.random()*4+1;embers.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:1,c:c||emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*3+1})}}
 function sizeTrail(){tcv.width=innerWidth;tcv.height=innerHeight;}sizeTrail();
 
@@ -677,13 +679,18 @@ let parts=[];for(let i=0;i<34;i++)parts.push({x:Math.random(),y:Math.random(),s:
    the loop (cursor trail, visualizers) still runs every frame so it stays smooth. */
 let _snakeLast=-1e9; const SNAKE_DT=1000/40;
 function frame(t){updateLevels(t);const energy=levels.reduce((a,b)=>a+b,0)/levels.length+(rageOn?0.35:0);
-  // SNAKE PIT (full page, always visible) — throttled; WebGL clears its own canvases
-  if(!SB_PREVIEW && (t-_snakeLast)>=SNAKE_DT){ _snakeLast=t; drawSnakes(t,energy); }
+  // SNAKE PIT (full page) — throttled; runs much slower under reduced-motion
+  const snakeDt=sbReduceMotion?100:SNAKE_DT;
+  if(!SB_PREVIEW && (t-_snakeLast)>=snakeDt){ _snakeLast=t; drawSnakes(t,energy); }
+  // Visualizers: under reduced-motion, only animate while audio is actually playing
+  const drawViz=!sbReduceMotion||playing;
+  if(drawViz){
   if(H.w&&heroIn){const{x,w,h}=H;x.clearRect(0,0,w,h);x.save();parts.forEach(p=>{p.y-=p.v*(1+energy*3);if(p.y<0)p.y=1;x.globalAlpha=.3+energy*.5;x.fillStyle=p.c;x.beginPath();x.arc(p.x*w,p.y*h,p.s,0,7);x.fill();});x.restore();snakeWave(x,w,h,t,9+energy*8,3.5+energy*4,h*.62);}
   if(V.w&&vizIn){const{x,w,h}=V;x.clearRect(0,0,w,h);snakeWave(x,w,h,t,16+energy*18,6+energy*9,h*.5);snakeWave(x,w,h,t*.8+500,11,3+energy*6,h*.52);ring(x,w*.5,h*.5,Math.min(w,h)*.16,t);bars(x,w,h,h);}
   if(C.w&&conIn){const{x,w,h}=C;x.clearRect(0,0,w,h);snakeWave(x,w,h,t*.7,9+energy*6,3+energy*4,h*.5);}
   if(E.w&&musicIn)eqbars(E.x,E.w,E.h);
   if(SRW.w&&labIn){const{x,w,h}=SRW;x.clearRect(0,0,w,h);snakeWave(x,w,h,t*.6,7+energy*9,3+energy*4,h*.5);}
+  }
   if(embers.length){tctx.clearRect(0,0,tcv.width,tcv.height);tctx.globalCompositeOperation='lighter';
     for(const p of embers){p.life*=.95;p.x+=p.vx;p.y+=p.vy;p.vy+=.02;const s=p.s*p.life+.4;tctx.globalAlpha=p.life;tctx.fillStyle=p.c;tctx.shadowColor=p.c;tctx.shadowBlur=8;tctx.beginPath();tctx.arc(p.x,p.y,s,0,7);tctx.fill();}
     tctx.globalAlpha=1;embers=embers.filter(p=>p.life>.05);if(!embers.length)tctx.clearRect(0,0,tcv.width,tcv.height);}
@@ -715,26 +722,39 @@ function enterRage(){
 const _rageBtn=document.getElementById('rageBtn');if(_rageBtn)_rageBtn.onclick=()=>{enterRage();setMenu(false);};
 
 /* GUESTBOOK + easter egg */
-/* JOIN THE SLIME — captures email + (optional) SMS number to localStorage.
-   To deliver for real, POST sb_list / sb_sms to your provider (Mailchimp/ConvertKit
-   for email, Community/SimpleTexting/Twilio for SMS) — swap the storeLocal calls below. */
 function storeLocal(key,val){try{const a=JSON.parse(localStorage.getItem(key)||'[]');if(!a.includes(val)){a.push(val);localStorage.setItem(key,JSON.stringify(a));}}catch(_){}}
-function signbook(){
-  const e=document.getElementById('gemail'),p=document.getElementById('gphone'),note=document.getElementById('joinnote');
+/* JOIN THE SLIME — sends the sign-up to the backend (Supabase). Personal data is NOT
+   kept in a permanent localStorage list anymore; if the backend write fails we queue
+   the entry under sb_pending and retry, clearing it once it lands, so PII isn't
+   retained longer than needed. Requires an explicit consent opt-in. */
+function pendingGet(){try{return JSON.parse(localStorage.getItem('sb_pending')||'[]');}catch(_){return[];}}
+function pendingSet(a){try{if(a.length)localStorage.setItem('sb_pending',JSON.stringify(a.slice(-50)));else localStorage.removeItem('sb_pending');}catch(_){}}
+async function flushPending(){if(typeof sbSubscribe!=='function')return;const a=pendingGet();if(!a.length)return;const keep=[];for(const x of a){let ok=false;try{ok=await sbSubscribe(x.email,x.phone||'');}catch(_){ok=false;}if(!ok)keep.push(x);}pendingSet(keep);}
+async function signbook(){
+  const e=document.getElementById('gemail'),p=document.getElementById('gphone'),note=document.getElementById('joinnote'),consent=document.getElementById('gconsent');
   if(!e||!p||!note)return;
   const ev=e.value.trim(),pv=p.value.trim(),digits=pv.replace(/[^\d]/g,'');
   const emailOk=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ev);
   const phoneOk=pv===''||digits.length>=10;
   if(!emailOk){note.textContent='✗ enter a valid email';note.classList.add('bad');e.focus();return;}
   if(!phoneOk){note.textContent='✗ enter a valid phone, or leave it blank';note.classList.add('bad');p.focus();return;}
-  storeLocal('sb_list',ev);
-  const gotPhone=digits.length>=10;if(gotPhone)storeLocal('sb_sms',digits);
-  /* also persist to the backend so sign-ups show up in the admin Audience list.
-     localStorage above stays as a fallback if the backend is unreachable. */
-  if(typeof sbSubscribe==='function')sbSubscribe(ev,gotPhone?digits:'');
-  e.value='';p.value='';note.classList.remove('bad');
-  note.textContent=gotPhone?'✓ you in — email + SMS. welcome to the slime ☠':'✓ you in — welcome to the slime ☠';
-  burst(innerWidth/2,innerHeight*.7,20,'#8dff2b');snakeLunge();toast('☠ welcome to the slime');
+  if(consent&&!consent.checked){note.textContent='✗ tick the box to opt in first';note.classList.add('bad');consent.focus();return;}
+  const gotPhone=digits.length>=10;
+  note.classList.remove('bad');note.textContent='… adding you to the slime';
+  /* report the REAL outcome instead of always claiming success */
+  let ok=false;
+  try{ if(typeof sbSubscribe==='function') ok=await sbSubscribe(ev,gotPhone?digits:''); }catch(_){ ok=false; }
+  e.value='';p.value='';if(consent)consent.checked=false;
+  if(ok){
+    note.textContent=gotPhone?'✓ you in — email + SMS. welcome to the slime ☠':'✓ you in — welcome to the slime ☠';
+    toast('☠ welcome to the slime');flushPending();
+  }else{
+    /* queue for retry rather than keeping a permanent PII list */
+    const q=pendingGet();q.push({email:ev,phone:gotPhone?digits:'',t:Date.now()});pendingSet(q);
+    note.textContent='✓ saved — we’ll add you when the connection’s back ☠';
+    toast('saved — sync pending');
+  }
+  burst(innerWidth/2,innerHeight*.7,20,'#8dff2b');snakeLunge();
 }
 let seq='';addEventListener('keydown',e=>{if(e.metaKey||e.ctrlKey||e.altKey||isTyping())return;seq=(seq+e.key.toLowerCase()).slice(-5);if(seq==='slime'){for(let i=0;i<60;i++)setTimeout(()=>burst(innerWidth*Math.random(),innerHeight,8,'#8dff2b'),i*20);stab();snakeLunge();toast('☠ SLIME UNLOCKED ☠');}});
 
@@ -742,13 +762,38 @@ let seq='';addEventListener('keydown',e=>{if(e.metaKey||e.ctrlKey||e.altKey||isT
 /* TOASTS */
 function toast(msg,type){const wrap=document.getElementById('toasts');const el=document.createElement('div');el.className='toast'+(type?' '+type:'');el.textContent=msg;wrap.appendChild(el);requestAnimationFrame(()=>el.classList.add('show'));setTimeout(()=>{el.classList.remove('show');setTimeout(()=>el.remove(),350);},2600);}
 
-/* MODAL */
+/* MODAL — accessible dialog: moves focus in, traps Tab, restores focus on close */
 const modal=document.getElementById('modal'),modalContent=document.getElementById('modalContent');
-function openModal(html){modalContent.innerHTML=html;modal.classList.add('open');modal.setAttribute('aria-hidden','false');}
-function closeModal(){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');}
+let _modalOpener=null;
+const _focSel='a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+function _modalFocusable(){return Array.from(modal.querySelectorAll(_focSel)).filter(el=>el.offsetWidth||el.offsetHeight||el===document.activeElement);}
+function openModal(html){
+  _modalOpener=document.activeElement;
+  modalContent.innerHTML=html;
+  const h=modalContent.querySelector('h2,h3');                 // label the dialog from its heading
+  if(h){if(!h.id)h.id='sbModalTitle';modal.setAttribute('aria-labelledby',h.id);}else modal.removeAttribute('aria-labelledby');
+  modal.classList.add('open');modal.setAttribute('aria-hidden','false');
+  /* the dialog fades in (visibility transition), so the close button isn't focusable
+     for a few frames — focus it the moment it actually becomes visible */
+  let _ft=0;(function focusIn(){const mx=document.getElementById('modalX');
+    if(mx&&getComputedStyle(mx).visibility!=='hidden'){mx.focus();return;}
+    if(_ft++<40)requestAnimationFrame(focusIn);})();
+}
+function closeModal(){
+  modal.classList.remove('open');modal.setAttribute('aria-hidden','true');
+  if(_modalOpener&&_modalOpener.focus){try{_modalOpener.focus();}catch(_){}}
+  _modalOpener=null;
+}
 document.getElementById('modalX').onclick=closeModal;
 modal.addEventListener('click',e=>{if(e.target===modal)closeModal();});
 addEventListener('keydown',e=>{if(e.key==='Escape'&&modal.classList.contains('open'))closeModal();});
+modal.addEventListener('keydown',e=>{                          // trap Tab within the dialog
+  if(e.key!=='Tab'||!modal.classList.contains('open'))return;
+  const f=_modalFocusable();if(!f.length)return;
+  const first=f[0],last=f[f.length-1];
+  if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+  else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+});
 
 /* MUSIC FILTER */
 function wireMfilter(){document.querySelectorAll('#mfilter button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#mfilter button').forEach(x=>x.classList.remove('on'));b.classList.add('on');const f=b.dataset.f;document.querySelectorAll('#mgrid .rel').forEach(c=>c.classList.toggle('hide',f!=='all'&&c.dataset.type!==f));});}
@@ -775,18 +820,20 @@ function wireShare(){const _shareBtn=document.getElementById('shareBtn');if(_sha
 /* ===================== FEATURED DROP ===================== */
 function previewFeatured(){startAudio();toast('▶ now spinning — Man Of My Word');}
 function notifyDrop(){gotoConnectJoin('☠ drop your email — first to know');}
-/* drop date is set from CMS content (drop.dropDate); counts down, then reads OUT NOW. */
-let dropDate=new Date('2026-07-04T00:00:00');
+/* drop date is set from CMS content (drop.dropDate); counts down, then reads OUT NOW.
+   Use an explicit offset so every visitor counts down to the same instant (else a
+   bare 'YYYY-MM-DDTHH:MM' is parsed in each visitor's own timezone). */
+let dropDate=new Date('2026-07-04T00:00:00-04:00');
 function tickCountdown(){const el=document.getElementById('cd');if(!el)return;const d=dropDate-Date.now();if(isNaN(d)||d<=0){el.innerHTML='<span class="cdlive">OUT NOW ☠</span>';return;}const u=(n,l)=>`<div class="cdu"><b>${String(n).padStart(2,'0')}</b><span>${l}</span></div>`;el.innerHTML=u(Math.floor(d/864e5),'days')+u(Math.floor(d/36e5)%24,'hrs')+u(Math.floor(d/6e4)%60,'min')+u(Math.floor(d/1e3)%60,'sec');}
 tickCountdown();setInterval(tickCountdown,1000);
 
 /* ===================== VIDEOS (content-driven) ===================== */
 let VIDEOS=[];
 function renderVideos(list){VIDEOS=list||[];const g=document.getElementById('vidgrid');if(!g)return;
-  g.innerHTML=VIDEOS.map((v,i)=>`<div class="vid reveal${i%3?' d'+(i%3):''}" data-i="${i}"><img loading="lazy" decoding="async" src="${esc(v.img)}" alt="${esc(v.t)}"><div class="pp">▶</div><div class="vmeta"><div class="vmt">${esc(v.t)}</div><div class="vms">${esc(v.s)}</div></div></div>`).join('');
+  g.innerHTML=VIDEOS.map((v,i)=>`<div class="vid reveal${i%3?' d'+(i%3):''}" data-i="${i}"><img loading="lazy" decoding="async" src="${esc(safeImg(v.img))}" alt="${esc(v.t)}"><div class="pp">▶</div><div class="vmeta"><div class="vmt">${esc(v.t)}</div><div class="vms">${esc(v.s)}</div></div></div>`).join('');
   g.querySelectorAll('.vid').forEach(c=>{io.observe(c);c.onclick=()=>{const v=VIDEOS[+c.dataset.i];burst(innerWidth/2,innerHeight*.5,10,'#8dff2b');
     if(v.id){openModal(`<div class="mbody"><span class="kicker">${esc(v.s)}</span><h3>${esc(v.t)}</h3><div class="vembed"><iframe src="https://www.youtube.com/embed/${encodeURIComponent(v.id)}?autoplay=1&rel=0" title="${esc(v.t)}" allow="autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe></div></div>`);}
-    else{openModal(`<div class="mbody"><span class="kicker">${esc(v.s)}</span><h3>${esc(v.t)}</h3><p>Add this clip's YouTube video ID in the admin page to play it right here. For now, catch the full vault on YouTube.</p><div class="mcta"><a class="bigbtn bSlime" href="${esc((window.SB&&SB.vault&&SB.vault.youtube)||'https://youtube.com/@slimeby_')}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);}};});
+    else{openModal(`<div class="mbody"><span class="kicker">${esc(v.s)}</span><h3>${esc(v.t)}</h3><p>Add this clip's YouTube video ID in the admin page to play it right here. For now, catch the full vault on YouTube.</p><div class="mcta"><a class="bigbtn bSlime" href="${esc(safeUrl((window.SB&&SB.vault&&SB.vault.youtube)||'')||'https://youtube.com/@slimeby_')}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);}};});
 }
 
 /* ===================== THE LAB — a SEPARATE slowed + reverb sandbox =====================
@@ -833,12 +880,12 @@ function wireLab(){
 let POWERS=[];
 function openPower(i){const p=POWERS[i];if(!p)return;
   const meters=(p.stats||[]).map(s=>`<div class="pmeter"><span class="pml">${esc(s[0])}</span><div class="pbar"><i data-w="${esc(s[1])}"></i></div><span class="pmv">${esc(s[1])}</span></div>`).join('');
-  openModal(`<div class="mbody pcard" style="--c:${esc(p.c)}"><div class="ptag">force ${esc(p.id)} · ${esc(p.tag)}</div><h3>${esc(p.n)}</h3><p>${esc(p.lore)}</p><div class="pmeters">${meters}</div></div>`);
-  requestAnimationFrame(()=>requestAnimationFrame(()=>document.querySelectorAll('#modal .pbar i').forEach(b=>b.style.width=b.dataset.w+'%')));
-  burst(innerWidth/2,innerHeight*.5,12,p.c);snakeLunge();
+  openModal(`<div class="mbody pcard" style="--c:${esc(safeColor(p.c))}"><div class="ptag">force ${esc(p.id)} · ${esc(p.tag)}</div><h3>${esc(p.n)}</h3><p>${esc(p.lore)}</p><div class="pmeters">${meters}</div></div>`);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>document.querySelectorAll('#modal .pbar i').forEach(b=>b.style.width=(parseFloat(b.dataset.w)||0)+'%')));
+  burst(innerWidth/2,innerHeight*.5,12,safeColor(p.c)||'#8dff2b');snakeLunge();
 }
 function renderPowers(list){POWERS=list||[];const wrap=document.querySelector('#universe .upanels');if(!wrap)return;
-  wrap.innerHTML=POWERS.map((p,i)=>`<div class="upanel reveal${i?' d'+Math.min(i,4):''}" data-p="${i}" role="button" tabindex="0"><div class="orb" style="background:radial-gradient(circle,${esc(p.c)},transparent 70%)"></div><div class="idx">${esc(p.id)}</div><div class="ut">${esc(p.n)}</div><div class="ud">${esc(p.short||'')}</div><div class="uenter">enter ↦</div></div>`).join('');
+  wrap.innerHTML=POWERS.map((p,i)=>`<div class="upanel reveal${i?' d'+Math.min(i,4):''}" data-p="${i}" role="button" tabindex="0"><div class="orb" style="background:radial-gradient(circle,${esc(safeColor(p.c)||'#8dff2b')},transparent 70%)"></div><div class="idx">${esc(p.id)}</div><div class="ut">${esc(p.n)}</div><div class="ud">${esc(p.short||'')}</div><div class="uenter">enter ↦</div></div>`).join('');
   wrap.querySelectorAll('.upanel').forEach(el=>{io.observe(el);const i=+el.dataset.p;
     el.addEventListener('click',()=>openPower(i));
     el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.code==='Space'){e.preventDefault();openPower(i);}});});
@@ -846,7 +893,7 @@ function renderPowers(list){POWERS=list||[];const wrap=document.querySelector('#
 
 /* ===================== RELEASES (content-driven) ===================== */
 function renderReleases(list){const g=document.getElementById('mgrid');if(!g)return;
-  g.innerHTML=(list||[]).map((r,i)=>`<a class="rel reveal d${(i%3)+1}" data-type="${esc(r.type||'single')}" target="_blank" rel="noopener noreferrer" href="${esc(r.url)}"><div class="art"><img loading="lazy" decoding="async" src="${esc(r.img)}" alt="${esc(r.title)}"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">${esc(r.title)}</div><div class="s">${esc(r.sub)}</div></div></a>`).join('');
+  g.innerHTML=(list||[]).map((r,i)=>`<a class="rel reveal d${(i%3)+1}" data-type="${esc(r.type||'single')}" target="_blank" rel="noopener noreferrer" href="${esc(safeUrl(r.url))}"><div class="art"><img loading="lazy" decoding="async" src="${esc(safeImg(r.img))}" alt="${esc(r.title)}"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">${esc(r.title)}</div><div class="s">${esc(r.sub)}</div></div></a>`).join('');
   g.querySelectorAll('.rel').forEach(el=>io.observe(el));
   const onf=document.querySelector('#mfilter button.on');const f=onf?onf.dataset.f:'all';
   g.querySelectorAll('.rel').forEach(c=>c.classList.toggle('hide',f!=='all'&&c.dataset.type!==f));
@@ -862,19 +909,60 @@ function currentSlug(){try{return new URLSearchParams(location.search).get('p')|
 function pageKey(){const pg=currentPage();return pg==='page.html'?('@'+currentSlug()):(SB_BUILTIN_KEY[pg]||'');}
 /* pull a YouTube video id out of a link or accept a bare id */
 function ytId(v){if(!v)return'';v=String(v).trim();const m=v.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/)([A-Za-z0-9_-]{11})/);return m?m[1]:(/^[A-Za-z0-9_-]{11}$/.test(v)?v:'');}
-/* only allow safe link schemes (no javascript:/data:) for editor-authored buttons */
-function safeUrl(u){u=String(u||'').trim();if(!u)return'';if(/^(https?:|mailto:|tel:)/i.test(u))return u;if(/^[#/]/.test(u))return u;if(/^[\w.-]+\.html(?:[?#].*)?$/i.test(u))return u;return'';}
+/* ===================== SANITIZATION HELPERS =====================
+   Every CMS-authored URL and every rich-HTML field is sanitized before it touches
+   the DOM. esc() handles text/attribute escaping; these reject dangerous URL schemes
+   (javascript:, data:text, …) and strip unknown tags/attributes from rich HTML. */
+function cleanUrl(u,media){
+  u=String(u==null?'':u).split('').filter(function(ch){var c=ch.charCodeAt(0);return c>31&&c!==127;}).join('').trim();   // strip tab/newline scheme-smuggling
+  if(!u)return'';
+  const m=u.match(/^([a-z][a-z0-9+.-]*):/i);
+  if(m){const s=m[1].toLowerCase();
+    if(s==='http'||s==='https')return u;
+    if(!media&&(s==='mailto'||s==='tel'))return u;
+    if(media&&s==='data'&&/^data:image\/(?:png|jpe?g|gif|webp|avif|svg\+xml);/i.test(u))return u;  // inline images only
+    return '';   // javascript:, vbscript:, data:text, file:, … → drop
+  }
+  if(/^\/\//.test(u))return u;        // protocol-relative
+  if(/^[#/]/.test(u))return u;        // anchor / root-relative
+  if(/^[\w.@~%+-]/.test(u))return u;  // plain relative path
+  return '';
+}
+function safeUrl(u){return cleanUrl(u,false);}   // links / iframes
+function safeImg(u){return cleanUrl(u,true);}    // images / media / backgrounds
+/* safe value for a CSS url('…') — percent-encode anything that could break out of it */
+function cssUrl(u){u=safeImg(u);return u?"url('"+u.replace(/['"()\\\s]/g,c=>'%'+c.charCodeAt(0).toString(16).padStart(2,'0'))+"')":'';}
+/* allow only obviously-safe CSS color tokens (hex / named / rgb / hsl) */
+function safeColor(c){c=String(c==null?'':c).trim();return /^(#[0-9a-f]{3,8}|[a-z]+|rgba?\([\d.,%\s/]+\)|hsla?\([\d.,%\s/]+\))$/i.test(c)?c:'';}
+/* strict allowlist HTML sanitizer for the handful of rich-text CMS fields */
+const SB_ALLOWED_TAGS={B:1,I:1,EM:1,STRONG:1,BR:1,SPAN:1,SMALL:1,U:1,A:1};
+function sanitizeHtml(s){
+  if(s==null)return'';
+  const dirty=document.createElement('template');dirty.innerHTML=String(s);
+  const out=document.createElement('template');
+  (function clean(srcN,dstN){srcN.childNodes.forEach(n=>{
+    if(n.nodeType===3){dstN.appendChild(document.createTextNode(n.nodeValue));return;}   // text
+    if(n.nodeType!==1)return;                          // drop comments / others
+    const tag=n.tagName;
+    if(SB_ALLOWED_TAGS[tag]){
+      const el=document.createElement(tag);            // fresh node ⇒ no attributes carried over
+      if(tag==='A'){const u=safeUrl(n.getAttribute('href'));if(u){el.setAttribute('href',u);el.setAttribute('rel','noopener noreferrer');el.setAttribute('target','_blank');}}
+      clean(n,el);dstN.appendChild(el);
+    } else { clean(n,dstN); }                           // unknown tag → keep its sanitized children only
+  });})(dirty.content,out.content);
+  return out.innerHTML;
+}
 function blockHTML(b){
   if(!b)return'';
   const style=(b.style||'centered'),yt=ytId(b.youtube);
   let inner='';
   if(b.kicker)inner+=`<span class="kicker">${esc(b.kicker)}</span>`;
   if(b.heading)inner+=`<h2 class="sbblock-h">${esc(b.heading)}</h2>`;
-  if(b.image&&style!=='full')inner+=`<div class="sbblock-img" style="background-image:url('${esc(b.image)}')"></div>`;
+  if(b.image&&style!=='full'){const cu=cssUrl(b.image);if(cu)inner+=`<div class="sbblock-img" style="background-image:${cu}"></div>`;}
   if(b.text)inner+=`<p class="sbblock-text">${esc(b.text)}</p>`;
   if(yt)inner+=`<div class="sbblock-video"><iframe src="https://www.youtube.com/embed/${esc(yt)}" title="" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`;
   if(b.buttonLabel){const u=safeUrl(b.buttonUrl),ext=/^https?:/i.test(u);inner+=`<div class="sbblock-cta"><a class="bigbtn bSlime" href="${esc(u||'#')}"${ext?' target="_blank" rel="noopener noreferrer"':''}>${esc(b.buttonLabel)}</a></div>`;}
-  const bg=(style==='full'&&b.image)?` style="background-image:url('${esc(b.image)}')"`:'';
+  const bg=(style==='full'&&b.image&&cssUrl(b.image))?` style="background-image:${cssUrl(b.image)}"`:'';
   return `<section class="sbblock sb-${esc(style)} reveal"${bg}><div class="sbblock-in">${inner}</div></section>`;
 }
 function blocksForPage(c){
@@ -920,10 +1008,10 @@ function applyContent(c){
   if(!c)return;window.SB=c;
   const q=s=>document.querySelector(s);
   const txt=(s,v)=>{const e=q(s);if(e&&v!=null)e.textContent=v;};
-  const setHtml=(s,v)=>{const e=q(s);if(e&&v!=null)e.innerHTML=v;};
-  const href=(s,v)=>{const e=q(s);if(e&&v!=null)e.setAttribute('href',v);};
-  const src=(s,v)=>{const e=q(s);if(e&&v!=null)e.setAttribute('src',v);};
-  const bg=(s,v)=>{const e=q(s);if(e&&v)e.style.backgroundImage=`url('${v}')`;};
+  const setHtml=(s,v)=>{const e=q(s);if(e&&v!=null)e.innerHTML=sanitizeHtml(v);};   // allowlist-sanitized rich text
+  const href=(s,v)=>{const e=q(s);if(e&&v!=null){const u=safeUrl(v);if(u)e.setAttribute('href',u);else e.removeAttribute('href');}};
+  const src=(s,v)=>{const e=q(s);if(e&&v!=null){const u=safeImg(v);if(u)e.setAttribute('src',u);}};
+  const bg=(s,v)=>{const e=q(s);if(e&&v){const u=cssUrl(v);if(u)e.style.backgroundImage=u;}};
 
   if(c.hero){const h1=q('.hero h1.glitch');if(h1&&c.hero.title){h1.textContent=c.hero.title;h1.setAttribute('data-t',c.hero.title);}setHtml('.hero .sub',c.hero.sub);bg('.herobg',c.hero.bg);}
 
@@ -931,12 +1019,15 @@ function applyContent(c){
 
   if(c.drop){txt('#drop .kicker',c.drop.kicker);setHtml('#drop .shead h2',c.drop.heading);
     bg('#drop .dropfeat .cover',c.drop.cover);txt('#drop .dropfeat h3',c.drop.featuredTitle);txt('#drop .dropfeat .dsub',c.drop.featuredSub);
-    const dl=document.querySelectorAll('#drop .dropfeat .smartlinks a');[c.drop.spotify,c.drop.apple,c.drop.youtube].forEach((u,i)=>{if(dl[i]&&u)dl[i].href=u;});
+    const dl=document.querySelectorAll('#drop .dropfeat .smartlinks a');[c.drop.spotify,c.drop.apple,c.drop.youtube].forEach((u,i)=>{if(dl[i]&&u){const su=safeUrl(u);if(su)dl[i].href=su;}});
     href('#presaveBtn',c.drop.presaveUrl);
     if(c.drop.dropDate){const d=new Date(c.drop.dropDate);if(!isNaN(d.getTime()))dropDate=d;tickCountdown();}}
 
   if(c.music){bg('#music .pwart',c.music.playerCover);txt('#music .pwtitle',c.music.playerTitle);
-    const emb=q('#music .embedwrap iframe');if(emb&&c.music.spotifyArtistId)emb.src=`https://open.spotify.com/embed/artist/${c.music.spotifyArtistId}?utm_source=generator&theme=0`;
+    /* keep the persistent bottom player bar (shown on every page) in sync with the
+       CMS track title + cover so it never disagrees with the music page. */
+    bg('#disc',c.music.playerCover);txt('#musicbar .stitle',c.music.playerTitle);
+    const emb=q('#music .embedwrap iframe');if(emb&&c.music.spotifyArtistId)emb.src=`https://open.spotify.com/embed/artist/${encodeURIComponent(c.music.spotifyArtistId)}?utm_source=generator&theme=0`;
     renderReleases(c.music.releases);}
 
   if(c.about){setHtml('#about .lead',c.about.lead);txt('#about .about p',c.about.text);src('#about .pic img',c.about.portrait);txt('#about .badge',c.about.badge);
@@ -945,7 +1036,7 @@ function applyContent(c){
   if(c.universe){txt('#universe .uhint',c.universe.hint);renderPowers(c.universe.powers);}
 
   if(c.vault){href('#vault .shead .link',c.vault.youtube);const vg=q('#vault .vgrid');
-    if(vg){vg.innerHTML=(c.vault.items||[]).map((v,i)=>`<a class="vcard reveal${i?' d'+Math.min(i,3):''}" href="${esc(v.href)}" target="_blank" rel="noopener noreferrer"><img loading="lazy" decoding="async" src="${esc(v.img)}" alt=""><div class="pico">▶</div><div class="vinfo"><div class="vt">${esc(v.title)}</div><div class="vs">${esc(v.sub)}</div></div></a>`).join('');
+    if(vg){vg.innerHTML=(c.vault.items||[]).map((v,i)=>`<a class="vcard reveal${i?' d'+Math.min(i,3):''}" href="${esc(safeUrl(v.href))}" target="_blank" rel="noopener noreferrer"><img loading="lazy" decoding="async" src="${esc(safeImg(v.img))}" alt=""><div class="pico">▶</div><div class="vinfo"><div class="vt">${esc(v.title)}</div><div class="vs">${esc(v.sub)}</div></div></a>`).join('');
       vg.querySelectorAll('.vcard').forEach(card=>{io.observe(card);card.addEventListener('click',e=>{if(e.metaKey||e.ctrlKey||e.shiftKey)return;e.preventDefault();const img=card.querySelector('img').src,title=card.querySelector('.vt').textContent,sub=card.querySelector('.vs').textContent,h=card.getAttribute('href');openModal(`<div class="mhead wide" style="background-image:url('${img}')"></div><div class="mbody"><span class="kicker">${sub}</span><h3>${title}</h3><p>The full visual lives in the SB vault on YouTube. Tap in for the complete drop.</p><div class="mcta"><a class="bigbtn bSlime" href="${h}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);});});}}
 
   renderVideos(c.videos);
@@ -955,8 +1046,8 @@ function applyContent(c){
   renderShows(c.shows);
 
   if(c.contact){txt('#connect h2',c.contact.heading);
-    const cl=document.querySelectorAll('#connect .clinks a');[c.contact.spotify,c.contact.apple,c.contact.youtube,c.contact.instagram,c.contact.tiktok].forEach((u,i)=>{if(cl[i]&&u)cl[i].href=u;});
-    const bk=q('#connect .booking a');if(bk&&c.contact.bookingEmail){bk.href='mailto:'+c.contact.bookingEmail;bk.textContent=c.contact.bookingEmail;}
+    const cl=document.querySelectorAll('#connect .clinks a');[c.contact.spotify,c.contact.apple,c.contact.youtube,c.contact.instagram,c.contact.tiktok].forEach((u,i)=>{if(cl[i]&&u){const su=safeUrl(u);if(su)cl[i].href=su;}});
+    const bk=q('#connect .booking a');if(bk&&c.contact.bookingEmail){const mu=safeUrl('mailto:'+c.contact.bookingEmail);if(mu){bk.href=mu;bk.textContent=c.contact.bookingEmail;}}
     const jt=q('.jointitle');if(jt)jt.innerHTML=`${esc(c.contact.joinTitle||'')}<span>${esc(c.contact.joinSub||'')}</span>`;}
 
   if(c.footer){const fb=q('.fbadges');if(fb&&c.footer.badges)fb.innerHTML=c.footer.badges.map(b=>`<span class="fbadge">${esc(b)}</span>`).join('');txt('.fcopy',c.footer.copy);}
@@ -1108,14 +1199,22 @@ function loadContent(){
 }
 
 /* ===================== LIVE PREVIEW CHANNEL =====================
-   When this page is embedded in the admin's preview pane it renders edits in
-   real time: the admin posts the working content, we apply it. Guarded so it
-   has zero effect during normal browsing. */
-addEventListener('message',function(e){const d=e.data;if(!d||d.__sb!=='preview'||!d.content)return;try{applyContent(d.content);}catch(_){}});
+   When this page is embedded in the admin's preview pane it renders edits in real
+   time: the admin posts the working content, we apply it. Locked down so it has zero
+   effect during normal browsing — only the admin pane that embeds this page (same
+   origin, our parent window) can drive it. Without these gates any site could open
+   this page in a frame/popup and inject DOM via the CMS render path. */
+addEventListener('message',function(e){
+  if(!SB_PREVIEW)return;                               // only the preview iframe consumes these
+  if(e.source!==window.parent||e.source===window)return;  // must come from the embedding admin window
+  if(e.origin!==location.origin)return;                // same-origin admin only
+  const d=e.data;if(!d||d.__sb!=='preview'||!d.content)return;
+  try{applyContent(d.content);}catch(_){}
+});
 if(SB_PREVIEW){
   document.body.classList.add('sb-preview');
   var _l=document.getElementById('loader');if(_l)_l.classList.add('gone');
-  try{ if(parent&&parent!==window) parent.postMessage({__sb:'ready'},'*'); }catch(_){}
+  try{ if(parent&&parent!==window) parent.postMessage({__sb:'ready'},location.origin); }catch(_){}
 }
 
 /* deep-link: arriving at connect.html#join lands the visitor on the email field */
@@ -1149,3 +1248,6 @@ try{ if(sessionStorage.getItem('sb_wipe')){ sessionStorage.removeItem('sb_wipe')
 
 /* wire the page we landed on */
 sbInitPage();
+
+/* retry any sign-ups that were queued while the backend was unreachable, then forget them */
+if(!SB_PREVIEW){try{flushPending();}catch(_){}}

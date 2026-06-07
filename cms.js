@@ -336,15 +336,33 @@ async function sbGetContent() {
 }
 window.sbGetContent = sbGetContent;
 
-/* call the password-checked edge function: actions = login | save | upload */
-async function sbAdmin(password, action, payload) {
+/* strict read for the ADMIN editor: throws on a failed read instead of silently
+   returning defaults, so the editor never loads — and therefore can't publish over —
+   the live content when the backend is unreachable. A missing/empty row is still fine
+   (a brand-new site legitimately starts from defaults). */
+async function sbGetContentStrict() {
+  const r = await fetch(SB_CFG.url + '/rest/v1/site_content?id=eq.1&select=data', {
+    headers: { apikey: SB_CFG.key, Authorization: 'Bearer ' + SB_CFG.key },
+  });
+  if (!r.ok) throw new Error('content read failed (HTTP ' + r.status + ')');
+  const rows = await r.json();
+  const remote = (rows && rows[0] && rows[0].data) || {};
+  return sbMerge(SB_DEFAULTS, remote);
+}
+window.sbGetContentStrict = sbGetContentStrict;
+
+/* call the password-checked edge function: actions = login | save | upload | list_subs | set_password.
+   `auth` is the credential: a password string (login) or { token } / { password } object. login
+   returns a short-lived token; subsequent calls send the token so the raw password isn't replayed. */
+async function sbAdmin(auth, action, payload) {
+  const cred = (typeof auth === 'string') ? { password: auth } : (auth || {});
   const r = await fetch(SB_CFG.url + '/functions/v1/admin', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: SB_CFG.key, Authorization: 'Bearer ' + SB_CFG.key },
-    body: JSON.stringify({ password, action, payload }),
+    body: JSON.stringify({ ...cred, action, payload }),
   });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  if (!r.ok) { const e = new Error(j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; }
   return j;
 }
 window.sbAdmin = sbAdmin;
