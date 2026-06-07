@@ -1,8 +1,9 @@
 # SLIME BY — Official Site
 
 The official website for **Slime By** — Delaware rap. Melody, chaos, motion, green pressure.
-A single-page, fully interactive experience: real Web-Audio visualizer, a scroll-tracking
-snake, SB Universe lore, music, vault, merch, shows, and contact.
+A single-page, fully interactive experience: real Web-Audio visualizer, a pit of
+scroll-tracking snakes, a slowed + reverb studio, SB Universe lore, music, vault, merch,
+shows, and contact.
 
 **Stack:** static HTML/CSS/JS — no build step. The page (`index.html`) is data-driven:
 it reads its content from Supabase via `cms.js`, and falls back to built-in defaults if
@@ -13,9 +14,15 @@ page (`admin.html`) lets you edit every section and publish live.
 - **Featured drop / spotlight** — the current release with **smart links** (Spotify /
   Apple / YouTube) and an in-page preview, plus a **next-drop countdown** and a
   **pre-save / notify** card.
-- **The Lab** — a **stem player**: a 5-track × 16-step sequencer (808, bass, snare,
-  hats, keys) built on the site's Web-Audio engine. Tap a track name to mute, tap the
-  cells to flip steps, set the tempo, and run your own slime loop. No audio files needed.
+- **The Lab** — a **slowed + reverb studio** (in the spirit of slowedandreverb.studio):
+  bend the song playing across the site in real time with **speed** (pitches the whole
+  track down/up), **reverb**, and **room** sliders, plus one-tap presets — *slowed +
+  reverb*, *deep slow*, *nightcore*, *original*. Built on the site's Web-Audio engine
+  (a `ConvolverNode` for reverb + `playbackRate` with pitch-shift for the slow).
+- **Auto-play** — the track starts on page load (falls back to the first interaction if
+  the browser blocks it).
+- **Rage mode** — a takeover toggle: the snakes turn blood-red and whip faster, the audio
+  speeds up and distorts, and the screen shakes with ember bursts + red strobes.
 - **Videos** — a grid of clips that open a **YouTube embed** in the lightbox.
 - **Live visualizer** — real-time frequency bars/waves driven by the playing track.
 - **Music** — release grid with **all / albums / singles** filters, an in-page player
@@ -88,8 +95,9 @@ tour dates, releases, the featured drop + countdown date + pre-save link, videos
 
 **By hand:** the same content model lives in `SB_DEFAULTS` in `cms.js` (these are the
 fallback values when nothing is published). Editing it there changes the built-in defaults.
-- **Stem player** is interactive, not content — it stays in the `STEMS` array in
-  `index.html` (`{n:'NAME', c:'#color', f:()=>sound(), pat:[...16 steps]}`).
+- **Slowed + reverb studio** is interactive, not content — its presets live in
+  `index.html` as `SR_PRESETS` (each is `[speed%, reverb%, room%]`) and it processes the
+  background track live through the Web-Audio graph.
 
 ## Run locally
 Open `index.html` in a browser, or serve it:
@@ -104,8 +112,10 @@ python3 -m http.server 8000   # then visit http://localhost:8000
 3. Live in ~1 min at `https://<your-user>.github.io/<repo>/`.
 
 ## Notes
-- Audio can't autoplay with sound until a visitor interacts (browser policy); the track
-  starts on first click/tap/keypress or any play button.
+- The background track **auto-plays on load**. Browsers block *audible* autoplay until a
+  visitor interacts, so when it's blocked the track starts on the **first** tap / scroll /
+  keypress / play button — and that first interaction always resumes the audio context
+  (so the visualizer and reverb engage too).
 - Booking email in the contact section (`booking@slimeby.com`) is a placeholder — update
   it in `index.html`.
 
