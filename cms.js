@@ -125,6 +125,33 @@ window.SB_TEMPLATES = SB_TEMPLATES;
    field should be labelled / edited. The admin still walks the live content model,
    but consults this so editors see friendly labels + the right input instead of
    raw JSON. Anything not described here falls back to sensible heuristics. */
+/* ---- SITE NAVIGATION ----
+   Single source of truth for the top nav, shared by every page (app.js builds
+   the navbar from this) so the links stay identical everywhere. Each entry is a
+   real page in the multi-page site. */
+const SB_NAV = [
+  { href: 'index.html',   label: 'home' },
+  { href: 'music.html',   label: 'music' },
+  { href: 'lab.html',     label: 'slowed' },
+  { href: 'world.html',   label: 'sb world' },
+  { href: 'vault.html',   label: 'vault' },
+  { href: 'shows.html',   label: 'shows' },
+  { href: 'connect.html', label: 'tap in' },
+];
+window.SB_NAV = SB_NAV;
+
+/* Which page each editable section lives on — lets the admin preview load the
+   right page for whatever section is being edited. Keys match SB_SECTIONS. */
+const SB_SECTION_PAGE = {
+  hero: 'index.html', marquee: 'index.html', drop: 'index.html',
+  music: 'music.html',
+  about: 'world.html', universe: 'world.html',
+  vault: 'vault.html', videos: 'vault.html',
+  merch: 'shows.html', shows: 'shows.html',
+  contact: 'connect.html', footer: 'index.html',
+};
+window.SB_SECTION_PAGE = SB_SECTION_PAGE;
+
 const SB_SECTIONS = [
   { key: 'hero',     label: 'Hero',        icon: '☠', desc: 'The first thing visitors see — title, tagline, and backdrop.' },
   { key: 'marquee',  label: 'Marquee',     icon: '➤', desc: 'The scrolling band of words under the hero.' },

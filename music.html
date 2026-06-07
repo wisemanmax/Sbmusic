@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>♫ music — SLIME BY</title>
+<meta name="description" content="Slime By music — releases, the in-page slime player, and the live Spotify artist feed.">
+<meta name="theme-color" content="#8dff2b">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23060403'/%3E%3Cpath d='M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30 62 M50 16 L50 84' stroke='%238dff2b' stroke-width='8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<meta property="og:type" content="music.musician">
+<meta property="og:title" content="SLIME BY — music">
+<meta property="og:description" content="Releases, the slime player, and the live Spotify feed.">
+<meta property="og:image" content="assets/my-time-cover.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+<script>try{if(sessionStorage.getItem('sb_seen'))document.documentElement.className+=' seen';else sessionStorage.setItem('sb_seen','1');}catch(e){}</script>
+</head>
+<body>
+
+<div id="loader"><div class="lt">SLIME BY</div><div class="ls">loading the slime…</div><div class="bar"><i></i></div></div>
+<noscript><div class="nojs">SLIME BY — <a href="index.html">home</a> · <a href="music.html">music</a> · <a href="lab.html">slowed</a> · <a href="world.html">sb world</a> · <a href="vault.html">vault</a> · <a href="shows.html">shows</a> · <a href="connect.html">tap in</a></div></noscript>
+
+<main id="main">
+
+  <header class="pagehead">
+    <div class="kicker">♫ now spinning</div>
+    <h1 class="glitch" data-t="MUSIC">MUSIC</h1>
+    <p class="psub">the <b>catalog</b> · press play, the snake follows</p>
+  </header>
+
+  <!-- MUSIC -->
+  <section id="music">
+    <div class="shead reveal"><h2>the <em>music</em></h2><a class="link" href="https://open.spotify.com/artist/70LnkJjJc5yq650kELO09A" target="_blank" rel="noopener noreferrer">all releases →</a></div>
+
+    <div class="playerwin reveal">
+      <div class="pwbar"><div class="dots"><i class="r"></i><i class="y"></i><i class="g"></i></div><div class="pwt">SLIME PLAYER</div><div class="pwz">.exe</div></div>
+      <div class="pwbody">
+        <div class="pwart" style="background-image:url('assets/my-time-cover.jpg')"></div>
+        <div class="pwinfo">
+          <div class="pwnow">★ now playing</div>
+          <div class="pwtitle">Man Of My Word</div>
+          <canvas class="pweq" id="pweq"></canvas>
+          <div class="pwprog" id="pwprog"><i id="pwprogfill"></i></div>
+          <div class="pwbtns"><button class="pwplay" id="pwplay" aria-label="play / pause">▶</button><span class="pwtime"><span id="pwcur">0:00</span> / <span id="pwdur">0:00</span></span><input type="range" class="pwvol" id="pwvol" min="0" max="100" value="55" aria-label="volume"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mfilter reveal" id="mfilter">
+      <button class="on" data-f="all">all</button>
+      <button data-f="album">albums</button>
+      <button data-f="single">singles</button>
+    </div>
+    <div class="mgrid" id="mgrid">
+      <a class="rel reveal d1" data-type="album" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/5RickWrPNRszADHSzJJYUc"><div class="art"><img loading="lazy" decoding="async" src="assets/my-time-cover.jpg" alt="My Time"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">My Time</div><div class="s">album · 2024</div></div></a>
+      <a class="rel reveal d2" data-type="single" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/6T2tcMpvYytltsEjPgyhEw"><div class="art"><img loading="lazy" decoding="async" src="https://i.scdn.co/image/ab67616d00001e028a915904da619cc9a6ee6fc5" alt="Save Her"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Save Her</div><div class="s">single · 2024</div></div></a>
+      <a class="rel reveal d3" data-type="single" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/5zZBRNMJqFr6hBpB6cjfyI"><div class="art"><img loading="lazy" decoding="async" src="https://i.scdn.co/image/ab67616d00001e02999c0b302ffd8ac36402327a" alt="Flip"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Flip</div><div class="s">single · 2023</div></div></a>
+      <a class="rel reveal d1" data-type="single" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/2yiGZO9RmY8ql8h1OtManp"><div class="art"><img loading="lazy" decoding="async" src="https://i.scdn.co/image/ab67616d00001e02999c0b302ffd8ac36402327a" alt="Turn This Up"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Turn This Up</div><div class="s">single · 2023</div></div></a>
+      <a class="rel reveal d2" data-type="single" target="_blank" rel="noopener noreferrer" href="https://open.spotify.com/album/358k4SFDwfF02ln2L4ZIg5"><div class="art"><img loading="lazy" decoding="async" src="https://i.scdn.co/image/ab67616d00001e028a915904da619cc9a6ee6fc5" alt="I'm In Yo City"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">I'm In Yo City</div><div class="s">single · 2021</div></div></a>
+      <a class="rel reveal d3" data-type="single" target="_blank" rel="noopener noreferrer" href="https://music.apple.com/us/artist/slime-by/1542729349"><div class="art"><img loading="lazy" decoding="async" src="assets/sb-portrait.jpg" alt="Slime By"><div class="play"><i>▶</i></div></div><div class="meta"><div class="t">Flava</div><div class="s">apple music</div></div></a>
+    </div>
+    <div class="embedwrap panel reveal">
+      <iframe style="border-radius:4px" src="https://open.spotify.com/embed/artist/70LnkJjJc5yq650kELO09A?utm_source=generator&theme=0" width="100%" height="352" frameborder="0" allow="autoplay;clipboard-write;encrypted-media;fullscreen;picture-in-picture" loading="lazy"></iframe>
+    </div>
+  </section>
+
+</main>
+
+<script src="cms.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

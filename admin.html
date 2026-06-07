@@ -275,7 +275,6 @@ async function enterEditor(){
     else { localStorage.removeItem(DRAFT_KEY); model=sbClone(server); }
   } else { model=sbClone(server); }
   buildSidebar();
-  $('pvframe').src='index.html?preview=1';
   selectView(view);
   updateDirty();
 }
@@ -291,6 +290,11 @@ let pvTimer=null;
 function onChange(){ updateDirty(); saveDraft(); schedulePreview(); }
 function schedulePreview(){ clearTimeout(pvTimer); pvTimer=setTimeout(pushPreview,180); }
 function pushPreview(){ const f=$('pvframe'); if(f&&f.contentWindow) f.contentWindow.postMessage({__sb:'preview',content:model},'*'); }
+/* the site is multi-page now — point the preview at the page that holds the
+   section being edited so edits are always visible. */
+function pageForView(key){ return (window.SB_SECTION_PAGE&&SB_SECTION_PAGE[key])||'index.html'; }
+let pvPage='';
+function ensurePreviewPage(key){ const pg=pageForView(key); if(pg!==pvPage){ pvPage=pg; previewReady=false; const f=$('pvframe'); if(f) f.src=pg+'?preview=1'; return true; } return false; }
 function saveDraft(){ try{ localStorage.setItem(DRAFT_KEY,JSON.stringify({json:JSON.stringify(model),t:Date.now()})); }catch(_){} }
 function isDirty(){ return JSON.stringify(model)!==baseline; }
 function updateDirty(){
@@ -331,6 +335,7 @@ function selectView(key){
   const ed=$('editor'); ed.scrollTop=0;
   if(key==='__audience'){ renderAudience(ed); return; }
   if(key==='__settings'){ renderSettings(ed); return; }
+  if(!ensurePreviewPage(key)) pushPreview();   // reload preview only when the page changes
   renderSection(ed,key);
 }
 
@@ -538,7 +543,7 @@ $('publishBtn').onclick=async()=>{
 };
 
 /* ---------- preview controls ---------- */
-$('pvReload').onclick=()=>{ previewReady=false; $('pvframe').src='index.html?preview=1'; };
+$('pvReload').onclick=()=>{ previewReady=false; $('pvframe').src=(pvPage||'index.html')+'?preview=1'; };
 $('pvSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{
   $('pvSeg').querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
   $('pvWrap').classList.toggle('phone',b.dataset.w==='phone');
