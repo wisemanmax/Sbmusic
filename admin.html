@@ -537,8 +537,10 @@ function buildControl(key,value,path,m){
   if(type==='slug'){       // keep URL slugs clean as you type (lowercase, dashes)
     const c=document.createElement('input'); c.className='inp'; c.value=value==null?'':value; if(m.placeholder)c.placeholder=m.placeholder;
     const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9-]+/g,'-');
-    c.oninput=()=>{ const p=c.selectionStart; c.value=norm(c.value); try{c.setSelectionRange(p,p);}catch(_){} commit(path,c.value); };
-    c.onblur=()=>{ c.value=c.value.replace(/^-+|-+$/g,''); commit(path,c.value); };
+    const dup=v=>!!v&&((model&&model.pages)||[]).some((p,i)=>i!==path[1]&&p&&p.slug===v);   // clashes with another page
+    c.oninput=()=>{ const p=c.selectionStart; c.value=norm(c.value); try{c.setSelectionRange(p,p);}catch(_){} commit(path,c.value); c.classList.toggle('bad',dup(c.value)); };
+    c.onblur=()=>{ c.value=c.value.replace(/^-+|-+$/g,''); commit(path,c.value); c.classList.toggle('bad',dup(c.value)); };
+    c.classList.toggle('bad',dup(c.value));
     return c;
   }
   let c;
@@ -599,6 +601,11 @@ function imageControl(value,path){
 
 /* ---------- publish ---------- */
 $('publishBtn').onclick=async()=>{
+  // custom-page slugs must be present and unique — duplicates clash on page.html?p= (only the first wins)
+  const slugs=((model&&model.pages)||[]).map(p=>(p&&p.slug)||'');
+  if(slugs.some(s=>!s)){ toast('✗ every custom page needs a slug before publishing',true); return; }
+  const dupes=[...new Set(slugs.filter((s,i)=>slugs.indexOf(s)!==i))];
+  if(dupes.length){ toast('✗ duplicate page slug: '+dupes.join(', ')+' — make each unique',true); return; }
   const issues=document.querySelectorAll('#editor .inp.bad').length;
   if(issues && !confirm(issues+' field(s) look invalid (check links/email). Publish anyway?'))return;
   const p=$('savePill'),t=$('savePillTxt'); p.className='savepill saving'; t.textContent='publishing…';

@@ -1019,6 +1019,9 @@ function applyContent(c){
     if(c.drop.dropDate){const d=new Date(c.drop.dropDate);if(!isNaN(d.getTime()))dropDate=d;tickCountdown();}}
 
   if(c.music){bg('#music .pwart',c.music.playerCover);txt('#music .pwtitle',c.music.playerTitle);
+    /* keep the persistent bottom player bar (shown on every page) in sync with the
+       CMS track title + cover so it never disagrees with the music page. */
+    bg('#disc',c.music.playerCover);txt('#musicbar .stitle',c.music.playerTitle);
     const emb=q('#music .embedwrap iframe');if(emb&&c.music.spotifyArtistId)emb.src=`https://open.spotify.com/embed/artist/${encodeURIComponent(c.music.spotifyArtistId)}?utm_source=generator&theme=0`;
     renderReleases(c.music.releases);}
 
