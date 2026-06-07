@@ -101,40 +101,46 @@ Do the in-repo XSS hardening first (done) so a token can't simply be stolen anot
 
 ---
 
-## 3. Supabase backend — commit it  (review #14)
+## 3. Supabase backend  (review #14)
 
-The edge function + schema + policies are the real security boundary but aren't in the
-repo, so they can't be reviewed or reproduced. Add:
+The schema + RLS are now committed under [`supabase/`](supabase/) (`config.toml`,
+`migrations/`), matching the live project `slime-by-cms` (`rccwnyghfiinpoexvtwp`).
+
+**RLS — verified against the live project (good):**
+
+- `site_content` — anon `SELECT` only (`USING true`); writes via the edge function.
+- `subscribers` — anon `INSERT` only, **no `SELECT`** → the list is **not** publicly
+  readable. The insert is now constrained to a plausible email (was `WITH CHECK (true)`).
+- `admin_config` — RLS on, **no policies** → unreachable by the anon key (service role
+  only). The remaining `rls_enabled_no_policy` advisory on it is INFO and intentional.
+- storage bucket `media` — public read by URL; **public listing disabled** (was a WARN).
+
+Applied via MCP this round: `20260607230350_harden_media_storage_listing`,
+`20260607230428_constrain_subscriber_inserts`. After these, `get_advisors(security)`
+returns only the intended `admin_config` INFO.
+
+**Still to add — the `admin` edge function source.** It's the real security boundary
+(service-role writer / subscribers reader) but isn't in the repo yet; the MCP read was
+declined this session. Export and commit it:
 
 ```
-supabase/
-  functions/admin/index.ts        # actions: login | save | upload | list_subs | set_password
-  migrations/*.sql                # site_content, subscribers, admin_config tables
+supabase functions download admin   # → supabase/functions/admin/index.ts
 ```
 
-**RLS expectations** (verify against what's deployed):
+Document required env vars (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, admin password
+in `admin_config`) and deploy with `supabase functions deploy admin`.
 
-- `site_content` — anon: `SELECT` only. Writes only via the edge function (service role).
-- `subscribers` — anon: `INSERT` only (used by the public join form). **No anon
-  `SELECT`** (or the whole list is publicly readable). Admin reads via the edge function.
-- `admin_config` — no anon access at all.
-- Storage bucket (admin uploads) — public read if assets are public; writes only via the
-  edge function / service role.
-
-Document required env vars (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`
-hash, etc.) and a deploy command.
-
-> The publishable key in `cms.js` is a read-only/anon key and is safe to ship **only if**
-> RLS is correct (esp. no anon `SELECT` on `subscribers`). Confirm this.
+> The publishable key in `cms.js` is the anon key. It's safe to ship because RLS is
+> correct — confirmed this session: no anon `SELECT` on `subscribers`, `admin_config`
+> locked, `site_content` read-only for anon.
 
 ---
 
 ## 4. Subscriber phone-merge  (review #6, backend half)
 
 `sbSubscribe` posts with `Prefer: resolution=ignore-duplicates`, so a visitor who joins
-with email only and later adds a phone never gets the phone saved. Switching to
-`resolution=merge-duplicates` (upsert) fixes it **but requires anon `UPDATE` permission**
-on `subscribers` (currently insert-only). Safer alternative: handle the merge inside the
-edge function so anon keeps insert-only. Decide based on the RLS you commit in §3.
-The client already sends `phone: null` when absent — keep that so a later email-only
-submit can't clobber a stored phone.
+with email only and later adds a phone never gets the phone saved. Anon is (correctly)
+INSERT-only on `subscribers`, so the client **cannot** upsert — do the merge **inside the
+`admin` edge function** (service role), keyed on `email`, when capturing sign-ups. The
+client already sends `phone: null` when absent, so a later email-only submit won't clobber
+a stored phone.
