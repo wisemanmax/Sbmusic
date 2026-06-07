@@ -16,7 +16,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/styles.css">
-<script>try{if(sessionStorage.getItem('sb_seen'))document.documentElement.className+=' seen';else sessionStorage.setItem('sb_seen','1');}catch(e){}</script>
+<noscript><style>#loader{display:none!important}</style></noscript>
+<script>try{var s=sessionStorage;if(s.getItem('sb_seen'))document.documentElement.className+=' seen';else s.setItem('sb_seen','1');if(s.getItem('sb_wipe'))document.documentElement.className+=' wipe-armed';}catch(e){}</script>
 </head>
 <body>
 
@@ -43,12 +44,40 @@
   <section id="merch">
     <div class="reveal"><span class="kicker">slime shop</span></div>
     <div class="shead reveal"><h2>merch <em>coming soon</em></h2></div>
-    <div class="comingsoon panel reveal">
-      <svg class="cs-snake" viewBox="0 0 100 100"><path d="M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30 62 M50 16 L50 84"/></svg>
-      <div class="cs-big">COMING SOON</div>
-      <p>the slime shop is still in the lab. hoodies, tees, vamp masks and iced SB chains — all dropping soon. no price tags yet, just <span class="cs-snake-i">🐍</span> where the numbers go.</p>
-      <button class="bigbtn bSlime" id="merchAlertBtn">☠ get the drop alert</button>
+    <p class="msub reveal">the slime shop is still in the lab. tap a piece for sizes + the drop details — no price tags yet, just <span class="cs-snake-i">🐍</span> where the numbers go. start watching for first access.</p>
+    <div class="pgrid" id="pgrid">
+      <div class="prod reveal" data-name="SB Venom Hoodie" data-type="hoodie · venom green" data-desc="Heavyweight slime-green hoodie, glow-stitched SB snake on the back and a dripping chest mark. The uniform of the pit.">
+        <div class="part"><svg viewBox="0 0 100 100"><path d="M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30 62 M50 16 L50 84"/></svg><span class="soon">soon</span></div>
+        <span class="watching">★ watching</span>
+        <div class="pmeta"><div><div class="pt">Venom Hoodie</div><div class="pty">hoodie</div></div><div class="pp">🐍</div></div>
+      </div>
+      <div class="prod reveal d1" data-name="Slime Szn Tee" data-type="tee · snake pit" data-desc="Boxy black tee, blood-red SB glitch logo on front, snake-pit graphic across the back. Built for the mosh.">
+        <div class="part"><svg viewBox="0 0 100 100"><path d="M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30 62 M50 16 L50 84"/></svg><span class="soon">soon</span></div>
+        <span class="watching">★ watching</span>
+        <div class="pmeta"><div><div class="pt">Slime Szn Tee</div><div class="pty">tee</div></div><div class="pp">🐍</div></div>
+      </div>
+      <div class="prod reveal d2" data-name="Vamp Mask" data-type="accessory · rage edition" data-desc="Limited rage-mode ski mask — slime trim, embroidered fangs. Only drops when rage mode is on.">
+        <div class="part"><svg viewBox="0 0 100 100"><path d="M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30 62 M50 16 L50 84"/></svg><span class="soon">soon</span></div>
+        <span class="watching">★ watching</span>
+        <div class="pmeta"><div><div class="pt">Vamp Mask</div><div class="pty">accessory</div></div><div class="pp">🐍</div></div>
+      </div>
+      <div class="prod reveal" data-name="Iced SB Chain" data-type="chain · the pressure" data-desc="The pressure, worn around the neck. Iced-out SB snake pendant on a heavy box chain. Green pressure, certified.">
+        <div class="part"><svg viewBox="0 0 100 100"><path d="M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30 62 M50 16 L50 84"/></svg><span class="soon">soon</span></div>
+        <span class="watching">★ watching</span>
+        <div class="pmeta"><div><div class="pt">Iced SB Chain</div><div class="pty">jewelry</div></div><div class="pp">🐍</div></div>
+      </div>
+      <div class="prod reveal d1" data-name="Snake Pit Beanie" data-type="headwear · venom" data-desc="Cuffed knit beanie, tonal slime SB snake. For the cold nights in the pit.">
+        <div class="part"><svg viewBox="0 0 100 100"><path d="M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30 62 M50 16 L50 84"/></svg><span class="soon">soon</span></div>
+        <span class="watching">★ watching</span>
+        <div class="pmeta"><div><div class="pt">Snake Pit Beanie</div><div class="pty">headwear</div></div><div class="pp">🐍</div></div>
+      </div>
+      <div class="prod reveal d2" data-name="Slime Sticker Pack" data-type="pack · SB universe" data-desc="Die-cut sticker pack — the snake, the mark, the drip, the five powers. Slime everything you own.">
+        <div class="part"><svg viewBox="0 0 100 100"><path d="M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30 62 M50 16 L50 84"/></svg><span class="soon">soon</span></div>
+        <span class="watching">★ watching</span>
+        <div class="pmeta"><div><div class="pt">Sticker Pack</div><div class="pty">pack</div></div><div class="pp">🐍</div></div>
+      </div>
     </div>
+    <div class="merch-cta reveal"><button class="bigbtn bSlime" id="merchAlertBtn">☠ get the drop alert</button></div>
   </section>
 
 </main>

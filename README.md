@@ -34,17 +34,23 @@ and publish live.
 - **Music** — release grid with **all / albums / singles** filters, an in-page player
   (play/pause, seek, **volume**), and the live Spotify artist embed.
 - **Vault** — click any visual to open a lightbox with a "watch on YouTube" link.
-- **Merch** — a **coming soon** teaser; the CTA routes visitors to the slime list
-  for first access when the shop drops.
+- **Merch** — an **interactive coming-soon shop**: tilt product cards open a modal with
+  a size picker and a per-item **"notify me"** that marks the piece as *watching*
+  (persisted to `localStorage`); the main CTA routes visitors to the slime list for first
+  access when the shop drops.
 - **Shows** — data-driven list. Empty by default with a "get tour alerts" CTA.
 - **Join the slime (email + SMS)** — validates an email plus an optional phone number and
   saves sign-ups to the Supabase `subscribers` table (viewable + exportable in the admin's
   **Audience** tab), with `localStorage` (`sb_list` / `sb_sms`) as an offline fallback.
-- **Extras** — scroll-spy nav, back-to-top, share button (Web Share API + clipboard
-  fallback), keyboard-shortcut help (`?`), persistent visitor counter, and a
+- **Motion & interaction** — a **slime page-wipe** between pages (armed before first paint
+  so there's no flash), a **scroll-progress bar**, pointer-driven **3D tilt** on every
+  card, and **magnetic** primary buttons. All of it is automatically disabled for
+  touch / `prefers-reduced-motion`.
+- **Extras** — active-page nav, back-to-top, share button (Web Share API + clipboard
+  fallback), keyboard-shortcut help (`?`), per-session visitor counter, and a
   `type "slime"` easter egg.
-- **Accessibility** — skip link, focus outlines, ARIA labels, and full
-  `prefers-reduced-motion` support.
+- **Accessibility** — skip link, focus outlines, ARIA labels, a `<noscript>` fallback
+  nav, and full `prefers-reduced-motion` support.
 
 ## Admin / live editing (CMS) — "SLIME CONTROL"
 The site's content lives in **Supabase** and is managed from a password-gated, Shopify-style

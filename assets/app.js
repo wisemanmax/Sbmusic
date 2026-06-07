@@ -22,6 +22,7 @@ function buildChrome(){
   const links=NAV.map(n=>`<a href="${n.href}"${n.href.toLowerCase()===here?' class="active"':''}>${n.label}</a>`).join('');
   const top=`
 <a class="skip" href="#main">skip to content</a>
+<div id="progress" aria-hidden="true"></div>
 <div class="bgwrap"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
 <canvas id="snake"></canvas>
 <div class="grain"></div><div class="scan"></div><div class="vig"></div>
@@ -55,7 +56,8 @@ function buildChrome(){
 <div id="toasts" aria-live="polite"></div>
 <div class="modal" id="modal" role="dialog" aria-modal="true" aria-hidden="true">
   <div class="box" id="modalBox"><button class="x" id="modalX" aria-label="close">✕</button><div id="modalContent"></div></div>
-</div>`;
+</div>
+<div class="wipe" id="wipe" aria-hidden="true"><svg class="wmk" viewBox="0 0 100 100"><path d="${SNAKE_PATH}"/></svg></div>`;
   document.body.classList.add('page-'+here.replace(/\.html$/,''));
   const frag=html=>{const t=document.createElement('template');t.innerHTML=html;return t.content;};
   const main=document.querySelector('main');
@@ -504,7 +506,7 @@ function applyContent(c){
 
   renderVideos(c.videos);
 
-  if(c.merch){txt('#merch .kicker',c.merch.kicker);setHtml('#merch .shead h2',c.merch.heading);txt('#merch .comingsoon p',c.merch.text);txt('#merchAlertBtn',c.merch.button);}
+  if(c.merch){txt('#merch .kicker',c.merch.kicker);setHtml('#merch .shead h2',c.merch.heading);txt('#merch .msub',c.merch.text);txt('#merchAlertBtn',c.merch.button);}
 
   renderShows(c.shows);
 
@@ -515,6 +517,83 @@ function applyContent(c){
 
   if(c.footer){const fb=q('.fbadges');if(fb&&c.footer.badges)fb.innerHTML=c.footer.badges.map(b=>`<span class="fbadge">${esc(b)}</span>`).join('');txt('.fcopy',c.footer.copy);}
 }
+
+/* ===================== INTERACTION LAYER =====================
+   Eye-candy + motion that work across every page: slime page-wipe
+   transitions, a scroll-progress bar, pointer 3D tilt on cards,
+   magnetic buttons, and the interactive merch grid. All disabled
+   for reduced-motion / touch where it would hurt more than help. */
+const reducedMotion=matchMedia('(prefers-reduced-motion:reduce)').matches;
+const finePointer=matchMedia('(hover:hover) and (pointer:fine)').matches;
+
+/* ---- slime page-wipe between pages ---- */
+const wipeEl=document.getElementById('wipe');
+/* EXIT: slime panel slides up to cover the page, then we navigate */
+function playWipeOut(done){ if(!wipeEl||reducedMotion){done&&done();return;} wipeEl.classList.add('in'); let f=false; const go=()=>{if(f)return;f=true;done&&done();}; wipeEl.addEventListener('transitionend',go,{once:true}); setTimeout(go,650); }
+/* ENTER: the new page paints already covered (html.wipe-armed::before, armed in the
+   page <head> before first paint → no flash). CSS slides it away; we just clean up. */
+function clearWipeArmed(){ const h=document.documentElement; if(reducedMotion)h.classList.remove('wipe-armed'); else setTimeout(()=>h.classList.remove('wipe-armed'),650); }
+/* intercept internal page links and wipe before navigating */
+document.addEventListener('click',e=>{
+  if(reducedMotion||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+  const a=e.target.closest('a[href]'); if(!a||a.target==='_blank'||a.hasAttribute('download'))return;
+  const href=a.getAttribute('href'); if(!href||/^(https?:|mailto:|tel:|#)/i.test(href)||!/\.html(\?|#|$)/i.test(href))return;
+  const tgt=href.split('#')[0].split('?')[0].toLowerCase();
+  if(tgt===currentPage()){ if(!href.includes('#')){ e.preventDefault(); scrollTo({top:0,behavior:'smooth'}); } return; }
+  e.preventDefault(); try{saveAudioState();}catch(_){} try{sessionStorage.setItem('sb_wipe','1');}catch(_){}
+  playWipeOut(()=>{ location.href=href; });
+});
+
+/* ---- scroll-progress bar ---- */
+const progressEl=document.getElementById('progress');
+function updateProgress(){ if(progressEl)progressEl.style.transform='scaleX('+scrollProg()+')'; }
+addEventListener('scroll',updateProgress,{passive:true}); updateProgress();
+
+/* ---- pointer 3D tilt on display cards ---- */
+if(finePointer&&!reducedMotion){
+  const TILT='.rel,.vcard,.vid,.upanel,.dropfeat,.dropcard,.prod';
+  let cur=null;
+  const reset=el=>{ if(el){el.style.transform='';el.classList.remove('tilting');} };
+  document.addEventListener('pointermove',e=>{
+    const card=e.target.closest(TILT);
+    if(card!==cur){ reset(cur); cur=card; if(card&&!(card.classList.contains('reveal')&&!card.classList.contains('in')))card.classList.add('tilting'); }
+    if(!card||!card.classList.contains('tilting'))return;
+    const r=card.getBoundingClientRect(); if(!r.width)return;
+    const px=(e.clientX-r.left)/r.width-.5, py=(e.clientY-r.top)/r.height-.5, max=7;
+    card.style.transform=`perspective(820px) rotateX(${(-py*max).toFixed(2)}deg) rotateY(${(px*max).toFixed(2)}deg) translateY(-6px)`;
+  },{passive:true});
+  document.addEventListener('pointerleave',()=>{reset(cur);cur=null;});
+  /* ---- magnetic primary buttons ---- */
+  document.querySelectorAll('.bigbtn,.btnX').forEach(b=>{
+    b.addEventListener('pointermove',e=>{const r=b.getBoundingClientRect();b.style.transform=`translate(${((e.clientX-r.left)/r.width-.5)*10}px,${((e.clientY-r.top)/r.height-.5)*10}px)`;});
+    b.addEventListener('pointerleave',()=>{b.style.transform='';});
+  });
+}
+
+/* ---- interactive merch (uses the product grid on shows.html) ---- */
+function watchList(){ try{return JSON.parse(localStorage.getItem('sb_watch')||'[]');}catch(_){return[];} }
+function isWatched(n){ return watchList().indexOf(n)>=0; }
+function setWatched(n){ try{const a=watchList();if(a.indexOf(n)<0){a.push(n);localStorage.setItem('sb_watch',JSON.stringify(a));}}catch(_){} }
+function markWatchedCards(){ document.querySelectorAll('#pgrid .prod').forEach(c=>c.classList.toggle('watched',isWatched(c.dataset.name))); }
+const SIZES=['XS','S','M','L','XL','XXL'];
+function openMerch(card){
+  const name=card.dataset.name||'SB drop', type=card.dataset.type||'', desc=card.dataset.desc||'';
+  openModal(`<div class="mbody"><span class="kicker">slime shop · coming soon</span><h3>${esc(name)}</h3><div class="dtag">${esc(type)}</div><p>${esc(desc)}</p>
+    <div class="mlabel">pick your size</div>
+    <div class="sizes">${SIZES.map(s=>`<button type="button">${s}</button>`).join('')}</div>
+    <div class="mcta"><button class="bigbtn bSlime" id="merchNotify" type="button">${isWatched(name)?'✓ on the list ☠':'☠ notify me when it drops'}</button></div>
+    <div class="joinnote" style="text-align:left;margin-top:14px">🐍 prices drop when the shop opens — get watching for first access + a launch discount.</div></div>`);
+  const box=document.getElementById('modalContent');
+  box.querySelectorAll('.sizes button').forEach(b=>b.onclick=()=>{box.querySelectorAll('.sizes button').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');try{hat(false);}catch(_){}});
+  const nb=document.getElementById('merchNotify');
+  if(nb)nb.onclick=()=>{ const was=isWatched(name); setWatched(name); markWatchedCards(); nb.textContent='✓ on the list ☠'; nb.disabled=true; burst(innerWidth/2,innerHeight*.5,14,'#8dff2b'); toast(was?('already watching '+name):('☠ watching '+name+' — first access when it drops')); };
+}
+(function initMerch(){ const pg=document.getElementById('pgrid'); if(!pg)return;
+  pg.querySelectorAll('.prod').forEach(c=>{ io.observe(c); c.tabIndex=0; c.setAttribute('role','button'); c.setAttribute('aria-label',(c.dataset.name||'product')+' — coming soon');
+    c.addEventListener('click',()=>openMerch(c));
+    c.addEventListener('keydown',e=>{if(e.key==='Enter'||e.code==='Space'){e.preventDefault();openMerch(c);}}); });
+  markWatchedCards();
+})();
 
 /* boot: render defaults instantly, then overlay whatever's published in Supabase.
    Guarded so a missing/failed cms.js can never break the rest of the page. */
@@ -537,3 +616,7 @@ if(SB_PREVIEW){
 
 /* deep-link: arriving at connect.html#join lands the visitor on the email field */
 if(/join/.test(location.hash)){const g=document.getElementById('gemail');if(g)setTimeout(()=>{const c=document.getElementById('connect');if(c)c.scrollIntoView({behavior:'smooth'});g.focus();},350);}
+
+/* if we arrived via an internal page link, the enter wipe is already covering
+   (armed in <head>); clear it once it has slid away */
+try{ if(sessionStorage.getItem('sb_wipe')){ sessionStorage.removeItem('sb_wipe'); clearWipeArmed(); } else { document.documentElement.classList.remove('wipe-armed'); } }catch(_){}
