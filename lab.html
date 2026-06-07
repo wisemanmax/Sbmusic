@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚗ the lab — slowed + reverb — SLIME BY</title>
+<meta name="description" content="The Lab — bend the Slime By track live with speed, reverb, and room, then watch the frequency visualizer feed on it.">
+<meta name="theme-color" content="#8dff2b">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23060403'/%3E%3Cpath d='M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30 62 M50 16 L50 84' stroke='%238dff2b' stroke-width='8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<meta property="og:type" content="music.musician">
+<meta property="og:title" content="SLIME BY — the lab (slowed + reverb)">
+<meta property="og:description" content="Bend the track live: speed, reverb, room.">
+<meta property="og:image" content="assets/my-time-cover.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+<noscript><style>#loader{display:none!important}</style></noscript>
+<script>try{var s=sessionStorage;if(s.getItem('sb_seen'))document.documentElement.className+=' seen';else s.setItem('sb_seen','1');if(s.getItem('sb_wipe'))document.documentElement.className+=' wipe-armed';}catch(e){}</script>
+</head>
+<body>
+
+<div id="loader"><div class="lt">SLIME BY</div><div class="ls">loading the slime…</div><div class="bar"><i></i></div></div>
+<noscript><div class="nojs">SLIME BY — <a href="index.html">home</a> · <a href="music.html">music</a> · <a href="lab.html">slowed</a> · <a href="world.html">sb world</a> · <a href="vault.html">vault</a> · <a href="shows.html">shows</a> · <a href="connect.html">tap in</a></div></noscript>
+
+<main id="main">
+
+  <header class="pagehead">
+    <div class="kicker">⚗ the lab</div>
+    <h1 class="glitch" data-t="SLOWED">SLOWED</h1>
+    <p class="psub">slowed <i>+ reverb</i> · bend the whole site, <b>live</b></p>
+  </header>
+
+  <!-- THE LAB / SLOWED + REVERB STUDIO -->
+  <section id="lab">
+    <div class="srwrap panel reveal">
+      <div class="srtop">
+        <div class="srart" id="srArt" style="background-image:url('assets/my-time-cover.jpg')"></div>
+        <div class="srmeta">
+          <div class="srnow">★ now bending</div>
+          <div class="srtitle" id="srTitle">Man Of My Word</div>
+          <div class="srmode" id="srMode">slowed + reverb</div>
+          <canvas class="srwave" id="srWave"></canvas>
+          <div class="srprog" id="srProg"><i id="srProgFill"></i></div>
+          <div class="srtimes"><span id="srCur">0:00</span><span id="srDur">0:00</span></div>
+        </div>
+      </div>
+      <div class="srknobs">
+        <div class="srknob">
+          <div class="srk-top"><label for="srSpeed">speed</label><span id="srSpeedV">0.80×</span></div>
+          <input type="range" id="srSpeed" min="50" max="125" value="80" aria-label="playback speed">
+        </div>
+        <div class="srknob">
+          <div class="srk-top"><label for="srReverb">reverb</label><span id="srReverbV">30%</span></div>
+          <input type="range" id="srReverb" min="0" max="100" value="30" aria-label="reverb amount">
+        </div>
+        <div class="srknob">
+          <div class="srk-top"><label for="srRoom">room</label><span id="srRoomV">medium hall</span></div>
+          <input type="range" id="srRoom" min="0" max="100" value="55" aria-label="reverb room size">
+        </div>
+      </div>
+      <div class="srbar">
+        <button class="srplay" id="srPlay">▶ play</button>
+        <div class="srpresets">
+          <button data-preset="slowrev" class="on">slowed + reverb</button>
+          <button data-preset="deep">deep slow</button>
+          <button data-preset="night">nightcore</button>
+          <button data-preset="clean">original</button>
+        </div>
+      </div>
+      <div class="srhint">drag <b style="color:var(--slime2)">speed</b> to pitch the whole track down · stack <b style="color:var(--slime2)">reverb</b> + <b style="color:var(--slime2)">room</b> for the cavern · this bends the song playing across the site, live</div>
+    </div>
+  </section>
+
+  <!-- VISUALIZER -->
+  <section class="viz" id="visualizer">
+    <canvas id="vizCanvas"></canvas>
+    <div class="vtext"><h2>FREQUENCY</h2><p>☠ feed the slime ☠</p></div>
+    <div class="vbtn"><button class="bigbtn bBlood" onclick="listenNow()">▶ press play</button></div>
+  </section>
+
+</main>
+
+<script src="cms.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

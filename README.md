@@ -1,14 +1,20 @@
 # SLIME BY — Official Site
 
 The official website for **Slime By** — Delaware rap. Melody, chaos, motion, green pressure.
-A single-page, fully interactive experience: real Web-Audio visualizer, a pit of
+A **multi-page**, fully interactive experience: real Web-Audio visualizer, a pit of
 scroll-tracking snakes, a slowed + reverb studio, SB Universe lore, music, vault, merch,
 shows, and contact.
 
-**Stack:** static HTML/CSS/JS — no build step. The page (`index.html`) is data-driven:
-it reads its content from Supabase via `cms.js`, and falls back to built-in defaults if
-the backend is empty or unreachable, so it always renders. A password-protected admin
-page (`admin.html`) lets you edit every section and publish live.
+**Stack:** static HTML/CSS/JS — no build step. The site is split into seven linked
+pages (`index`, `music`, `lab`, `world`, `vault`, `shows`, `connect`). They share one
+stylesheet (`assets/styles.css`) and one engine (`assets/app.js`): the engine injects the
+shared chrome (navbar, footer, persistent player, modal, overlays…) from a single source
+of truth — so the **navbar is identical and all-linking on every page** — and the
+background track follows you across navigations (it remembers position, volume, and the
+slowed/reverb settings). Each page is data-driven: it reads content from Supabase via
+`cms.js`, and falls back to built-in defaults if the backend is empty or unreachable, so it
+always renders. A password-protected admin page (`admin.html`) lets you edit every section
+and publish live.
 
 ## Features
 - **Featured drop / spotlight** — the current release with **smart links** (Spotify /
@@ -28,17 +34,28 @@ page (`admin.html`) lets you edit every section and publish live.
 - **Music** — release grid with **all / albums / singles** filters, an in-page player
   (play/pause, seek, **volume**), and the live Spotify artist embed.
 - **Vault** — click any visual to open a lightbox with a "watch on YouTube" link.
-- **Merch** — a **coming soon** teaser; the CTA routes visitors to the slime list
-  for first access when the shop drops.
+- **Merch** — an **interactive coming-soon shop**: tilt product cards open a modal with
+  a size picker and a per-item **"notify me"** that marks the piece as *watching*
+  (persisted to `localStorage`); the main CTA routes visitors to the slime list for first
+  access when the shop drops.
 - **Shows** — data-driven list. Empty by default with a "get tour alerts" CTA.
 - **Join the slime (email + SMS)** — validates an email plus an optional phone number and
   saves sign-ups to the Supabase `subscribers` table (viewable + exportable in the admin's
   **Audience** tab), with `localStorage` (`sb_list` / `sb_sms`) as an offline fallback.
-- **Extras** — scroll-spy nav, back-to-top, share button (Web Share API + clipboard
-  fallback), keyboard-shortcut help (`?`), persistent visitor counter, and a
+- **Motion & interaction** — a **slime page-wipe** between pages (armed before first paint
+  so there's no flash), a **scroll-progress bar**, pointer-driven **3D tilt** on every
+  card, and **magnetic** primary buttons. The pointer effects gracefully fall back on
+  touch (`prefers-reduced-motion` too): cards get **press feedback**, the play / enter
+  affordances stay visible (no hover to reveal them), and everything else — page wipes,
+  the rage toggle, the slowed studio, modals — works the same.
+- **Fully mobile** — one collapsible nav (a burger menu that holds the links **and** the
+  rage toggle), no grey tap-flash, 16px inputs so iOS doesn't zoom on focus, toasts that
+  clear the bottom player, and lighter backdrop blur for smooth scrolling on phones.
+- **Extras** — active-page nav, back-to-top, share button (Web Share API + clipboard
+  fallback), keyboard-shortcut help (`?`), per-session visitor counter, and a
   `type "slime"` easter egg.
-- **Accessibility** — skip link, focus outlines, ARIA labels, and full
-  `prefers-reduced-motion` support.
+- **Accessibility** — skip link, focus outlines, ARIA labels, a `<noscript>` fallback
+  nav, and full `prefers-reduced-motion` support.
 
 ## Admin / live editing (CMS) — "SLIME CONTROL"
 The site's content lives in **Supabase** and is managed from a password-gated, Shopify-style
@@ -78,15 +95,29 @@ admin at `admin.html`.
 
 ## Structure
 ```
-index.html                  # the site (HTML + CSS + JS), rendered from CMS content
+index.html                  # Home — hero, marquee, featured drop + countdown
+music.html                  # Music — slime player, releases, Spotify embed
+lab.html                    # The Lab — slowed + reverb studio + visualizer
+world.html                  # SB World — about + the five-powers lore
+vault.html                  # Vault — visuals grid + videos
+shows.html                  # Shows — tour dates + merch (coming soon)
+connect.html                # Tap In — socials, join-the-list, booking
 admin.html                  # password-gated admin / CMS editor
-cms.js                       # Supabase config, default content model, read/write helpers
+cms.js                      # Supabase config, default content model, nav map, helpers
 assets/
+  styles.css                # all site styles (shared by every page)
+  app.js                    # site engine — injects shared chrome + wires every feature
   man-of-my-word.mp3        # background track (loops)
   my-time-cover.jpg         # My Time cover art
   sb-portrait.jpg           # artist photo (hero + about)
   slime-by.jpg              # vault visual
 ```
+
+Every page loads `assets/styles.css`, then `cms.js`, then `assets/app.js`. The navbar,
+footer, persistent music player, cursor, snake pit, modal and toasts are **injected by
+`app.js`** from one definition (`SB_NAV` in `cms.js`), so adding/renaming a page or nav
+link is a one-line change that updates every page at once. Each feature is guarded, so a
+page that doesn't include a given section simply skips it.
 
 ## Customizing content
 **The easy way:** use the admin page (`admin.html`) — it edits every section, including
@@ -96,11 +127,12 @@ tour dates, releases, the featured drop + countdown date + pre-save link, videos
 **By hand:** the same content model lives in `SB_DEFAULTS` in `cms.js` (these are the
 fallback values when nothing is published). Editing it there changes the built-in defaults.
 - **Slowed + reverb studio** is interactive, not content — its presets live in
-  `index.html` as `SR_PRESETS` (each is `[speed%, reverb%, room%]`) and it processes the
+  `assets/app.js` as `SR_PRESETS` (each is `[speed%, reverb%, room%]`) and it processes the
   background track live through the Web-Audio graph.
 
 ## Run locally
-Open `index.html` in a browser, or serve it:
+Open `index.html` in a browser, or serve the folder (recommended, so page-to-page
+links and the admin live-preview behave exactly like production):
 ```bash
 python3 -m http.server 8000   # then visit http://localhost:8000
 ```
@@ -117,6 +149,6 @@ python3 -m http.server 8000   # then visit http://localhost:8000
   keypress / play button — and that first interaction always resumes the audio context
   (so the visualizer and reverb engage too).
 - Booking email in the contact section (`booking@slimeby.com`) is a placeholder — update
-  it in `index.html`.
+  it in `connect.html` (or via the admin's **Contact** tab).
 
 © 2026 Slime By · 100% Independent · Delaware
