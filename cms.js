@@ -102,6 +102,12 @@ const SB_DEFAULTS = {
     badges: ['★ BEST VIEWED IN RAGE MODE', 'MADE IN DE', '100% INDEPENDENT', 'SB UNIVERSE ☠'],
     copy: '© 2026 slime by · delaware · the snake moves',
   },
+  /* Extra content blocks appended to the bottom of an existing built-in page.
+     Each block picks which page it lands on. Edited in admin → "Page Add-ons". */
+  extras: [],
+  /* Brand-new pages created from the admin. Each renders through page.html and
+     (when nav:true) shows up in the top navigation automatically. */
+  pages: [],
 };
 window.SB_DEFAULTS = SB_DEFAULTS;
 
@@ -117,6 +123,11 @@ const SB_TEMPLATES = {
   'vault.items': { title: '', sub: '', img: '', href: '' },
   'videos': { t: '', s: '', img: '', id: '' },
   'shows': { date: '', venue: '', city: '', url: '' },
+  // a freeform content block (every field optional except the layout)
+  'extras': { page: 'home', style: 'centered', kicker: '', heading: 'New section', text: '', image: '', buttonLabel: '', buttonUrl: '', youtube: '' },
+  // a brand-new page, pre-seeded with one welcome block
+  'pages': { slug: 'new-page', label: 'New Page', nav: true, kicker: 'SB', intro: 'a new corner of the slime world', blocks: [{ style: 'centered', kicker: '', heading: 'Welcome', text: '', image: '', buttonLabel: '', buttonUrl: '', youtube: '' }] },
+  'pages.blocks': { style: 'centered', kicker: '', heading: 'New section', text: '', image: '', buttonLabel: '', buttonUrl: '', youtube: '' },
 };
 window.SB_TEMPLATES = SB_TEMPLATES;
 
@@ -149,6 +160,9 @@ const SB_SECTION_PAGE = {
   vault: 'vault.html', videos: 'vault.html',
   merch: 'shows.html', shows: 'shows.html',
   contact: 'connect.html', footer: 'index.html',
+  // add-ons preview on the home page; custom pages preview through page.html
+  // (the admin retargets these dynamically to the page/slug being edited).
+  extras: 'index.html', pages: 'page.html',
 };
 window.SB_SECTION_PAGE = SB_SECTION_PAGE;
 
@@ -165,6 +179,8 @@ const SB_SECTIONS = [
   { key: 'shows',    label: 'Shows',       icon: '♪', desc: 'Tour dates. Empty shows a "get alerts" card.' },
   { key: 'contact',  label: 'Contact',     icon: '✉', desc: 'Social links, booking email, and the join-the-list copy.' },
   { key: 'footer',   label: 'Footer',      icon: '⚑', desc: 'Footer badges and copyright line.' },
+  { key: 'extras',   label: 'Page Add-ons', icon: '➕', desc: 'Add extra content blocks (heading, text, image, button, or video) to the bottom of any existing page — no code.' },
+  { key: 'pages',    label: 'Custom Pages', icon: '❏', desc: 'Build brand-new pages. They appear in the top nav and render from the blocks you add here.' },
 ];
 window.SB_SECTIONS = SB_SECTIONS;
 
@@ -253,6 +269,35 @@ const SB_SCHEMA = {
 
   'footer.badges':         { label: 'Badges', itemLabel: 'badge' },
   'footer.copy':           { label: 'Copyright line' },
+
+  /* ---- Page add-ons: extra blocks appended to existing pages ---- */
+  'extras':                { label: 'Page add-ons', itemLabel: 'block', titleKey: 'heading' },
+  'extras.page':           { label: 'Add to which page', type: 'select', options: ['home', 'music', 'lab', 'world', 'vault', 'shows', 'connect'], hint: 'The block is appended to the bottom of this page.' },
+  'extras.style':          { label: 'Layout', type: 'select', options: ['centered', 'left', 'card', 'full'], hint: 'full = the image becomes a full-width banner behind the text.' },
+  'extras.kicker':         { label: 'Kicker', hint: 'Small label above the heading. Optional.' },
+  'extras.heading':        { label: 'Heading', hint: 'Leave blank to hide.' },
+  'extras.text':           { label: 'Text', type: 'textarea', hint: 'Leave blank to hide.' },
+  'extras.image':          { label: 'Image', type: 'image', hint: 'Optional.' },
+  'extras.buttonLabel':    { label: 'Button label', hint: 'Leave blank for no button.' },
+  'extras.buttonUrl':      { label: 'Button link', type: 'url' },
+  'extras.youtube':        { label: 'YouTube video', hint: 'Paste a YouTube link or ID to embed a player. Optional.' },
+
+  /* ---- Custom pages ---- */
+  'pages':                 { label: 'Custom pages', itemLabel: 'page', titleKey: 'label' },
+  'pages.slug':            { label: 'URL slug', hint: 'Lowercase letters, numbers and dashes. The page lives at page.html?p=<slug>.' },
+  'pages.label':           { label: 'Title / nav label' },
+  'pages.nav':             { label: 'Show in top nav' },
+  'pages.kicker':          { label: 'Header kicker', hint: 'Small label above the big title.' },
+  'pages.intro':           { label: 'Header subtitle' },
+  'pages.blocks':          { label: 'Blocks', itemLabel: 'block', titleKey: 'heading' },
+  'pages.blocks.style':    { label: 'Layout', type: 'select', options: ['centered', 'left', 'card', 'full'] },
+  'pages.blocks.kicker':   { label: 'Kicker' },
+  'pages.blocks.heading':  { label: 'Heading' },
+  'pages.blocks.text':     { label: 'Text', type: 'textarea' },
+  'pages.blocks.image':    { label: 'Image', type: 'image' },
+  'pages.blocks.buttonLabel': { label: 'Button label' },
+  'pages.blocks.buttonUrl':   { label: 'Button link', type: 'url' },
+  'pages.blocks.youtube':  { label: 'YouTube video', hint: 'Paste a YouTube link or ID. Optional.' },
 };
 window.SB_SCHEMA = SB_SCHEMA;
 

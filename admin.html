@@ -292,9 +292,14 @@ function schedulePreview(){ clearTimeout(pvTimer); pvTimer=setTimeout(pushPrevie
 function pushPreview(){ const f=$('pvframe'); if(f&&f.contentWindow) f.contentWindow.postMessage({__sb:'preview',content:model},'*'); }
 /* the site is multi-page now — point the preview at the page that holds the
    section being edited so edits are always visible. */
-function pageForView(key){ return (window.SB_SECTION_PAGE&&SB_SECTION_PAGE[key])||'index.html'; }
+function pageForView(key){
+  // custom pages preview through page.html pointed at the page being edited
+  if(key==='pages'){ const ps=(model&&model.pages)||[]; return ps.length&&ps[0].slug ? 'page.html?p='+encodeURIComponent(ps[0].slug) : 'index.html'; }
+  return (window.SB_SECTION_PAGE&&SB_SECTION_PAGE[key])||'index.html';
+}
+function withPreview(pg){ return pg+(pg.indexOf('?')>=0?'&':'?')+'preview=1'; }
 let pvPage='';
-function ensurePreviewPage(key){ const pg=pageForView(key); if(pg!==pvPage){ pvPage=pg; previewReady=false; const f=$('pvframe'); if(f) f.src=pg+'?preview=1'; return true; } return false; }
+function ensurePreviewPage(key){ const pg=pageForView(key); if(pg!==pvPage){ pvPage=pg; previewReady=false; const f=$('pvframe'); if(f) f.src=withPreview(pg); return true; } return false; }
 function saveDraft(){ try{ localStorage.setItem(DRAFT_KEY,JSON.stringify({json:JSON.stringify(model),t:Date.now()})); }catch(_){} }
 function isDirty(){ return JSON.stringify(model)!==baseline; }
 function updateDirty(){
@@ -543,7 +548,7 @@ $('publishBtn').onclick=async()=>{
 };
 
 /* ---------- preview controls ---------- */
-$('pvReload').onclick=()=>{ previewReady=false; $('pvframe').src=(pvPage||'index.html')+'?preview=1'; };
+$('pvReload').onclick=()=>{ previewReady=false; $('pvframe').src=withPreview(pvPage||'index.html'); };
 $('pvSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{
   $('pvSeg').querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
   $('pvWrap').classList.toggle('phone',b.dataset.w==='phone');

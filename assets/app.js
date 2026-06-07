@@ -63,6 +63,9 @@ function buildChrome(){
   document.body.classList.add('page-'+here.replace(/\.html$/,''));
   const frag=html=>{const t=document.createElement('template');t.innerHTML=html;return t.content;};
   const main=document.querySelector('main');
+  /* a host for CMS-driven content blocks (page add-ons + custom pages).
+     Lives at the end of <main> so add-ons append below the built-in content. */
+  if(main&&!document.getElementById('sbBlocks')){const bc=document.createElement('div');bc.id='sbBlocks';main.appendChild(bc);}
   document.body.insertBefore(frag(top),document.body.firstChild);
   if(main&&main.parentNode===document.body) main.after(frag(bottom));
   else document.body.appendChild(frag(bottom));
@@ -814,6 +817,67 @@ function renderReleases(list){const g=document.getElementById('mgrid');if(!g)ret
 }
 
 /* ===================== APPLY CONTENT — maps the CMS model onto the page ===================== */
+/* ===================== CMS PAGES + ADD-ON BLOCKS =====================
+   Lets the admin add freeform content blocks to existing pages, and create
+   brand-new pages (page.html?p=<slug>) that show up in the nav — all driven
+   by the published content, no code edits. */
+const SB_BUILTIN_KEY={'index.html':'home','music.html':'music','lab.html':'lab','world.html':'world','vault.html':'vault','shows.html':'shows','connect.html':'connect'};
+function currentSlug(){try{return new URLSearchParams(location.search).get('p')||'';}catch(_){return'';}}
+function pageKey(){const pg=currentPage();return pg==='page.html'?('@'+currentSlug()):(SB_BUILTIN_KEY[pg]||'');}
+/* pull a YouTube video id out of a link or accept a bare id */
+function ytId(v){if(!v)return'';v=String(v).trim();const m=v.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/)([A-Za-z0-9_-]{11})/);return m?m[1]:(/^[A-Za-z0-9_-]{11}$/.test(v)?v:'');}
+function blockHTML(b){
+  if(!b)return'';
+  const style=(b.style||'centered'),yt=ytId(b.youtube);
+  let inner='';
+  if(b.kicker)inner+=`<span class="kicker">${esc(b.kicker)}</span>`;
+  if(b.heading)inner+=`<h2 class="sbblock-h">${esc(b.heading)}</h2>`;
+  if(b.image&&style!=='full')inner+=`<div class="sbblock-img" style="background-image:url('${esc(b.image)}')"></div>`;
+  if(b.text)inner+=`<p class="sbblock-text">${esc(b.text)}</p>`;
+  if(yt)inner+=`<div class="sbblock-video"><iframe src="https://www.youtube.com/embed/${esc(yt)}" title="" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`;
+  if(b.buttonLabel){const u=b.buttonUrl||'#',ext=/^https?:/i.test(u);inner+=`<div class="sbblock-cta"><a class="bigbtn bSlime" href="${esc(u)}"${ext?' target="_blank" rel="noopener noreferrer"':''}>${esc(b.buttonLabel)}</a></div>`;}
+  const bg=(style==='full'&&b.image)?` style="background-image:url('${esc(b.image)}')"`:'';
+  return `<section class="sbblock sb-${esc(style)} reveal"${bg}><div class="sbblock-in">${inner}</div></section>`;
+}
+function blocksForPage(c){
+  const k=pageKey();if(!k)return[];
+  if(k[0]==='@'){const p=(c.pages||[]).find(x=>x&&x.slug===k.slice(1));return p&&Array.isArray(p.blocks)?p.blocks:[];}
+  return (c.extras||[]).filter(b=>b&&(b.page||'home')===k);
+}
+function renderBlocks(c){
+  const host=document.getElementById('sbBlocks');if(!host)return;
+  host.innerHTML=(blocksForPage(c)||[]).map(blockHTML).join('');
+  host.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+}
+/* append custom-page links to the shared nav (built once, after content loads) */
+function refreshNav(c){
+  const wrap=document.querySelector('#nav .navlinks');if(!wrap)return;
+  wrap.querySelectorAll('a[data-cp]').forEach(a=>a.remove());
+  const here=pageKey();
+  (c.pages||[]).forEach(p=>{if(!p||!p.slug||p.nav===false)return;
+    const a=document.createElement('a');a.href='page.html?p='+encodeURIComponent(p.slug);a.textContent=p.label||p.slug;a.setAttribute('data-cp','1');
+    if(here==='@'+p.slug)a.className='active';
+    a.addEventListener('click',()=>{try{setMenu(false);}catch(_){}});
+    wrap.appendChild(a);
+  });
+}
+/* fill the header of a custom page (page.html) from its content entry */
+function renderCustomPageHead(c){
+  if(currentPage()!=='page.html')return;
+  const head=document.getElementById('customHead');if(!head)return;
+  const p=(c.pages||[]).find(x=>x&&x.slug===currentSlug());
+  const h1=head.querySelector('h1'),kic=head.querySelector('.kicker'),sub=head.querySelector('.psub');
+  if(p){document.title=(p.label||'SLIME BY')+' — SLIME BY';
+    if(kic)kic.textContent=p.kicker||'SB';
+    if(h1){h1.textContent=p.label||'';h1.setAttribute('data-t',(p.label||'').toUpperCase());}
+    if(sub)sub.textContent=p.intro||'';
+  }else{
+    if(kic)kic.textContent='404';
+    if(h1){h1.textContent='not found';h1.setAttribute('data-t','NOT FOUND');}
+    if(sub)sub.innerHTML='this page doesn’t exist — <a href="index.html">back to home</a>';
+  }
+}
+
 function applyContent(c){
   if(!c)return;window.SB=c;
   const q=s=>document.querySelector(s);
@@ -858,6 +922,10 @@ function applyContent(c){
     const jt=q('.jointitle');if(jt)jt.innerHTML=`${esc(c.contact.joinTitle||'')}<span>${esc(c.contact.joinSub||'')}</span>`;}
 
   if(c.footer){const fb=q('.fbadges');if(fb&&c.footer.badges)fb.innerHTML=c.footer.badges.map(b=>`<span class="fbadge">${esc(b)}</span>`).join('');txt('.fcopy',c.footer.copy);}
+
+  renderCustomPageHead(c);   // custom-page title/intro (page.html only)
+  refreshNav(c);             // surface custom pages in the nav
+  renderBlocks(c);           // add-on blocks for this page
 }
 
 /* ===================== INTERACTION LAYER =====================
@@ -881,7 +949,11 @@ document.addEventListener('click',e=>{
   const a=e.target.closest('a[href]'); if(!a||a.target==='_blank'||a.hasAttribute('download'))return;
   const href=a.getAttribute('href'); if(!href||/^(https?:|mailto:|tel:|#)/i.test(href)||!/\.html(\?|#|$)/i.test(href))return;
   const tgt=href.split('#')[0].split('?')[0].toLowerCase();
-  if(tgt===currentPage()){ if(!href.includes('#')){ e.preventDefault(); try{scrollTo({top:0,behavior:'smooth'});}catch(_){} } return; }
+  // "same page" also has to match the custom-page slug — two page.html links
+  // with different ?p= slugs are different pages and must still navigate.
+  let same=tgt===currentPage();
+  if(same&&tgt==='page.html'){ const q=new URLSearchParams(href.split('#')[0].split('?')[1]||''); same=(q.get('p')||'')===currentSlug(); }
+  if(same){ if(!href.includes('#')){ e.preventDefault(); try{scrollTo({top:0,behavior:'smooth'});}catch(_){} } return; }
   e.preventDefault(); try{saveAudioState();}catch(_){} try{sessionStorage.setItem('sb_wipe','1');}catch(_){}
   playWipeOut(()=>{ location.href=href; });
 });
