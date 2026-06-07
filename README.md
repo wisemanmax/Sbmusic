@@ -63,7 +63,14 @@ admin at `admin.html`.
 
 - **Open** `https://<your-site>/admin.html` and enter the password.
 - **Sidebar navigation** — one pane per section (Hero, Drop, Music, About, SB World, Vault,
-  Videos, Merch, Shows, Contact, Footer) plus **Audience** and **Settings**.
+  Videos, Merch, Shows, Contact, Footer), plus **Page Add-ons**, **Custom Pages**, **Audience**
+  and **Settings**.
+- **Page Add-ons** — drop extra content blocks (kicker / heading / text / image / button /
+  YouTube embed, in centered / left / card / full-bleed layouts) onto the bottom of *any*
+  existing page, no code. Add, remove, duplicate and reorder them like any other list.
+- **Custom Pages** — build **brand-new pages** from the admin. Give it a slug + title, add
+  blocks, and (optionally) it appears in the top nav automatically. New pages render through
+  a shared `page.html` template driven entirely by the published content — nothing to deploy.
 - **Friendly, labelled forms** — every field has a human label, hint, and the right input:
   URL / email / date-time / colour pickers, dropdowns, rich-text (HTML) areas, image uploads
   with live thumbnails, and on/off toggles. (Labels/types come from `SB_SCHEMA` in `cms.js`.)
@@ -102,6 +109,7 @@ world.html                  # SB World — about + the five-powers lore
 vault.html                  # Vault — visuals grid + videos
 shows.html                  # Shows — tour dates + merch (coming soon)
 connect.html                # Tap In — socials, join-the-list, booking
+page.html                   # generic template for admin-created Custom Pages (?p=<slug>)
 admin.html                  # password-gated admin / CMS editor
 cms.js                      # Supabase config, default content model, nav map, helpers
 assets/
