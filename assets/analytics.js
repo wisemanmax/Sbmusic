@@ -21,6 +21,8 @@
   if (!CFG || !CFG.url || !CFG.key) return;                 // no backend configured
   if (/[?&]preview\b/.test(location.search)) return;        // editor preview — don't log
   if (/(^|\/)admin\.html$/i.test(location.pathname)) return; // never track the admin
+  // skip local dev / CI / the test server so internal traffic never pollutes the data
+  if (/^(localhost|127\.0\.0\.1|\[?::1\]?)$/.test(location.hostname)) return;
 
   var ENDPOINT = CFG.url + '/rest/v1/analytics_events';
   var HEADERS = {
