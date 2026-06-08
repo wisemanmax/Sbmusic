@@ -8,7 +8,8 @@
     "serve": "python3 -m http.server 8000",
     "test:install": "playwright install --with-deps chromium",
     "test:e2e": "node tests/e2e.mjs",
-    "test": "npm run check:js && npm run test:e2e"
+    "test": "npm run check:js && npm run test:e2e",
+    "cf:headers": "node cloudflare/apply-headers.mjs --dry-run"
   },
   "devDependencies": {
     "playwright": "^1.56.1"
