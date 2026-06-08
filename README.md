@@ -154,6 +154,22 @@ links and the admin live-preview behave exactly like production):
 python3 -m http.server 8000   # then visit http://localhost:8000
 ```
 
+## Tests
+```bash
+npm install            # dev deps (Playwright)
+npm run test:install   # one-time: download the Chromium browser binary
+npm test               # node --check on JS, then the Playwright e2e/security suite
+```
+`npm test` runs the JS syntax checks first (fast, no browser) and then the end-to-end
+suite in `tests/e2e.mjs`. The e2e run needs the Chromium binary from `test:install`; CI
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) installs it automatically.
+
+## Security headers
+Header/CSP config ships as [`_headers`](_headers) (Netlify / Cloudflare Pages) and
+[`vercel.json`](vercel.json). **GitHub Pages ignores both** — front the site with
+Cloudflare or host on Netlify/Cloudflare Pages/Vercel for them to apply. See
+[`SECURITY.md`](SECURITY.md).
+
 ## Deploy to GitHub Pages
 1. Push this repo to GitHub.
 2. **Settings → Pages → Build and deployment**: Source = *Deploy from a branch*,
