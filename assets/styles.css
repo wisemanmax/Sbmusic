@@ -77,7 +77,7 @@ nav.scrolled{background:rgba(8,5,4,.8);backdrop-filter:blur(12px);border-bottom:
 .hero{min-height:100svh;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:90px 18px 40px;overflow:hidden}
 .herobg{position:absolute;inset:0;z-index:0;background-image:url('sb-portrait.jpg');background-size:cover;background-position:center 25%}
 .herobg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,4,3,.7),rgba(6,4,3,.55) 40%,rgba(6,4,3,.92)),radial-gradient(60% 60% at 50% 45%,transparent,rgba(6,4,3,.6))}
-#heroCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:1;opacity:.85}
+#heroCanvas{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:1;opacity:.85}
 .heroinner{position:relative;z-index:3;transform:translate(var(--px,0),var(--py,0))}
 .sbmono{width:clamp(64px,9vw,96px);margin:0 auto 6px;cursor:pointer;filter:drop-shadow(0 0 20px var(--slime));-webkit-user-select:none;user-select:none;animation:pulse 3s ease-in-out infinite}
 .sbmono path{stroke:var(--slime);stroke-width:6;fill:none;stroke-linecap:round;stroke-linejoin:round}
@@ -313,8 +313,8 @@ section{padding:clamp(60px,9vw,116px) clamp(18px,5vw,56px);position:relative;z-i
 .embedwrap{margin-top:34px;overflow:hidden;padding:6px}
 
 /* VISUALIZER */
-.viz{padding:0;position:relative;height:78svh;min-height:520px;overflow:hidden;border-top:2px solid rgba(141,255,43,.25);border-bottom:2px solid rgba(141,255,43,.25)}
-#vizCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:1}
+.viz{padding:0;position:relative;height:78svh;min-height:520px;overflow:hidden;border-top:2px solid rgba(141,255,43,.25);border-bottom:2px solid rgba(141,255,43,.25);background:radial-gradient(125% 110% at 50% 42%,#0c140a 0%,#080b07 52%,#050302 100%)}
+#vizCanvas{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:1}
 .viz .vtext{position:absolute;z-index:3;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;pointer-events:none;padding:0 16px}
 .viz .vtext h2{font-family:var(--disp);font-size:clamp(44px,12vw,150px);letter-spacing:2px;color:var(--ink);text-shadow:3px 0 var(--blood),-3px 0 rgba(141,255,43,.8)}
 .viz .vtext p{font-weight:600;font-size:13px;letter-spacing:4px;text-transform:uppercase;margin-top:10px;color:var(--slime)}
@@ -429,7 +429,7 @@ section{padding:clamp(60px,9vw,116px) clamp(18px,5vw,56px);position:relative;z-i
 
 /* CONTACT */
 .contact{position:relative;text-align:center;overflow:hidden}
-#contactCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:0;opacity:.5}
+#contactCanvas{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0;opacity:.5}
 .contact .inner{position:relative;z-index:2}
 .contact .sbmono{width:90px;margin:0 auto 18px}
 .contact h2{font-family:var(--disp);font-size:clamp(44px,9vw,120px);letter-spacing:1px;color:var(--ink);text-shadow:3px 0 var(--blood),-3px 0 rgba(141,255,43,.8)}
