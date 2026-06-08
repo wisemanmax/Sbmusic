@@ -506,25 +506,36 @@ window.sbAdmin = sbAdmin;
 /* capture a sign-up in the `subscribers` table (anon insert is allowed by RLS).
    Returns true on success; callers should keep their local fallback regardless. */
 async function sbSubscribe(email, phone) {
-  // Normalize the address so it matches the unique(email) index the upsert conflicts on
+  // Normalize the address so it matches the unique(email) index that dedupes sign-ups
   // (see migration 20260608120000). Without normalization "A@x.com" and "a@x.com" would
   // both slip past the case-insensitive dedupe we promise.
   email = email ? String(email).trim().toLowerCase() : null;
   try {
-    const r = await fetch(SB_CFG.url + '/rest/v1/subscribers?on_conflict=email', {
+    // Plain INSERT — deliberately NOT an upsert. The previous ?on_conflict=email +
+    // resolution=ignore-duplicates made PostgREST emit `INSERT ... ON CONFLICT DO NOTHING`,
+    // whose speculative-insert path requires the proposed row to be visible to the caller.
+    // But the `anon` role has no SELECT policy on `subscribers` (by design — the list can't be
+    // read with the public key), so Postgres rejected every sign-up with 42501 "new row
+    // violates row-level security policy". The form then silently queued each one under
+    // sb_pending and nothing ever reached the table. A plain insert passes the INSERT WITH
+    // CHECK policy fine; the unique(email) index still dedupes (see the 409 handling below).
+    const r = await fetch(SB_CFG.url + '/rest/v1/subscribers', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         apikey: SB_CFG.key,
         Authorization: 'Bearer ' + SB_CFG.key,
-        Prefer: 'resolution=ignore-duplicates,return=minimal',
+        Prefer: 'return=minimal',
       },
       body: JSON.stringify({ email: email || null, phone: phone || null }),
     });
-    // A non-2xx here means the row didn't land — surface it so a broken funnel (e.g. a
-    // missing conflict target) is visible instead of silently queueing offline forever.
-    if (!r.ok) { try { console.warn('[sb] subscribe failed', r.status, await r.text()); } catch (_) {} }
-    return r.ok;
+    // 409 = the unique(email) index rejected a duplicate, i.e. this address is already on the
+    // list. From the visitor's perspective that's a success, so treat it as one and don't
+    // re-queue it. Any other non-2xx means the row didn't land — surface it instead of
+    // silently queueing offline forever.
+    if (r.ok || r.status === 409) return true;
+    try { console.warn('[sb] subscribe failed', r.status, await r.text()); } catch (_) {}
+    return false;
   } catch (_) {
     return false;
   }
