@@ -372,6 +372,10 @@ footer{padding:48px 22px 40px;text-align:center;position:relative;z-index:1}
 .minfo .stitle{font-family:var(--disp);font-size:15px;margin-top:1px}
 .pbtn{width:40px;height:40px;flex-shrink:0;border-radius:50%;border:1px solid var(--slime);cursor:pointer;color:var(--slime);font-size:13px;background:rgba(141,255,43,.1);transition:.14s}
 .pbtn:active{transform:scale(.94)}
+.mbtn{width:30px;height:30px;flex-shrink:0;margin:0 3px;border-radius:50%;border:1px solid rgba(141,255,43,.4);cursor:pointer;color:var(--slime);font-size:11px;background:rgba(141,255,43,.06);transition:.14s;display:flex;align-items:center;justify-content:center}
+.mbtn:hover{background:rgba(141,255,43,.16)}
+.mbtn:active{transform:scale(.9)}
+#ytbg{position:fixed;left:-9999px;bottom:0;width:200px;height:120px;opacity:.001;pointer-events:none;z-index:-1}
 
 #rageOverlay{position:fixed;inset:0;z-index:9995;pointer-events:none;opacity:0;transition:opacity .4s;mix-blend-mode:screen;background:repeating-linear-gradient(0deg,rgba(255,31,46,.05) 0 1px,transparent 1px 3px),radial-gradient(60% 50% at 50% 50%,rgba(255,31,46,.1),transparent 70%)}
 body.rage.rfx-overlay #rageOverlay{opacity:1;background:repeating-linear-gradient(0deg,rgba(255,31,46,.08) 0 1px,transparent 1px 3px),radial-gradient(70% 60% at 50% 50%,rgba(255,31,46,.18),transparent 72%)}
