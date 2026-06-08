@@ -46,7 +46,7 @@
           --q-mono:'Courier New',monospace;
           display:flex; flex-direction:column; align-items:center; gap:14px; padding:6px 0 30px; width:100%; box-sizing:border-box; }
         #qRoot .q-cabinet{
-          position:relative; width:min(1040px, 96vw, calc((100vh - 250px) * 1.7778));
+          position:relative; width:min(1040px, 96vw, calc((100dvh - 250px) * 1.7778));
           aspect-ratio:16/9; background:#000; overflow:hidden; touch-action:none;
           border:1px solid rgba(141,255,43,.35);
           box-shadow:0 0 60px rgba(141,255,43,.18), inset 0 0 60px rgba(0,0,0,.6);
@@ -130,8 +130,10 @@
           box-shadow:0 0 24px rgba(141,255,43,.5),inset 0 0 14px rgba(141,255,43,.28); }
         #qRoot .q-btn.pressed::after{ opacity:1; animation:qpulse .42s ease-out; }
         @keyframes qpulse{ from{ box-shadow:0 0 0 0 rgba(141,255,43,.55) } to{ box-shadow:0 0 0 16px rgba(141,255,43,0) } }
-        #qRoot .q-move{ width:74px; height:74px; font-size:28px; }
-        #qRoot .q-act{ width:74px; height:64px; }
+        /* fluid button sizes so the deck always fits inside 100vw — clamp to the
+           original 74px on roomy screens, shrink gracefully toward small phones */
+        #qRoot .q-move{ width:clamp(58px,18vw,74px); height:clamp(58px,18vw,74px); font-size:clamp(22px,6.5vw,28px); }
+        #qRoot .q-act{ width:clamp(60px,19vw,74px); height:clamp(50px,14vw,64px); font-size:clamp(11px,3.2vw,13px); }
         #qRoot .q-jump{ color:#06140a; border-color:rgba(194,255,122,.9);
           background:linear-gradient(180deg,var(--q-bright),#3f9c12); text-shadow:0 1px 0 rgba(255,255,255,.3); font-size:14px;
           box-shadow:0 2px 0 rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.4),0 0 18px rgba(141,255,43,.3); }
@@ -148,21 +150,38 @@
         #qRoot.q-has-touch .q-tip-key{ display:none; }
         #qRoot.q-has-touch .q-tip-touch{ display:block; }
 
-        /* ===== MOBILE-FIRST LAYOUT (page-scoped: this <style> only lives on quest.html) ===== */
+        /* ===== MOBILE-FIRST LAYOUT (page-scoped: this <style> only lives on quest.html) =====
+           A phone-first app shell: a compact hero, the 16:9 cabinet edge-to-edge, and a
+           fixed bottom control deck that owns the thumb zone. The hero sits in normal flow
+           with a defined bottom gap so it can never bleed into the game; the container hugs
+           its content (no forced height) so there's no dead vertical band; and the deck is
+           docked out-of-flow at the bottom so it never collides with the gameplay above.
+           dvh keeps it honest through the mobile browser chrome. Verified at 390px. */
         @media (max-width:760px){
-          #quest{ padding-left:0; padding-right:0; }
-          .pagehead{ padding-top:74px; padding-bottom:4px; }
-          .pagehead h1{ font-size:clamp(34px,9vw,60px); }
+          #quest{ padding:0; }
+          .pagehead{ padding:72px 16px 12px; }
+          .pagehead h1{ font-size:clamp(32px,9vw,56px); }
           .pagehead .psub{ font-size:10px; letter-spacing:2px; margin-top:8px; }
-          #qRoot{ gap:0; padding:0; min-height:calc(100svh - 150px); justify-content:flex-start; }
+
+          /* container hugs content — kills the empty band that used to sit above the deck */
+          #qRoot{ gap:10px; padding:0; min-height:auto; justify-content:flex-start; }
           #qRoot.q-has-touch .q-cabinet{ width:100vw; max-width:100vw; border-radius:0; border-left:0; border-right:0; }
-          #qRoot.q-has-touch .q-deck{ flex:1 1 auto; }
+
+          /* control deck → fixed bottom bar: glassmorphism, safe-area aware, never overflows.
+             Button widths are fluid (see .q-move/.q-act) so the row always fits 100vw. */
+          #qRoot.q-has-touch .q-deck{
+            position:fixed; left:0; right:0; bottom:0; width:100%; z-index:1900;
+            flex:0 0 auto; margin:0; gap:clamp(10px,3vw,16px);
+            padding:12px clamp(12px,4vw,18px) calc(12px + env(safe-area-inset-bottom,0px));
+            background:linear-gradient(180deg,rgba(8,18,9,0),rgba(6,12,6,.92) 40%);
+            -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+            border-top:1px solid rgba(141,255,43,.18);
+            box-shadow:0 -10px 30px rgba(0,0,0,.45);
+          }
           #qRoot .q-legend{ display:none; }
         }
-        @media (max-width:360px){ /* keep the deck inside the narrowest phones (e.g. iPhone SE) */
-          #qRoot .q-move{ width:64px; height:64px; font-size:24px; }
-          #qRoot .q-act{ width:64px; height:58px; font-size:12px; }
-          #qRoot .q-deck{ padding-left:12px; padding-right:12px; gap:8px; }
+        @media (max-width:360px){ /* squeeze the deck onto the narrowest phones (e.g. iPhone SE) */
+          #qRoot .q-deck{ padding-left:10px; padding-right:10px; gap:8px; }
           #qRoot .q-dpad{ gap:10px; } #qRoot .q-cluster{ gap:10px; }
         }
 
