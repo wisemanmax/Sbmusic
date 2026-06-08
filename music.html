@@ -42,12 +42,19 @@
         <div class="pwart" style="background-image:url('assets/my-time-cover.jpg')"></div>
         <div class="pwinfo">
           <div class="pwnow">★ now playing</div>
-          <div class="pwtitle">Man Of My Word</div>
+          <div class="pwtitle">My Time</div>
+          <span class="pwbadge" id="pwbadge" hidden>✦ preview · my next album</span>
           <canvas class="pweq" id="pweq"></canvas>
           <div class="pwprog" id="pwprog"><i id="pwprogfill"></i></div>
-          <div class="pwbtns"><button class="pwplay" id="pwplay" aria-label="play / pause">▶</button><span class="pwtime"><span id="pwcur">0:00</span> / <span id="pwdur">0:00</span></span><input type="range" class="pwvol" id="pwvol" min="0" max="100" value="55" aria-label="volume"></div>
+          <div class="pwbtns"><button class="pwnav" id="pwprev" aria-label="previous track">⏮</button><button class="pwplay" id="pwplay" aria-label="play / pause">▶</button><button class="pwnav" id="pwnext" aria-label="next track">⏭</button><span class="pwtime"><span id="pwcur">0:00</span> / <span id="pwdur">0:00</span></span><input type="range" class="pwvol" id="pwvol" min="0" max="100" value="55" aria-label="volume"></div>
+          <div class="pwlinks" id="pwlinks" hidden><span class="pwlbl">open in</span><a class="pwlink pwsp" id="pwSpotify" target="_blank" rel="noopener noreferrer" href="#">Spotify</a><a class="pwlink pwap" id="pwApple" target="_blank" rel="noopener noreferrer" href="#">Apple Music</a></div>
         </div>
       </div>
+    </div>
+
+    <div class="tracklist-wrap reveal">
+      <div class="tlhead"><h3>the <em>tracklist</em></h3><span class="tlsub">tap a track to play · <b>✦ preview</b> = my next album</span></div>
+      <ol class="tracklist" id="tracklist"></ol>
     </div>
 
     <div class="mfilter reveal" id="mfilter">

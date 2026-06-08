@@ -150,18 +150,26 @@ const audio=document.getElementById('audio');audio.volume=.55;
    bad upload) is skipped so it never stalls the queue. Titles come from the filenames so the
    bar shows the real song name. Reverb / the lab / the visualizer all run off this one
    <audio> element, so they keep working on whatever is playing. */
+/* Each track carries its own streaming links so the tracklist can offer "open in Spotify /
+   Apple Music" per song. The "My Time" cuts all live on the My Time album (a couple are also
+   their own singles); Apple Music only exposes an artist page, so that's the best deep link we
+   have there — swap in exact track URLs whenever they exist. "Man Of My Word" is a PREVIEW of
+   the next album: it plays here but isn't released anywhere yet, so it carries no store links
+   and is flagged so the UI can badge it. */
+const MYTIME_SPOTIFY='https://open.spotify.com/album/5RickWrPNRszADHSzJJYUc';
+const SB_APPLE='https://music.apple.com/us/artist/slime-by/1542729349';
 const LOCAL_TRACKS=[
-  {src:'assets/mp3 my time/1) My Time.mp3',                  title:'My Time'},
-  {src:'assets/mp3 my time/2) Turn This Up.mp3',             title:'Turn This Up'},
-  {src:'assets/mp3 my time/3) Blowing Up ft SmokesAlot.mp3', title:'Blowing Up (ft. SmokesAlot)'},
-  {src:'assets/mp3 my time/3) NightTime.mp3',                title:'NightTime'},
-  {src:'assets/mp3 my time/5) Money like this .mp3',         title:'Money Like This'},
-  {src:'assets/mp3 my time/5)Flip .mp3',                     title:'Flip'},
-  {src:'assets/mp3 my time/7) High As It Gets .mp3',         title:'High As It Gets'},
-  {src:'assets/mp3 my time/8)Blitz FT junad.mp3',            title:'Blitz (ft. Junad)'},
-  {src:'assets/mp3 my time/9) BlackOut .mp3',                title:'BlackOut'},
-  {src:'assets/mp3 my time/10) Loosing Me .mp3',             title:'Loosing Me'},
-  {src:'assets/man-of-my-word.mp3',                          title:'Man Of My Word'},
+  {src:'assets/mp3 my time/1) My Time.mp3',                  title:'My Time',                    spotify:MYTIME_SPOTIFY, apple:SB_APPLE},
+  {src:'assets/mp3 my time/2) Turn This Up.mp3',             title:'Turn This Up',               spotify:'https://open.spotify.com/album/2yiGZO9RmY8ql8h1OtManp', apple:SB_APPLE},
+  {src:'assets/mp3 my time/3) Blowing Up ft SmokesAlot.mp3', title:'Blowing Up (ft. SmokesAlot)',spotify:MYTIME_SPOTIFY, apple:SB_APPLE},
+  {src:'assets/mp3 my time/3) NightTime.mp3',                title:'NightTime',                  spotify:MYTIME_SPOTIFY, apple:SB_APPLE},
+  {src:'assets/mp3 my time/5) Money like this .mp3',         title:'Money Like This',            spotify:MYTIME_SPOTIFY, apple:SB_APPLE},
+  {src:'assets/mp3 my time/5)Flip .mp3',                     title:'Flip',                       spotify:'https://open.spotify.com/album/5zZBRNMJqFr6hBpB6cjfyI', apple:SB_APPLE},
+  {src:'assets/mp3 my time/7) High As It Gets .mp3',         title:'High As It Gets',            spotify:MYTIME_SPOTIFY, apple:SB_APPLE},
+  {src:'assets/mp3 my time/8)Blitz FT junad.mp3',            title:'Blitz (ft. Junad)',          spotify:MYTIME_SPOTIFY, apple:SB_APPLE},
+  {src:'assets/mp3 my time/9) BlackOut .mp3',                title:'BlackOut',                   spotify:MYTIME_SPOTIFY, apple:SB_APPLE},
+  {src:'assets/mp3 my time/10) Loosing Me .mp3',             title:'Loosing Me',                 spotify:MYTIME_SPOTIFY, apple:SB_APPLE},
+  {src:'assets/man-of-my-word.mp3',                          title:'Man Of My Word',             preview:true},
 ];
 let trackIdx=0;
 function curTrack(){return LOCAL_TRACKS[trackIdx]||LOCAL_TRACKS[0];}
@@ -221,7 +229,7 @@ function applyNormalFx(){userRate=1.0;revAmt=0;try{audio.playbackRate=rageOn?rag
 function applyLabFx(){userRate=labRate;revAmt=labRev;roomP=labRoom;try{audio.playbackRate=rageOn?rageRate():userRate;}catch(_){}if(actx)rebuildImpulse();applyAudioFx();}
 function connectMedia(){if(graphReady)return;ensureCtx();try{srcNode=actx.createMediaElementSource(audio);srcNode.connect(mix);graphReady=true;}catch(e){}}
 function startAudio(){if(bgMode==='yt'&&ytPlayer&&ytReady){try{ytPlayer.pauseVideo();}catch(_){}}bgMode='local';connectMedia();ensureCtx();applyAudioFx();armKick();audio.play().then(()=>setUI(true)).catch(()=>{});updateBgTitle();}
-function setUI(on){playing=on;const ic=on?'❚❚':'▶';if(pbtn)pbtn.textContent=ic;if(pwplay)pwplay.textContent=ic;if(disc)disc.classList.toggle('spin',on);if(musicbar)musicbar.classList.toggle('open',on);const sp=document.getElementById('srPlay');if(sp)sp.textContent=on?'❚❚ pause':'▶ play';const sa=document.getElementById('srArt');if(sa)sa.classList.toggle('spin',on);}
+function setUI(on){playing=on;const ic=on?'❚❚':'▶';if(pbtn)pbtn.textContent=ic;if(pwplay)pwplay.textContent=ic;if(disc)disc.classList.toggle('spin',on);if(musicbar)musicbar.classList.toggle('open',on);const sp=document.getElementById('srPlay');if(sp)sp.textContent=on?'❚❚ pause':'▶ play';const sa=document.getElementById('srArt');if(sa)sa.classList.toggle('spin',on);const pw=document.querySelector('.playerwin');if(pw)pw.classList.toggle('live',on);updateNowPlaying();}
 function toggle(){if(bgMode==='yt'){if(ytIsPlaying())ytPause();else ytPlay();return;}if(audio.paused)startAudio();else{audio.pause();setUI(false);}}
 if(pbtn)pbtn.onclick=toggle;if(disc)disc.onclick=toggle;
 audio.addEventListener('play',()=>{if(bgMode==='local')setUI(true);});audio.addEventListener('pause',()=>{if(bgMode==='local')setUI(false);});
@@ -255,10 +263,31 @@ try{audio.removeAttribute('controls');audio.setAttribute('controlsList','nodownl
    is loaded lazily on the first skip so it never slows the initial page. */
 let bgMode='local',ytPlayer=null,ytReady=false,ytWantPlay=false,_ytApiLoading=false;
 const BG_PLAYLIST=(()=>{try{return(window.SB_DEFAULTS&&SB_DEFAULTS.music&&SB_DEFAULTS.music.bgPlaylist)||'';}catch(_){return'';}})();
-function localTitle(){try{return(window.SB&&SB.music&&SB.music.playerTitle)||curTrack().title;}catch(_){return curTrack().title;}}
+/* The player is a live tracklist now, so the now-playing label ALWAYS reflects the track that's
+   actually loaded — no fixed CMS override (that legacy "playerTitle" forced every page to read
+   "Man Of My Word" regardless of what was spinning). */
+function localTitle(){try{return curTrack().title;}catch(_){return'';}}
 function ytIsPlaying(){try{return!!(ytPlayer&&ytReady&&ytPlayer.getPlayerState&&ytPlayer.getPlayerState()===1);}catch(_){return false;}}
 function bgIsPlaying(){return bgMode==='yt'?ytIsPlaying():!audio.paused;}
-function updateBgTitle(){const title=localTitle();document.querySelectorAll('#musicbar .stitle').forEach(el=>el.textContent=title);const pwt=document.querySelector('#music .pwtitle');if(pwt)pwt.textContent=title;const sr=document.getElementById('srTitle');if(sr)sr.textContent=title;/* the lab's "now bending" title */}
+function updateBgTitle(){const title=localTitle();document.querySelectorAll('#musicbar .stitle').forEach(el=>el.textContent=title);const pwt=document.querySelector('#music .pwtitle');if(pwt)pwt.textContent=title;const sr=document.getElementById('srTitle');if(sr)sr.textContent=title;/* the lab's "now bending" title */updateNowPlaying();}
+/* Sync the music-page player chrome to the live track: preview badge, the per-song Spotify /
+   Apple buttons, and which tracklist row is lit. No-ops on pages without the player. */
+function updateNowPlaying(){
+  const t=curTrack();
+  const badge=document.getElementById('pwbadge');if(badge)badge.hidden=!t.preview;
+  const links=document.getElementById('pwlinks'),sp=document.getElementById('pwSpotify'),ap=document.getElementById('pwApple');
+  if(links){
+    if(t.preview){links.hidden=true;}
+    else{let any=false;
+      if(sp){if(t.spotify){sp.href=t.spotify;sp.hidden=false;any=true;}else sp.hidden=true;}
+      if(ap){if(t.apple){ap.href=t.apple;ap.hidden=false;any=true;}else ap.hidden=true;}
+      links.hidden=!any;
+    }
+  }
+  const list=document.getElementById('tracklist');
+  if(list)list.querySelectorAll('.trk').forEach(r=>{const on=(+r.dataset.i===trackIdx);r.classList.toggle('active',on);r.classList.toggle('playing',on&&playing);});
+  const pw=document.querySelector('.playerwin');if(pw)pw.classList.toggle('is-preview',!!t.preview);
+}
 function loadYTApi(){if(window.YT&&window.YT.Player){initYT();return;}if(_ytApiLoading)return;_ytApiLoading=true;const prev=window.onYouTubeIframeAPIReady;window.onYouTubeIframeAPIReady=function(){try{if(prev)prev();}catch(_){}initYT();};const s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';document.head.appendChild(s);}
 function initYT(){if(ytPlayer||!BG_PLAYLIST||!document.getElementById('ytbg'))return;try{ytPlayer=new YT.Player('ytbg',{width:'200',height:'120',host:'https://www.youtube-nocookie.com',playerVars:{listType:'playlist',list:BG_PLAYLIST,autoplay:0,controls:0,disablekb:1,fs:0,modestbranding:1,playsinline:1,rel:0,loop:1},events:{onReady:()=>{ytReady=true;try{ytPlayer.setVolume(Math.round(audio.volume*100));}catch(_){}if(ytWantPlay){ytWantPlay=false;ytPlay();}},onStateChange:onYTState}});}catch(_){}}
 function onYTState(e){const Y=window.YT&&YT.PlayerState;if(!Y)return;if(e.data===Y.PLAYING){if(bgMode!=='yt'){bgMode='yt';try{audio.pause();}catch(_){}}setUI(true);updateBgTitle();}else if(e.data===Y.PAUSED){if(bgMode==='yt')setUI(false);}}
@@ -278,6 +307,45 @@ function bgNext(){loadTrack(trackIdx+1,true);}
    otherwise it steps back a track. */
 function bgPrev(){if(audio.currentTime>3){try{audio.currentTime=0;}catch(_){}return;}loadTrack(trackIdx-1,true);}
 {const pv=document.getElementById('prevbtn'),nx=document.getElementById('nextbtn');if(pv)pv.onclick=bgPrev;if(nx)nx.onclick=bgNext;}
+/* ── TRACKLIST (music.html) ──
+   Renders the live playlist as a selectable list so a visitor can jump straight to any song
+   (selecting one loads + plays it and surfaces its Spotify / Apple links via updateNowPlaying).
+   The preview cut is flagged so it reads as the next-album teaser, not a released single. */
+function wireTracklist(){
+  const list=document.getElementById('tracklist');if(!list)return;
+  list.innerHTML=LOCAL_TRACKS.map((t,i)=>`<li class="trk${t.preview?' preview':''}" data-i="${i}" role="button" tabindex="0" aria-label="play ${esc(t.title)}">`+
+    `<span class="tnum">${String(i+1).padStart(2,'0')}</span>`+
+    `<span class="teq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>`+
+    `<span class="tname">${esc(t.title)}</span>`+
+    (t.preview?'<span class="tbadge">✦ preview</span>':'')+
+    `<span class="tdur">${esc(t.dur||'')}</span>`+
+    `<span class="tgo" aria-hidden="true">▶</span>`+
+  `</li>`).join('');
+  const pick=r=>{if(!r)return;const i=+r.dataset.i;
+    if(i===trackIdx&&bgMode==='local'){if(audio.paused)startAudio();else{audio.pause();setUI(false);}}   // current row → resume / pause
+    else loadTrack(i,true);};                                                                            // any other row → load + play
+  list.onclick=e=>pick(e.target.closest('.trk'));
+  list.onkeydown=e=>{if(e.key==='Enter'||e.code==='Space'){const r=e.target.closest('.trk');if(r){e.preventDefault();pick(r);}}};
+  loadTrackDurations();updateNowPlaying();
+}
+/* Fill in each track's runtime lazily + once. A single muted probe element walks the list one
+   file at a time (metadata only) so we never fire a dozen parallel requests; results cache on
+   the track so re-renders (client-side nav back to music) are instant. */
+let _durBusy=false;
+function loadTrackDurations(){
+  const list=document.getElementById('tracklist');if(!list)return;
+  LOCAL_TRACKS.forEach((t,i)=>{if(t.dur){const c=list.querySelector('.trk[data-i="'+i+'"] .tdur');if(c)c.textContent=t.dur;}});
+  if(_durBusy||LOCAL_TRACKS.every(t=>t.dur))return;
+  _durBusy=true;const probe=new Audio();probe.preload='metadata';probe.muted=true;let i=0;
+  (function step(){
+    while(i<LOCAL_TRACKS.length&&LOCAL_TRACKS[i].dur)i++;
+    if(i>=LOCAL_TRACKS.length){_durBusy=false;return;}
+    const idx=i;
+    probe.onloadedmetadata=()=>{if(isFinite(probe.duration)&&probe.duration>0){LOCAL_TRACKS[idx].dur=fmt(probe.duration);const c=document.querySelector('#tracklist .trk[data-i="'+idx+'"] .tdur');if(c)c.textContent=LOCAL_TRACKS[idx].dur;}i++;step();};
+    probe.onerror=()=>{i++;step();};
+    try{probe.src=trackUrl(LOCAL_TRACKS[idx]);}catch(_){i++;step();}
+  })();
+}
 function listenNow(){startAudio();const v=document.getElementById('visualizer');if(v)v.scrollIntoView({behavior:'smooth'});}
 /* Always arm a first-interaction fallback: the very first tap / scroll / key resumes the
    audio context (required even when autoplay "succeeds" into a still-suspended context) and
@@ -762,7 +830,45 @@ function updateLevels(t){if(graphReady&&playing&&analyser&&bgMode==='local'){ana
 function snakeWave(ctx,w,h,t,amp,thick,yc){ctx.save();ctx.lineCap='round';ctx.shadowColor='#ff1f2e';ctx.shadowBlur=18;const seg=70;for(let pass=0;pass<2;pass++){ctx.beginPath();for(let i=0;i<=seg;i++){const p=i/seg,x=p*w;const lv=levels[Math.floor(p*(levels.length-1))]||0;const wob=Math.sin(p*7+t*.0022+pass*1.6)*amp*(.4+lv*1.6)+Math.sin(p*3-t*.0015)*amp*.4;const y=yc+wob;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.strokeStyle=pass===0?rg(ctx,w):'rgba(255,255,255,.45)';ctx.globalAlpha=pass===0?.95:.3;ctx.lineWidth=thick*(pass===0?1:.4);ctx.stroke();}ctx.restore();}
 function bars(ctx,w,h,base){const n=levels.length,bw=w/n,cols=['#ff1f2e','#8dff2b','#9b3cff'];for(let i=0;i<n;i++){const bh=levels[i]*h*.5;const g=ctx.createLinearGradient(0,base,0,base-bh);g.addColorStop(0,cols[i%3]);g.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=g;ctx.globalAlpha=.85;ctx.fillRect(i*bw+bw*.2,base-bh,bw*.6,bh);ctx.globalAlpha=1;}}
 function ring(ctx,cx,cy,r,t){const n=48,cols=['#ff1f2e','#8dff2b','#9b3cff'];ctx.save();ctx.shadowColor='#8dff2b';ctx.shadowBlur=12;for(let i=0;i<n;i++){const a=i/n*Math.PI*2;const len=8+levels[i%levels.length]*70;ctx.strokeStyle=cols[i%3];ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);ctx.lineTo(cx+Math.cos(a)*(r+len),cy+Math.sin(a)*(r+len));ctx.lineWidth=2;ctx.stroke();}ctx.restore();}
-function eqbars(ctx,w,h){const n=22,bw=w/n,cols=['#ff1f2e','#8dff2b','#9b3cff'];ctx.clearRect(0,0,w,h);for(let i=0;i<n;i++){const bh=Math.max(2,levels[i*2%levels.length]*h);ctx.fillStyle=cols[i%3];ctx.fillRect(i*bw+1,h-bh,bw-2,bh);}}
+/* ── PLAYER VISUALIZER (music.html #pweq) ──
+   The "cool graphic" that comes alive while a track plays: a mirrored neon spectrum (slime →
+   alien → blood across the band), a white-hot core, a reactive wave threading the bars, plus a
+   beat-gated bloom + spark burst so drops feel physical. All additive ('lighter') so it glows.
+   Driven entirely by the shared `levels` band data, so it reacts to whatever song is loaded. */
+const _PVN=40;let _pvCols=null;
+function _hx(c){c=c.replace('#','');return[parseInt(c.slice(0,2),16),parseInt(c.slice(2,4),16),parseInt(c.slice(4,6),16)];}
+function lerpColor(a,b,t){t=t<0?0:t>1?1:t;const A=_hx(a),B=_hx(b);return'rgb('+(A[0]+(B[0]-A[0])*t|0)+','+(A[1]+(B[1]-A[1])*t|0)+','+(A[2]+(B[2]-A[2])*t|0)+')';}
+function _pvColors(){if(_pvCols)return _pvCols;_pvCols=[];for(let i=0;i<_PVN;i++){const p=i/(_PVN-1);_pvCols.push(p<0.5?lerpColor('#8dff2b','#9b3cff',p*2):lerpColor('#9b3cff','#ff1f2e',(p-0.5)*2));}return _pvCols;}
+let _pvParts=[],_pvBeatT=-1e9,_pvAvg=0,_pvBloom=0;
+function drawPlayerViz(ctx,w,h,t){
+  ctx.clearRect(0,0,w,h);
+  const mid=h*0.52,cols=_pvColors();
+  const energy=levels.reduce((a,b)=>a+b,0)/levels.length;
+  /* lightweight beat gate: a spike above the rolling average (with a short refractory window)
+     blooms the core + throws sparks — no heavy onset detector needed. */
+  _pvAvg+=(energy-_pvAvg)*0.06;
+  if(playing&&energy>0.11&&energy>_pvAvg*1.32&&t-_pvBeatT>170){_pvBeatT=t;_pvBloom=1;
+    for(let k=0,kn=sbIsMobile?7:12;k<kn;k++)_pvParts.push({x:w*0.5+(Math.random()-0.5)*w*0.3,y:mid,vx:(Math.random()-0.5)*3.2,vy:(Math.random()-0.5)*2.6-0.6,life:1,c:cols[(Math.random()*_PVN)|0],s:Math.random()*2+0.8});
+    if(_pvParts.length>90)_pvParts.splice(0,_pvParts.length-90);
+  }
+  _pvBloom*=0.9;
+  if(_pvBloom>0.02){const r=Math.max(w,h)*0.6,g=ctx.createRadialGradient(w*0.5,mid,0,w*0.5,mid,r);g.addColorStop(0,'rgba(141,255,43,'+(0.16*_pvBloom).toFixed(3)+')');g.addColorStop(0.6,'rgba(155,60,255,'+(0.06*_pvBloom).toFixed(3)+')');g.addColorStop(1,'rgba(141,255,43,0)');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);}
+  ctx.save();ctx.globalCompositeOperation='lighter';
+  const bw=w/_PVN;
+  for(let i=0;i<_PVN;i++){
+    const lv=levels[((i*1.6)|0)%levels.length];
+    const bh=Math.max(1.5,lv*h*0.5),x=i*bw+bw*0.5,ww=Math.max(1.5,bw*0.44);
+    ctx.fillStyle=cols[i];ctx.shadowColor=cols[i];ctx.shadowBlur=sbIsMobile?5:9;
+    ctx.fillRect(x-ww/2,mid-bh,ww,bh*2);
+    ctx.shadowBlur=0;ctx.fillStyle='rgba(255,255,255,'+(0.22+lv*0.5).toFixed(3)+')';   // hot core
+    ctx.fillRect(x-ww*0.22,mid-bh*0.5,ww*0.44,bh);
+  }
+  ctx.restore();
+  ctx.save();ctx.globalCompositeOperation='lighter';ctx.beginPath();                    // reactive wave
+  for(let i=0;i<=_PVN;i++){const p=i/_PVN,x=p*w,lv=levels[((p*(levels.length-1))|0)]||0;const y=mid+Math.sin(p*9+t*0.004)*(4+lv*16);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+  ctx.strokeStyle='rgba(141,255,43,0.85)';ctx.lineWidth=2;ctx.shadowColor='#8dff2b';ctx.shadowBlur=7;ctx.stroke();ctx.restore();
+  if(_pvParts.length){ctx.save();ctx.globalCompositeOperation='lighter';for(const p of _pvParts){p.life*=0.93;p.x+=p.vx;p.y+=p.vy;p.vy+=0.04;ctx.globalAlpha=p.life;ctx.fillStyle=p.c;ctx.shadowColor=p.c;ctx.shadowBlur=8;ctx.beginPath();ctx.arc(p.x,p.y,p.s*p.life+0.4,0,7);ctx.fill();}ctx.globalAlpha=1;ctx.restore();_pvParts=_pvParts.filter(p=>p.life>0.06);}
+}
 let parts=[];for(let i=0;i<34;i++)parts.push({x:Math.random(),y:Math.random(),s:Math.random()*2+.5,v:Math.random()*.0004+.0001,c:emberC[Math.floor(Math.random()*4)]});
 
 /* The snake pit (full-page WebGL + a 2D overlay) is the heavy part of this loop.
@@ -796,7 +902,7 @@ function frame(t){
   if(H.w&&heroIn){const{x,w,h}=H;x.clearRect(0,0,w,h);x.save();parts.forEach(p=>{p.y-=p.v*(1+energy*3);if(p.y<0)p.y=1;x.globalAlpha=.3+energy*.5;x.fillStyle=p.c;x.beginPath();x.arc(p.x*w,p.y*h,p.s,0,7);x.fill();});x.restore();snakeWave(x,w,h,t,9+energy*8,3.5+energy*4,h*.62);}
   if(V.w&&vizIn){const{x,w,h}=V;x.clearRect(0,0,w,h);snakeWave(x,w,h,t,16+energy*18,6+energy*9,h*.5);snakeWave(x,w,h,t*.8+500,11,3+energy*6,h*.52);ring(x,w*.5,h*.5,Math.min(w,h)*.16,t);bars(x,w,h,h);}
   if(C.w&&conIn){const{x,w,h}=C;x.clearRect(0,0,w,h);snakeWave(x,w,h,t*.7,9+energy*6,3+energy*4,h*.5);}
-  if(E.w&&musicIn)eqbars(E.x,E.w,E.h);
+  if(E.w&&musicIn)drawPlayerViz(E.x,E.w,E.h,t);
   if(SRW.w&&labIn){const{x,w,h}=SRW;x.clearRect(0,0,w,h);snakeWave(x,w,h,t*.6,7+energy*9,3+energy*4,h*.5);}
   }
   // spark rain — steady drizzle of sparks from the top while rage is on
@@ -915,30 +1021,33 @@ function openJoinPopup(){
     <span class="kicker">✦ join the slime</span>
     <h3>get on the <em>list</em> ☠</h3>
     <p>first access to drops, merch &amp; shows — straight to your inbox. no spam, ever.</p>
-    <div class="joinrow" style="margin-top:16px">
+    <div class="joinrow joinrow-col" style="margin-top:16px">
       <input id="jpEmail" type="email" autocomplete="email" inputmode="email" placeholder="your@email.com" aria-label="your email">
+      <input id="jpPhone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+1 phone — optional, for SMS drops" aria-label="your phone (optional)">
       <button type="button" id="jpGo">join ☠</button>
     </div>
-    <div class="joinnote" id="jpNote" style="text-align:left">drops, merch &amp; shows only · unsubscribe anytime · we never sell your info</div>
+    <div class="joinnote" id="jpNote" style="text-align:left">drops, merch &amp; shows — email + optional SMS · unsubscribe anytime · we never sell your info</div>
     <button type="button" class="jpskip" id="jpSkip">maybe later</button>
   </div>`);
-  const email=document.getElementById('jpEmail'),go=document.getElementById('jpGo'),note=document.getElementById('jpNote'),skip=document.getElementById('jpSkip');
+  const email=document.getElementById('jpEmail'),phone=document.getElementById('jpPhone'),go=document.getElementById('jpGo'),note=document.getElementById('jpNote'),skip=document.getElementById('jpSkip');
   if(skip)skip.onclick=closeModal;
   if(go&&email&&note){
     const submit=async()=>{
-      const ev=email.value.trim();
+      const ev=email.value.trim(),pv=phone?phone.value.trim():'',digits=pv.replace(/[^\d]/g,''),gotPhone=digits.length>=10;
       if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ev)){note.textContent='✗ enter a valid email';note.classList.add('bad');email.focus();return;}
+      if(pv!==''&&digits.length<10){note.textContent='✗ enter a valid phone, or leave it blank';note.classList.add('bad');phone.focus();return;}
       note.classList.remove('bad');note.textContent='… adding you to the slime';go.disabled=true;
-      let ok=false;try{ if(typeof sbSubscribe==='function') ok=await sbSubscribe(ev,''); }catch(_){ ok=false; }
-      if(!ok){ const q=pendingGet();q.push({email:ev,phone:'',t:Date.now()});pendingSet(q); }   // queue + retry, same as the form
+      let ok=false;try{ if(typeof sbSubscribe==='function') ok=await sbSubscribe(ev,gotPhone?digits:''); }catch(_){ ok=false; }
+      if(!ok){ const q=pendingGet();q.push({email:ev,phone:gotPhone?digits:'',t:Date.now()});pendingSet(q); }   // queue + retry, same as the form
       try{localStorage.setItem('sb_joined','1');}catch(_){}
-      note.textContent='✓ you in — welcome to the slime ☠';
+      note.textContent=gotPhone?'✓ you in — email + SMS. welcome to the slime ☠':'✓ you in — welcome to the slime ☠';
       try{burst(innerWidth/2,innerHeight*.5,18,'#8dff2b');snakeLunge();}catch(_){}
       toast('☠ welcome to the slime');
       setTimeout(closeModal,1100);
     };
     go.onclick=submit;
     email.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submit();}});
+    if(phone)phone.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submit();}});
   }
 }
 function maybeJoinPopup(){
@@ -1352,7 +1461,7 @@ function applyContent(c){
 
   if(c.music){bg('#music .pwart',c.music.playerCover);
     /* keep the persistent bottom player bar (shown on every page) in sync with the CMS
-       cover; the title comes from the live playlist track (or a CMS playerTitle override). */
+       cover; the title always comes from the live playlist track that's loaded. */
     bg('#disc',c.music.playerCover);
     const emb=q('#music .embedwrap iframe');if(emb&&c.music.spotifyArtistId)emb.src=`https://open.spotify.com/embed/artist/${encodeURIComponent(c.music.spotifyArtistId)}?utm_source=generator&theme=0`;
     renderReleases(c.music.releases);
@@ -1575,6 +1684,9 @@ function sbInitPage(){
   pwplay=document.getElementById('pwplay'); if(pwplay)pwplay.onclick=toggle;
   const pwprog=document.getElementById('pwprog'); if(pwprog)pwprog.onclick=e=>{if(!isFinite(audio.duration))return;const r=pwprog.getBoundingClientRect();audio.currentTime=(e.clientX-r.left)/r.width*audio.duration;};
   const pwvol=document.getElementById('pwvol'); if(pwvol){pwvol.value=Math.round(audio.volume*100);pwvol.oninput=()=>{audio.volume=pwvol.value/100;if(ytPlayer&&ytReady){try{ytPlayer.setVolume(+pwvol.value);}catch(_){}}};}
+  const pwprev=document.getElementById('pwprev'); if(pwprev)pwprev.onclick=bgPrev;
+  const pwnext=document.getElementById('pwnext'); if(pwnext)pwnext.onclick=bgNext;
+  wireTracklist();
   const hm=document.getElementById('heroMono'); if(hm)hm.onclick=e=>slimeSplash(e.clientX,e.clientY);
   const cm=document.getElementById('contactMono'); if(cm)cm.onclick=e=>slimeSplash(e.clientX,e.clientY);
   wireMfilter(); wireMerchAlert(); wireVault(); wireTour(); wireShare(); initMerch(); wireMagnetic();

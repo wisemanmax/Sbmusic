@@ -33,7 +33,8 @@ const SB_DEFAULTS = {
     dropDate: '2026-07-04T00:00:00',
   },
   music: {
-    playerTitle: '',   /* blank = show the live playlist track's own name; set this to force a fixed label */
+    /* The player is a live tracklist — the now-playing label always reflects the loaded song,
+       so there's no fixed-title override anymore (it used to pin every page to one name). */
     playerCover: 'assets/my-time-cover.jpg',
     spotifyArtistId: '70LnkJjJc5yq650kELO09A',
     /* Background "radio": the signature track plays first, then the visitor can skip
@@ -298,7 +299,6 @@ const SB_SCHEMA = {
   'drop.presaveUrl':       { label: 'Pre-save link', type: 'url' },
   'drop.dropDate':         { label: 'Next drop date', type: 'date', hint: 'Powers the countdown. After it passes the card reads “OUT NOW”.' },
 
-  'music.playerTitle':     { label: 'Player track title' },
   'music.playerCover':     { label: 'Player cover art', type: 'image' },
   'music.spotifyArtistId': { label: 'Spotify artist ID', hint: 'The ID in open.spotify.com/artist/<ID>.' },
   'music.bgPlaylist':      { label: 'Background YouTube playlist', hint: 'Playlist ID (the list= value in a youtube.com/playlist link). Visitors skip into it with ⏭ on the music bar. Leave blank to disable.' },
