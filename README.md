@@ -28,7 +28,10 @@ and publish live.
 - **Auto-play** — the track starts on page load (falls back to the first interaction if
   the browser blocks it).
 - **Rage mode** — a takeover toggle: the snakes turn blood-red and whip faster, the audio
-  speeds up and distorts, and the screen shakes with ember bursts + red strobes.
+  distorts (no longer sped up), and the screen shakes through a configurable stack of effects
+  (fire, glitch, blood drip, TV static, strobes + more). Snake strikes, ember bursts,
+  lightning, spark rain and the heartbeat vignette are part of the base vibe and run even
+  with rage off.
 - **Videos** — a grid of clips that open a **YouTube embed** in the lightbox.
 - **Live visualizer** — real-time frequency bars/waves driven by the playing track.
 - **Music** — release grid with **all / albums / singles** filters, an in-page player
