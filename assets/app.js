@@ -850,8 +850,6 @@ function rg(ctx,w){const g=ctx.createLinearGradient(0,0,w,0);g.addColorStop(0,'#
 let levels=new Array(64).fill(0);
 function updateLevels(t){if(graphReady&&playing&&analyser&&bgMode==='local'){analyser.getByteFrequencyData(freq);for(let i=0;i<levels.length;i++)levels[i]+=(freq[i%freq.length]/255-levels[i])*.4;}else{for(let i=0;i<levels.length;i++){const b=.14+.12*Math.sin(t*.0013+i*.35)+.09*Math.sin(t*.0026+i*.7);levels[i]+=(Math.max(0,b)-levels[i])*.08;}}}
 function snakeWave(ctx,w,h,t,amp,thick,yc){ctx.save();ctx.lineCap='round';ctx.shadowColor='#ff1f2e';ctx.shadowBlur=18;const seg=70;for(let pass=0;pass<2;pass++){ctx.beginPath();for(let i=0;i<=seg;i++){const p=i/seg,x=p*w;const lv=levels[Math.floor(p*(levels.length-1))]||0;const wob=Math.sin(p*7+t*.0022+pass*1.6)*amp*(.4+lv*1.6)+Math.sin(p*3-t*.0015)*amp*.4;const y=yc+wob;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.strokeStyle=pass===0?rg(ctx,w):'rgba(255,255,255,.45)';ctx.globalAlpha=pass===0?.95:.3;ctx.lineWidth=thick*(pass===0?1:.4);ctx.stroke();}ctx.restore();}
-function bars(ctx,w,h,base){const n=levels.length,bw=w/n,cols=['#ff1f2e','#8dff2b','#9b3cff'];for(let i=0;i<n;i++){const bh=levels[i]*h*.5;const g=ctx.createLinearGradient(0,base,0,base-bh);g.addColorStop(0,cols[i%3]);g.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=g;ctx.globalAlpha=.85;ctx.fillRect(i*bw+bw*.2,base-bh,bw*.6,bh);ctx.globalAlpha=1;}}
-function ring(ctx,cx,cy,r,t){const n=48,cols=['#ff1f2e','#8dff2b','#9b3cff'];ctx.save();ctx.shadowColor='#8dff2b';ctx.shadowBlur=12;for(let i=0;i<n;i++){const a=i/n*Math.PI*2;const len=8+levels[i%levels.length]*70;ctx.strokeStyle=cols[i%3];ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);ctx.lineTo(cx+Math.cos(a)*(r+len),cy+Math.sin(a)*(r+len));ctx.lineWidth=2;ctx.stroke();}ctx.restore();}
 /* ── PLAYER VISUALIZER (music.html #pweq) ──
    The "cool graphic" that comes alive while a track plays: a mirrored neon spectrum (slime →
    alien → blood across the band), a white-hot core, a reactive wave threading the bars, plus a
@@ -891,6 +889,54 @@ function drawPlayerViz(ctx,w,h,t){
   ctx.strokeStyle='rgba(141,255,43,0.85)';ctx.lineWidth=2;ctx.shadowColor='#8dff2b';ctx.shadowBlur=7;ctx.stroke();ctx.restore();
   if(_pvParts.length){ctx.save();ctx.globalCompositeOperation='lighter';for(const p of _pvParts){p.life*=0.93;p.x+=p.vx;p.y+=p.vy;p.vy+=0.04;ctx.globalAlpha=p.life;ctx.fillStyle=p.c;ctx.shadowColor=p.c;ctx.shadowBlur=8;ctx.beginPath();ctx.arc(p.x,p.y,p.s*p.life+0.4,0,7);ctx.fill();}ctx.globalAlpha=1;ctx.restore();_pvParts=_pvParts.filter(p=>p.life>0.06);}
 }
+/* ── FREQUENCY VISUALIZER (lab.html / the "slowed" page · #vizCanvas) ──
+   The full-bleed moving backdrop behind the FREQUENCY wordmark, rebuilt as one
+   cohesive composition instead of stacked, clashing primitives: a circular
+   spectrum analyser haloing the title, a mirrored neon spectrum grounded along
+   the bottom, a reactive wave threading it, drifting embers for depth, and a
+   beat-gated bloom + spark burst on drops. Everything is additive ('lighter')
+   so it reads as glow rather than clutter, and it runs off the shared `levels`
+   band data so it reacts to whatever track is loaded. */
+let _fvParts=[],_fvBeatT=-1e9,_fvAvg=0,_fvBloom=0,_fvRot=0;
+function drawFreqViz(ctx,w,h,t,energy){
+  ctx.clearRect(0,0,w,h);
+  const cols=_pvColors(),nLv=levels.length,cx=w*0.5,cy=h*0.46;
+  if(_fvParts.length===0){const n=sbIsMobile?16:30;for(let i=0;i<n;i++)_fvParts.push({x:Math.random(),y:Math.random(),s:Math.random()*2+0.6,v:Math.random()*0.00018+0.00006,c:cols[(Math.random()*_PVN)|0]});}
+  /* beat gate — a spike above the rolling average blooms the halo + throws sparks */
+  _fvAvg+=(energy-_fvAvg)*0.06;
+  if(playing&&energy>0.11&&energy>_fvAvg*1.3&&t-_fvBeatT>180){_fvBeatT=t;_fvBloom=1;
+    for(let k=0,kn=sbIsMobile?8:16;k<kn&&_fvParts.length<150;k++){const a=Math.random()*6.283,sp=Math.random()*3+1.2;_fvParts.push({x:cx/w,y:cy/h,s:Math.random()*2+0.8,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,c:cols[(Math.random()*_PVN)|0],spark:1});}
+  }
+  _fvBloom*=0.92;
+  ctx.save();ctx.globalCompositeOperation='lighter';
+  /* (1) drifting embers — ambient depth */
+  for(const p of _fvParts){if(p.spark)continue;p.y-=p.v*(1+energy*4);if(p.y<-0.03)p.y=1.03;ctx.globalAlpha=0.16+energy*0.4;ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x*w,p.y*h,p.s,0,7);ctx.fill();}
+  ctx.globalAlpha=1;
+  /* (2) soft bloom behind the wordmark */
+  const bloom=0.12+_fvBloom*0.5+energy*0.22,rg2=ctx.createRadialGradient(cx,cy,0,cx,cy,Math.max(w,h)*0.42);
+  rg2.addColorStop(0,'rgba(141,255,43,'+(0.06*bloom).toFixed(3)+')');rg2.addColorStop(0.45,'rgba(155,60,255,'+(0.04*bloom).toFixed(3)+')');rg2.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=rg2;ctx.fillRect(0,0,w,h);
+  /* (3) circular spectrum halo around the title */
+  _fvRot+=0.0009+energy*0.0016;
+  const R=Math.min(w,h)*0.20,RING=64,lw=Math.max(1.5,w/720);
+  for(let i=0;i<RING;i++){const a=(i/RING)*6.2832+_fvRot,lv=levels[(i*2)%nLv],len=R*0.12+lv*R*0.72,c=cols[((i/RING)*_PVN)|0];
+    ctx.strokeStyle=c;ctx.lineWidth=lw;ctx.lineCap='round';ctx.shadowColor=c;ctx.shadowBlur=sbIsMobile?4:9;ctx.globalAlpha=0.9;
+    ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*R,cy+Math.sin(a)*R);ctx.lineTo(cx+Math.cos(a)*(R+len),cy+Math.sin(a)*(R+len));ctx.stroke();}
+  ctx.shadowBlur=0;ctx.globalAlpha=1;
+  /* (4) mirrored neon spectrum grounded at the bottom */
+  const N=sbIsMobile?28:48,bw=w/N,base=h-Math.min(h*0.05,34);
+  for(let i=0;i<N;i++){const lv=levels[((i*1.5)|0)%nLv],bh=Math.max(2,lv*h*0.30),x=i*bw+bw*0.5,ww=Math.max(2,bw*0.5),c=cols[((i/N)*_PVN)|0];
+    ctx.fillStyle=c;ctx.shadowColor=c;ctx.shadowBlur=sbIsMobile?5:11;ctx.fillRect(x-ww/2,base-bh,ww,bh);
+    ctx.shadowBlur=0;ctx.fillStyle='rgba(255,255,255,'+(0.16+lv*0.5).toFixed(3)+')';ctx.fillRect(x-ww*0.2,base-bh*0.5,ww*0.4,bh*0.5);}
+  /* (5) reactive wave threading above the spectrum */
+  ctx.beginPath();
+  for(let i=0;i<=N;i++){const p=i/N,x=p*w,lv=levels[((p*(nLv-1))|0)]||0,y=base-h*0.13+Math.sin(p*7+t*0.0035)*(6+lv*22);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+  ctx.strokeStyle='rgba(141,255,43,0.7)';ctx.lineWidth=2;ctx.shadowColor='#8dff2b';ctx.shadowBlur=8;ctx.stroke();ctx.shadowBlur=0;
+  /* (6) beat sparks */
+  for(const p of _fvParts){if(!p.spark)continue;p.life*=0.92;p.x+=p.vx/w;p.y+=p.vy/h;p.vy+=0.03;ctx.globalAlpha=p.life;ctx.fillStyle=p.c;ctx.shadowColor=p.c;ctx.shadowBlur=8;ctx.beginPath();ctx.arc(p.x*w,p.y*h,p.s*p.life+0.4,0,7);ctx.fill();}
+  ctx.globalAlpha=1;ctx.restore();
+  _fvParts=_fvParts.filter(p=>!p.spark||p.life>0.06);
+}
 let parts=[];for(let i=0;i<34;i++)parts.push({x:Math.random(),y:Math.random(),s:Math.random()*2+.5,v:Math.random()*.0004+.0001,c:emberC[Math.floor(Math.random()*4)]});
 
 /* The snake pit (full-page WebGL + a 2D overlay) is the heavy part of this loop.
@@ -922,7 +968,7 @@ function frame(t){
   const drawViz=!sbReduceMotion||playing;
   if(drawViz){
   if(H.w&&heroIn){const{x,w,h}=H;x.clearRect(0,0,w,h);x.save();parts.forEach(p=>{p.y-=p.v*(1+energy*3);if(p.y<0)p.y=1;x.globalAlpha=.3+energy*.5;x.fillStyle=p.c;x.beginPath();x.arc(p.x*w,p.y*h,p.s,0,7);x.fill();});x.restore();snakeWave(x,w,h,t,9+energy*8,3.5+energy*4,h*.62);}
-  if(V.w&&vizIn){const{x,w,h}=V;x.clearRect(0,0,w,h);snakeWave(x,w,h,t,16+energy*18,6+energy*9,h*.5);snakeWave(x,w,h,t*.8+500,11,3+energy*6,h*.52);ring(x,w*.5,h*.5,Math.min(w,h)*.16,t);bars(x,w,h,h);}
+  if(V.w&&vizIn){drawFreqViz(V.x,V.w,V.h,t,energy);}
   if(C.w&&conIn){const{x,w,h}=C;x.clearRect(0,0,w,h);snakeWave(x,w,h,t*.7,9+energy*6,3+energy*4,h*.5);}
   if(E.w&&musicIn)drawPlayerViz(E.x,E.w,E.h,t);
   if(SRW.w&&labIn){const{x,w,h}=SRW;x.clearRect(0,0,w,h);snakeWave(x,w,h,t*.6,7+energy*9,3+energy*4,h*.5);}
