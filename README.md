@@ -175,6 +175,11 @@ Header/CSP config ships as [`_headers`](_headers) (Netlify / Cloudflare Pages) a
 Cloudflare or host on Netlify/Cloudflare Pages/Vercel for them to apply. See
 [`SECURITY.md`](SECURITY.md).
 
+**Already on GitHub Pages and want the headers without changing hosts?** Put Cloudflare's
+free plan in front as a proxy — [`CLOUDFLARE.md`](CLOUDFLARE.md) is the step-by-step (DNS,
+TLS mode, and the header Transform Rule). `npm run cf:headers` previews the exact rule,
+derived from `vercel.json`.
+
 ## Deploy to GitHub Pages
 1. Push this repo to GitHub.
 2. **Settings → Pages → Build and deployment**: Source = *Deploy from a branch*,
@@ -195,7 +200,8 @@ on the apex domain. To finish hooking it up:
    but still tick it for the proper server-side 301 + HSTS.
 3. If you front the domain with Cloudflare, set SSL/TLS mode to **Full** and either keep
    the apex records **DNS-only** (grey cloud) until GitHub verifies the domain, or use
-   Cloudflare's CNAME-flattening to `<your-user>.github.io`.
+   Cloudflare's CNAME-flattening to `<your-user>.github.io`. Full walkthrough (free plan):
+   [`CLOUDFLARE.md`](CLOUDFLARE.md).
 
 ## Notes
 - The background track **auto-plays on load**. Browsers block *audible* autoplay until a

@@ -21,7 +21,10 @@ admin editor fails loudly on a bad content read (`sbGetContentStrict`).
 > [`vercel.json`](vercel.json) carry the header set below. **GitHub Pages ignores both** —
 > if production is bare GitHub Pages these headers are NOT active. Front the site with
 > Cloudflare (add the headers as a Transform Rule / Workers) or host on
-> Netlify / Cloudflare Pages / Vercel for them to take effect.
+> Netlify / Cloudflare Pages / Vercel for them to take effect. **Fronting GitHub Pages with
+> Cloudflare's free plan is documented end-to-end in [`CLOUDFLARE.md`](CLOUDFLARE.md)** —
+> including a `cloudflare/apply-headers.mjs` helper that turns the set below into the
+> Transform Rule (sourced from `vercel.json`, so it can't drift).
 >
 > **HTTPS is also enforced in-page** so it holds even on bare GitHub Pages: every `*.html`
 > carries `<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">`
