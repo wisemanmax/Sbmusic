@@ -92,7 +92,7 @@ setTimeout(hideLoader,2600); /* safety: never let the loader trap the page */
 
 /* NAV */
 const nav=document.getElementById('nav');
-addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>40));
+addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>40),{passive:true});
 const burger=document.getElementById('burger');
 function setMenu(open){nav.classList.toggle('open',open);burger.setAttribute('aria-expanded',open?'true':'false');}
 burger.onclick=()=>setMenu(!nav.classList.contains('open'));
@@ -122,14 +122,22 @@ const hoverEls='a,button,.rel,.vcard,.upanel,.prod,.disc,.pwplay,.sbmono';
    depends on frame budget. */
 function placeCursor(x,y){ if(cursor) cursor.style.transform='translate3d('+x+'px,'+y+'px,0) translate(-50%,-50%)'; }
 placeCursor(mx,my);
-addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;placeCursor(mx,my);emit(e.clientX,e.clientY,1);
-  const hx=(e.clientX/innerWidth-.5),hy=(e.clientY/innerHeight-.5);const hi=document.getElementById('heroinner');if(hi){hi.style.setProperty('--px',(hx*16)+'px');hi.style.setProperty('--py',(hy*12)+'px');}},{passive:true});
+/* Keep this handler featherweight: update the shared pointer + place the ring (a GPU
+   transform) synchronously so the cursor tracks the mouse 1:1, but defer the heavier work
+   — ember spawn + hero parallax style writes — to the capped render loop. Doing all of it
+   on every raw mousemove flooded the main thread on high-rate mice/monitors and was a big
+   part of the "sluggish cursor" on desktop. */
+let _mouseMoved=false,heroInnerEl=null;
+addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;placeCursor(mx,my);_mouseMoved=true;},{passive:true});
 document.addEventListener('mouseover',e=>{if(e.target.closest(hoverEls))cursor.classList.add('big')});
 document.addEventListener('mouseout',e=>{if(e.target.closest(hoverEls))cursor.classList.remove('big')});
 const tcv=document.getElementById('trail'),tctx=tcv.getContext('2d');
 let embers=[];const emberC=['#ff1f2e','#8dff2b','#9b3cff','#b6ff5a'];
 /* honor the OS "reduce motion" setting: no passive cursor-trail embers, calmer loops */
 const sbReduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* coarse-pointer / small-screen = phone or tablet. Used to trim the heaviest audio + render
+   work (e.g. the lab reverb impulse) so the lab and visualizers stay smooth on mobile. */
+const sbIsMobile=matchMedia('(pointer:coarse)').matches||innerWidth<700;
 function emit(x,y,n){if(sbReduceMotion)return;for(let i=0;i<n;i++){if(Math.random()<.5)embers.push({x,y,vx:(Math.random()-.5)*.6,vy:-Math.random()*1.2-.3,life:1,c:emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*2.4+.8})}if(embers.length>180)embers.splice(0,embers.length-180);}
 function burst(x,y,n,c){for(let i=0;i<n;i++){const a=Math.random()*7,sp=Math.random()*4+1;embers.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:1,c:c||emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*3+1})}}
 function sizeTrail(){tcv.width=innerWidth;tcv.height=innerHeight;}sizeTrail();
@@ -173,7 +181,9 @@ function ensureCtx(){if(!actx){try{
     noiseBuf=actx.createBuffer(1,actx.sampleRate,actx.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
     rebuildImpulse();applyAudioFx();
   }catch(e){}}if(actx&&actx.state==='suspended')actx.resume();}
-function rebuildImpulse(){if(!actx||!conv)return;const sec=0.4+roomP*3.6,rate=actx.sampleRate,len=Math.max(1,Math.floor(sec*rate));const buf=actx.createBuffer(2,len,rate);for(let ch=0;ch<2;ch++){const d=buf.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.5);}conv.buffer=buf;}
+/* Reverb tail. The convolution runs in real time, so a long stereo impulse is costly on
+   phones — cap it on mobile (still a full, roomy tail) so the lab reverb doesn't stutter. */
+function rebuildImpulse(){if(!actx||!conv)return;const sec=Math.min(sbIsMobile?2.0:4.0,0.4+roomP*3.6),rate=actx.sampleRate,len=Math.max(1,Math.floor(sec*rate));const buf=actx.createBuffer(2,len,rate);for(let ch=0;ch<2;ch++){const d=buf.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.5);}conv.buffer=buf;}
 function rageRate(){return Math.min(1.3,Math.max(1.12,userRate+0.32));}
 function applyAudioFx(){if(!actx)return;const t=actx.currentTime;
   if(dry)dry.gain.setTargetAtTime((rageOn?0.72:1)*(1-revAmt*0.35),t,0.03);
@@ -191,6 +201,21 @@ function setUI(on){playing=on;const ic=on?'❚❚':'▶';if(pbtn)pbtn.textConten
 function toggle(){if(bgMode==='yt'){if(ytIsPlaying())ytPause();else ytPlay();return;}if(audio.paused)startAudio();else{audio.pause();setUI(false);}}
 if(pbtn)pbtn.onclick=toggle;if(disc)disc.onclick=toggle;
 audio.addEventListener('play',()=>{if(bgMode==='local')setUI(true);});audio.addEventListener('pause',()=>{if(bgMode==='local')setUI(false);});
+
+/* ===================== CONTENT PROTECTION =====================
+   The catalog streams from the site but shouldn't be casually downloadable. There's no
+   visible <audio controls> (so no native "save audio" item already), and on top of that we
+   block the right-click "Save…" menu and drag-to-save on the player + artwork, strip any
+   download intent, and refuse Ctrl/Cmd+S. The MP3 is also served Content-Disposition: inline
+   + X-Robots-Tag: noindex (see _headers / vercel.json) so hosts that honor it don't offer it
+   as a download or index it. NOTE: anything that plays in a browser is, by nature, reachable
+   to a determined user via devtools/network — this raises the bar against casual saving, it
+   is not DRM. */
+const PROTECT_SEL='img,audio,video,canvas,picture,.cover,.art,.pwart,.srart,.disc,.playerwin,.srwrap,.musicbar,.mhead,.dropfeat .cover';
+addEventListener('contextmenu',e=>{if(e.target.closest(PROTECT_SEL)){e.preventDefault();toast('☠ downloads are disabled');}});
+addEventListener('dragstart',e=>{if(e.target.closest(PROTECT_SEL))e.preventDefault();});
+addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&!e.altKey&&(e.key==='s'||e.key==='S')){e.preventDefault();toast('☠ downloads are disabled');}},{capture:true});
+try{audio.removeAttribute('controls');audio.setAttribute('controlsList','nodownload noplaybackrate noremoteplayback');audio.disableRemotePlayback=true;}catch(_){}
 
 /* ── BACKGROUND RADIO (local track + YouTube playlist) ──
    The signature MP3 is track #1 and powers all the Web Audio fx (visualizer, lab,
@@ -224,7 +249,7 @@ audio.addEventListener('loadedmetadata',()=>{const d=fmt(audio.duration);const p
 audio.addEventListener('timeupdate',()=>{const c=fmt(audio.currentTime),pct=(audio.currentTime/audio.duration*100||0)+'%';const pwcur=document.getElementById('pwcur'),pwfill=document.getElementById('pwprogfill');if(pwcur)pwcur.textContent=c;if(pwfill)pwfill.style.width=pct;const sc=document.getElementById('srCur'),sf=document.getElementById('srProgFill');if(sc)sc.textContent=c;if(sf)sf.style.width=pct;});
 /* BACK TO TOP */
 const totop=document.getElementById('totop');totop.onclick=()=>scrollTo({top:0,behavior:'smooth'});
-addEventListener('scroll',()=>totop.classList.toggle('show',scrollY>600));
+addEventListener('scroll',()=>totop.classList.toggle('show',scrollY>600),{passive:true});
 /* SPACEBAR = play/pause (when not typing / not on a control) */
 addEventListener('keydown',e=>{if(e.code==='Space'&&!isTyping()&&!e.target.closest('button,a,input,[role=button]')){e.preventDefault();toggle();}});
 disc.addEventListener('keydown',e=>{if(e.key==='Enter'||e.code==='Space'){e.preventDefault();toggle();}});
@@ -699,10 +724,27 @@ function eqbars(ctx,w,h){const n=22,bw=w/n,cols=['#ff1f2e','#8dff2b','#9b3cff'];
 let parts=[];for(let i=0;i<34;i++)parts.push({x:Math.random(),y:Math.random(),s:Math.random()*2+.5,v:Math.random()*.0004+.0001,c:emberC[Math.floor(Math.random()*4)]});
 
 /* The snake pit (full-page WebGL + a 2D overlay) is the heavy part of this loop.
-   Cap it to ~40fps and skip it entirely inside the admin preview iframe. The rest of
-   the loop (cursor trail, visualizers) still runs every frame so it stays smooth. */
-let _snakeLast=-1e9; const SNAKE_DT=1000/40;
-function frame(t){updateLevels(t);const energy=levels.reduce((a,b)=>a+b,0)/levels.length+(rageOn?0.35:0);
+   Cap it to ~30fps and skip it entirely inside the admin preview iframe. It's a soft,
+   blurred, slow-drifting background, so 30fps is imperceptible but meaningfully cheaper —
+   which frees the main thread/GPU on desktop and the audio thread on mobile. */
+let _snakeLast=-1e9; const SNAKE_DT=1000/30;
+/* Master loop cap (~60fps). High-refresh desktop monitors (120/144/165Hz) fire rAF at the
+   panel's rate, so every heavy frame (WebGL pit + canvas visualizers) ran 2–3× more often
+   than needed and saturated the main thread — which delayed pointer/scroll events into the
+   "sluggish cursor + navigation" on desktop. 60Hz displays are unaffected; phones (≤60/120,
+   browser-throttled) stay smooth. */
+let _frameLast=-1e9; const FRAME_DT=14;
+function frame(t){
+  requestAnimationFrame(frame);
+  if(t-_frameLast<FRAME_DT)return;        // throttle high-refresh displays to ~60fps
+  _frameLast=t;
+  // deferred pointer work — kept off the raw mousemove so the cursor itself tracks 1:1
+  if(_mouseMoved){_mouseMoved=false;
+    emit(mx,my,1);
+    if(heroIn){const hi=heroInnerEl||(heroInnerEl=document.getElementById('heroinner'));
+      if(hi){hi.style.setProperty('--px',((mx/innerWidth-.5)*16)+'px');hi.style.setProperty('--py',((my/innerHeight-.5)*12)+'px');}}
+  }
+  updateLevels(t);const energy=levels.reduce((a,b)=>a+b,0)/levels.length+(rageOn?0.35:0);
   // SNAKE PIT (full page) — throttled; runs much slower under reduced-motion
   const snakeDt=sbReduceMotion?100:SNAKE_DT;
   if(!SB_PREVIEW && (t-_snakeLast)>=snakeDt){ _snakeLast=t; drawSnakes(t,energy); }
@@ -724,9 +766,11 @@ function frame(t){updateLevels(t);const energy=levels.reduce((a,b)=>a+b,0)/level
     tctx.globalAlpha=1;tctx.shadowBlur=0;embers=embers.filter(p=>p.life>.05);
     if(bolts.length)drawBolts();
     if(!embers.length&&!bolts.length)tctx.clearRect(0,0,tcv.width,tcv.height);}
-  requestAnimationFrame(frame);}
-requestAnimationFrame(frame);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){resizeAll();sizeSnake();}});
+}
+requestAnimationFrame(frame);   // next frame is scheduled at the top of frame()
+/* coming back to the tab: resize the canvases and, on mobile especially, resume the audio
+   context iOS suspends on background/interruption so the lab + player keep their sound. */
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){resizeAll();sizeSnake();if(actx&&actx.state==='suspended'&&playing){actx.resume().catch(()=>{});}}});
 
 /* RAGE MODE — faster + distorted audio, red snake pit, and a configurable stack of
    effects. Which effects fire is content-driven (SB.rageFx, edited in the admin) so
@@ -816,6 +860,55 @@ async function signbook(){
   }
   burst(innerWidth/2,innerHeight*.7,20,'#8dff2b');snakeLunge();
 }
+
+/* ===================== JOIN POPUP — first-visit email capture =====================
+   A one-time, dismissible modal that asks new visitors onto the slime list to pull in more
+   sign-ups. Reuses the accessible modal (focus trap + Esc) and the SAME Supabase sign-up
+   path as the connect page — including the queue-on-failure fallback, so a missed write is
+   retried, never dropped, and no permanent PII list is kept. Shown once per visitor; skipped
+   for the admin preview and for automation/crawlers. */
+function openJoinPopup(){
+  try{localStorage.setItem('sb_joinpop','1');}catch(_){}     // remember we showed it (once per visitor)
+  openModal(`<div class="mbody joinpop">
+    <span class="kicker">✦ join the slime</span>
+    <h3>get on the <em>list</em> ☠</h3>
+    <p>first access to drops, merch &amp; shows — straight to your inbox. no spam, ever.</p>
+    <div class="joinrow" style="margin-top:16px">
+      <input id="jpEmail" type="email" autocomplete="email" inputmode="email" placeholder="your@email.com" aria-label="your email">
+      <button type="button" id="jpGo">join ☠</button>
+    </div>
+    <div class="joinnote" id="jpNote" style="text-align:left">drops, merch &amp; shows only · unsubscribe anytime · we never sell your info</div>
+    <button type="button" class="jpskip" id="jpSkip">maybe later</button>
+  </div>`);
+  const email=document.getElementById('jpEmail'),go=document.getElementById('jpGo'),note=document.getElementById('jpNote'),skip=document.getElementById('jpSkip');
+  if(skip)skip.onclick=closeModal;
+  if(go&&email&&note){
+    const submit=async()=>{
+      const ev=email.value.trim();
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ev)){note.textContent='✗ enter a valid email';note.classList.add('bad');email.focus();return;}
+      note.classList.remove('bad');note.textContent='… adding you to the slime';go.disabled=true;
+      let ok=false;try{ if(typeof sbSubscribe==='function') ok=await sbSubscribe(ev,''); }catch(_){ ok=false; }
+      if(!ok){ const q=pendingGet();q.push({email:ev,phone:'',t:Date.now()});pendingSet(q); }   // queue + retry, same as the form
+      try{localStorage.setItem('sb_joined','1');}catch(_){}
+      note.textContent='✓ you in — welcome to the slime ☠';
+      try{burst(innerWidth/2,innerHeight*.5,18,'#8dff2b');snakeLunge();}catch(_){}
+      toast('☠ welcome to the slime');
+      setTimeout(closeModal,1100);
+    };
+    go.onclick=submit;
+    email.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submit();}});
+  }
+}
+function maybeJoinPopup(){
+  try{
+    if(SB_PREVIEW||navigator.webdriver)return;                 // never in the admin preview or under automation/crawlers
+    if(localStorage.getItem('sb_joinpop')||localStorage.getItem('sb_joined'))return;   // once per visitor; not if already in
+    if(pendingGet().length)return;                             // they already tried to join (queued)
+    const arm=()=>setTimeout(()=>{ if(!modal.classList.contains('open')) openJoinPopup(); },1400);
+    if(document.readyState==='complete')arm(); else addEventListener('load',arm,{once:true});
+  }catch(_){}
+}
+
 let seq='';addEventListener('keydown',e=>{if(e.metaKey||e.ctrlKey||e.altKey||isTyping())return;seq=(seq+e.key.toLowerCase()).slice(-5);if(seq==='slime'){for(let i=0;i<60;i++)setTimeout(()=>burst(innerWidth*Math.random(),innerHeight,8,'#8dff2b'),i*20);stab();snakeLunge();toast('☠ SLIME UNLOCKED ☠');}});
 
 /* ===================== FLESH-OUT FEATURES ===================== */
@@ -977,9 +1070,11 @@ function wireLab(){
   srRoom=document.getElementById('srRoom');srRoomV=document.getElementById('srRoomV');
   srPlayBtn=document.getElementById('srPlay');srProgEl=document.getElementById('srProg');srModeEl=document.getElementById('srMode');
   if(!srSpeed&&!srReverb&&!srPlayBtn)return false;   // not the lab page
-  if(srSpeed)srSpeed.oninput=()=>{setSpeed(+srSpeed.value);markPreset(null);};
-  if(srReverb)srReverb.oninput=()=>{setReverb(+srReverb.value);markPreset(null);};
-  if(srRoom){srRoom.oninput=()=>{setRoom(+srRoom.value);markPreset(null);};srRoom.onchange=()=>rebuildImpulse();}
+  /* ensureCtx() on each knob: a touch-drag is a user gesture, so this creates/resumes the
+     audio context on mobile (where it starts suspended) and the reverb actually engages. */
+  if(srSpeed)srSpeed.oninput=()=>{ensureCtx();setSpeed(+srSpeed.value);markPreset(null);};
+  if(srReverb)srReverb.oninput=()=>{ensureCtx();setReverb(+srReverb.value);markPreset(null);};
+  if(srRoom){srRoom.oninput=()=>{ensureCtx();setRoom(+srRoom.value);markPreset(null);};srRoom.onchange=()=>rebuildImpulse();}
   document.querySelectorAll('.srpresets button').forEach(b=>b.onclick=()=>{ensureCtx();applyPreset(b.dataset.preset);if(audio.paused)startAudio();});
   if(srPlayBtn)srPlayBtn.onclick=toggle;
   if(srProgEl)srProgEl.onclick=e=>{if(!isFinite(audio.duration))return;const r=srProgEl.getBoundingClientRect();audio.currentTime=(e.clientX-r.left)/r.width*audio.duration;};
@@ -1431,6 +1526,7 @@ function deepLinkJoin(){ if(/join/.test(location.hash)){const g=document.getElem
    one-time chrome / audio graph / snake pit / global listeners set up above are never
    re-run here, so nothing double-binds and the music keeps playing. */
 function sbInitPage(){
+  heroInnerEl=null;       // <main> was swapped — drop the cached hero-parallax node
   resizeAll();            // re-grab + size this page's visualizer canvases
   setupCulling();         // re-observe on-screen sections for render culling
   observeReveals();       // reveal-on-scroll for the new content
@@ -1456,3 +1552,6 @@ sbInitPage();
 
 /* retry any sign-ups that were queued while the backend was unreachable, then forget them */
 if(!SB_PREVIEW){try{flushPending();}catch(_){}}
+
+/* first-visit: invite new visitors onto the slime list (once per visitor) */
+maybeJoinPopup();
