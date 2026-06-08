@@ -75,11 +75,16 @@ try {
     const page = await browser.newPage();
     const errs = []; page.on('pageerror', e => errs.push(e.message));
     await page.goto(base + '/index.html', { waitUntil: 'load' });
+    await page.waitForTimeout(800);
+    // Music starts on the first real interaction — browsers block autoplay-with-sound, and we no
+    // longer fire a blocked play() on load (a pending blocked play resolved late and fought the
+    // play button: start → instant pause). A tap on a neutral spot is the gesture that starts it.
+    await page.mouse.click(8, 300);
     await page.waitForTimeout(1200);
     await page.evaluate(() => { window.__alive = 'Y'; document.getElementById('audio').__persist = 'KEEP'; });
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(800);
     const home = await page.evaluate(() => ({ paused: audio.paused, t: audio.currentTime, rate: audio.playbackRate }));
-    check('index: playing at normal rate (≈1.0)', !home.paused && Math.abs(home.rate-1) < 0.001, 'rate='+home.rate);
+    check('index: starts on first interaction at normal rate (≈1.0)', !home.paused && Math.abs(home.rate-1) < 0.001, 'rate='+home.rate);
     await page.click('#nav .navlinks a[href="music.html"]');
     await page.waitForFunction(() => location.pathname.endsWith('music.html'), null, { timeout: 5000 });
     await page.waitForTimeout(1200);
@@ -92,12 +97,40 @@ try {
     await page.waitForTimeout(900);
     const lab = await page.evaluate(() => ({ rate: audio.playbackRate, paused: audio.paused }));
     check('lab: playback is slowed (< 0.95)', lab.rate < 0.95 && !lab.paused, 'rate='+lab.rate);
+    // the lab now has its own "load a track" picker — every catalog song selectable, bent
+    const labRows = await page.$$eval('#srTracks .trk', els => els.length);
+    check('lab: track picker lists the catalog', labRows === 10, 'rows='+labRows);
+    const labPick = await page.evaluate(async () => {
+      const row = document.querySelector('#srTracks .trk[data-i="4"]');
+      row.click();                                   // load a different song into the bender
+      await new Promise(s => setTimeout(s, 900));
+      return { idx: trackIdx, paused: audio.paused, rate: audio.playbackRate, t: audio.currentTime,
+               active: !!document.querySelector('#srTracks .trk[data-i="4"].active') };
+    });
+    check('lab: picking a track loads + plays it, still slowed', labPick.idx === 4 && !labPick.paused && labPick.t > 0.2 && labPick.rate < 0.95 && labPick.active, JSON.stringify(labPick));
     await page.click('#nav .navlinks a[href="music.html"]');
     await page.waitForFunction(() => location.pathname.endsWith('music.html'), null, { timeout: 5000 });
     await page.waitForTimeout(600);
     const back = await page.evaluate(() => audio.playbackRate);
     check('leaving lab restores normal rate', Math.abs(back-1) < 0.001, 'rate='+back);
     check('player flow: no JS errors', errs.length === 0, errs.join(' | '));
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------
+  // Regression: the very first thing a visitor does is click the play button. The first-
+  // interaction "kick" must not race the button's own toggle (kick starts → toggle pauses), or
+  // the player looks dead. Each control, clicked cold as the first gesture, must START the track.
+  group('transport: first click on a play control starts the music');
+  for (const sel of ['#pwplay', '#pbtn', '#disc']) {
+    const page = await browser.newPage();
+    const errs = []; page.on('pageerror', e => errs.push(e.message));
+    await page.goto(base + '/music.html', { waitUntil: 'load' });
+    await page.waitForTimeout(700);
+    await page.click(sel);                       // the visitor's FIRST interaction
+    await page.waitForTimeout(1400);
+    const s = await page.evaluate(() => ({ paused: audio.paused, t: audio.currentTime }));
+    check(`first click ${sel} → plays (not paused by the kick)`, !s.paused && s.t > 0.3, JSON.stringify(s) + (errs.length ? ' err:'+errs[0] : ''));
     await page.close();
   }
 
@@ -249,7 +282,7 @@ try {
       first: (LOCAL_TRACKS[0]||{}).title, last: (LOCAL_TRACKS[LOCAL_TRACKS.length-1]||{}).title,
     }));
     check('playlist: skip buttons present in the music bar', has.prev && has.next);
-    check('playlist: My Time catalog + Man Of My Word loaded in order', has.count === 11 && has.first === 'My Time' && has.last === 'Man Of My Word', 'count='+has.count);
+    check('playlist: My Time catalog + Man Of My Word loaded in order', has.count === 10 && has.first === 'My Time' && has.last === 'Man Of My Word', 'count='+has.count);
     const r = await page.evaluate(async () => {
       loadTrack(0, true);
       await new Promise(s => setTimeout(s, 250));
@@ -277,13 +310,15 @@ try {
     check('playlist: index wraps around both ends', wrap.a === 0 && wrap.b === wrap.last, JSON.stringify(wrap));
     const skip = await page.evaluate(async () => {
       _skipGuard = 0;
-      loadTrack(3, true);   // NightTime — an empty/corrupt upload that can't decode
-      await new Promise(s => setTimeout(s, 1000));
-      const landed = trackIdx;
+      loadTrack(2, false);                       // sit on a known-good track
+      const before = trackIdx;
+      audio.dispatchEvent(new Event('error'));   // a track that won't decode (e.g. a bad upload)
+      await new Promise(s => setTimeout(s, 200));
+      const after = trackIdx;
       loadTrack(0, false);  // reset for the next sub-test
-      return landed;
+      return { before, after };
     });
-    check('playlist: a broken track is auto-skipped, not stuck', skip !== 3, 'idx='+skip);
+    check('playlist: an undecodable track is auto-skipped, not stuck', skip.after === skip.before + 1, JSON.stringify(skip));
     const duck = await page.evaluate(async () => {
       loadTrack(0, true);
       await new Promise(s => setTimeout(s, 250));
