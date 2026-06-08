@@ -57,7 +57,7 @@ function buildChrome(){
 </div>
 <button class="totop" id="totop" aria-label="back to top">↑</button>
 <button class="helpbtn" id="helpbtn" aria-label="keyboard shortcuts" title="keyboard shortcuts">?</button>
-<audio id="audio" loop preload="auto" src="assets/man-of-my-word.mp3" crossorigin="anonymous"></audio>
+<audio id="audio" preload="auto" crossorigin="anonymous"></audio>
 <div id="ytbg" aria-hidden="true"></div>
 <div id="toasts" aria-live="polite"></div>
 <div class="modal" id="modal" role="dialog" aria-modal="true" aria-hidden="true">
@@ -92,7 +92,7 @@ setTimeout(hideLoader,2600); /* safety: never let the loader trap the page */
 
 /* NAV */
 const nav=document.getElementById('nav');
-addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>40));
+addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>40),{passive:true});
 const burger=document.getElementById('burger');
 function setMenu(open){nav.classList.toggle('open',open);burger.setAttribute('aria-expanded',open?'true':'false');}
 burger.onclick=()=>setMenu(!nav.classList.contains('open'));
@@ -122,20 +122,50 @@ const hoverEls='a,button,.rel,.vcard,.upanel,.prod,.disc,.pwplay,.sbmono';
    depends on frame budget. */
 function placeCursor(x,y){ if(cursor) cursor.style.transform='translate3d('+x+'px,'+y+'px,0) translate(-50%,-50%)'; }
 placeCursor(mx,my);
-addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;placeCursor(mx,my);emit(e.clientX,e.clientY,1);
-  const hx=(e.clientX/innerWidth-.5),hy=(e.clientY/innerHeight-.5);const hi=document.getElementById('heroinner');if(hi){hi.style.setProperty('--px',(hx*16)+'px');hi.style.setProperty('--py',(hy*12)+'px');}},{passive:true});
+/* Keep this handler featherweight: update the shared pointer + place the ring (a GPU
+   transform) synchronously so the cursor tracks the mouse 1:1, but defer the heavier work
+   — ember spawn + hero parallax style writes — to the capped render loop. Doing all of it
+   on every raw mousemove flooded the main thread on high-rate mice/monitors and was a big
+   part of the "sluggish cursor" on desktop. */
+let _mouseMoved=false,heroInnerEl=null;
+addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;placeCursor(mx,my);_mouseMoved=true;},{passive:true});
 document.addEventListener('mouseover',e=>{if(e.target.closest(hoverEls))cursor.classList.add('big')});
 document.addEventListener('mouseout',e=>{if(e.target.closest(hoverEls))cursor.classList.remove('big')});
 const tcv=document.getElementById('trail'),tctx=tcv.getContext('2d');
 let embers=[];const emberC=['#ff1f2e','#8dff2b','#9b3cff','#b6ff5a'];
 /* honor the OS "reduce motion" setting: no passive cursor-trail embers, calmer loops */
 const sbReduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* coarse-pointer / small-screen = phone or tablet. Used to trim the heaviest audio + render
+   work (e.g. the lab reverb impulse) so the lab and visualizers stay smooth on mobile. */
+const sbIsMobile=matchMedia('(pointer:coarse)').matches||innerWidth<700;
 function emit(x,y,n){if(sbReduceMotion)return;for(let i=0;i<n;i++){if(Math.random()<.5)embers.push({x,y,vx:(Math.random()-.5)*.6,vy:-Math.random()*1.2-.3,life:1,c:emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*2.4+.8})}if(embers.length>180)embers.splice(0,embers.length-180);}
 function burst(x,y,n,c){for(let i=0;i<n;i++){const a=Math.random()*7,sp=Math.random()*4+1;embers.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:1,c:c||emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*3+1})}}
 function sizeTrail(){tcv.width=innerWidth;tcv.height=innerHeight;}sizeTrail();
 
 /* AUDIO GRAPH */
 const audio=document.getElementById('audio');audio.volume=.55;
+/* ── LOCAL PLAYLIST ──
+   The player spins Slime By's own catalog: the "My Time" tracks in order, then the signature
+   "Man Of My Word", then it loops. Prev/next cycle these; a track that fails to load (e.g. a
+   bad upload) is skipped so it never stalls the queue. Titles come from the filenames so the
+   bar shows the real song name. Reverb / the lab / the visualizer all run off this one
+   <audio> element, so they keep working on whatever is playing. */
+const LOCAL_TRACKS=[
+  {src:'assets/mp3 my time/1) My Time.mp3',                  title:'My Time'},
+  {src:'assets/mp3 my time/2) Turn This Up.mp3',             title:'Turn This Up'},
+  {src:'assets/mp3 my time/3) Blowing Up ft SmokesAlot.mp3', title:'Blowing Up (ft. SmokesAlot)'},
+  {src:'assets/mp3 my time/3) NightTime.mp3',                title:'NightTime'},
+  {src:'assets/mp3 my time/5) Money like this .mp3',         title:'Money Like This'},
+  {src:'assets/mp3 my time/5)Flip .mp3',                     title:'Flip'},
+  {src:'assets/mp3 my time/7) High As It Gets .mp3',         title:'High As It Gets'},
+  {src:'assets/mp3 my time/8)Blitz FT junad.mp3',            title:'Blitz (ft. Junad)'},
+  {src:'assets/mp3 my time/9) BlackOut .mp3',                title:'BlackOut'},
+  {src:'assets/mp3 my time/10) Loosing Me .mp3',             title:'Loosing Me'},
+  {src:'assets/man-of-my-word.mp3',                          title:'Man Of My Word'},
+];
+let trackIdx=0;
+function curTrack(){return LOCAL_TRACKS[trackIdx]||LOCAL_TRACKS[0];}
+function trackUrl(t){return encodeURI(t.src);}   // paths contain spaces → encode for the <audio src>
 const pbtn=document.getElementById('pbtn'),disc=document.getElementById('disc'),musicbar=document.getElementById('musicbar');
 let pwplay=null;   // music.html transport button — re-queried on every (client-side) page change
 let actx,analyser,srcNode,mix,shaper,dry,conv,wet,freq,graphReady=false,playing=false,noiseBuf;
@@ -150,9 +180,11 @@ let labRate=0.80,labRev=0.30,labRoom=0.55;
    destroyed and playback simply continues across pages. We still persist transport
    (position / volume / play state) so a hard reload picks up where it left off. */
 const SB_AUDIO_KEY='sb_audio',SB_LAB_KEY='sb_lab';let _seekTo=null,_resumeWanted=false,_hadAudioState=false;
-try{const s=JSON.parse(sessionStorage.getItem(SB_AUDIO_KEY)||'null');if(s){_hadAudioState=true;if(typeof s.vol==='number')audio.volume=s.vol;if(typeof s.t==='number'&&isFinite(s.t))_seekTo=s.t;_resumeWanted=!!s.playing;}}catch(_){}
+try{const s=JSON.parse(sessionStorage.getItem(SB_AUDIO_KEY)||'null');if(s){_hadAudioState=true;if(typeof s.vol==='number')audio.volume=s.vol;if(typeof s.t==='number'&&isFinite(s.t))_seekTo=s.t;_resumeWanted=!!s.playing;if(typeof s.idx==='number')trackIdx=s.idx;}}catch(_){}
+trackIdx=Math.max(0,Math.min(trackIdx|0,LOCAL_TRACKS.length-1));   // keep a restored index in range
+try{audio.src=trackUrl(curTrack());}catch(_){}                      // engage the current track (markup has no src now)
 try{const l=JSON.parse(sessionStorage.getItem(SB_LAB_KEY)||'null');if(l){if(typeof l.rate==='number')labRate=l.rate;if(typeof l.rev==='number')labRev=l.rev;if(typeof l.room==='number')labRoom=l.room;}}catch(_){}
-function saveAudioState(){try{sessionStorage.setItem(SB_AUDIO_KEY,JSON.stringify({t:audio.currentTime||0,vol:audio.volume,playing:!audio.paused}));}catch(_){}}
+function saveAudioState(){try{sessionStorage.setItem(SB_AUDIO_KEY,JSON.stringify({t:audio.currentTime||0,vol:audio.volume,playing:!audio.paused,idx:trackIdx}));}catch(_){}}
 function saveLabState(){try{sessionStorage.setItem(SB_LAB_KEY,JSON.stringify({rate:labRate,rev:labRev,room:labRoom}));}catch(_){}}
 addEventListener('pagehide',saveAudioState);addEventListener('beforeunload',saveAudioState);
 try{audio.preservesPitch=false;audio.mozPreservesPitch=false;audio.webkitPreservesPitch=false;}catch(_){}
@@ -173,7 +205,9 @@ function ensureCtx(){if(!actx){try{
     noiseBuf=actx.createBuffer(1,actx.sampleRate,actx.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
     rebuildImpulse();applyAudioFx();
   }catch(e){}}if(actx&&actx.state==='suspended')actx.resume();}
-function rebuildImpulse(){if(!actx||!conv)return;const sec=0.4+roomP*3.6,rate=actx.sampleRate,len=Math.max(1,Math.floor(sec*rate));const buf=actx.createBuffer(2,len,rate);for(let ch=0;ch<2;ch++){const d=buf.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.5);}conv.buffer=buf;}
+/* Reverb tail. The convolution runs in real time, so a long stereo impulse is costly on
+   phones — cap it on mobile (still a full, roomy tail) so the lab reverb doesn't stutter. */
+function rebuildImpulse(){if(!actx||!conv)return;const sec=Math.min(sbIsMobile?2.0:4.0,0.4+roomP*3.6),rate=actx.sampleRate,len=Math.max(1,Math.floor(sec*rate));const buf=actx.createBuffer(2,len,rate);for(let ch=0;ch<2;ch++){const d=buf.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.5);}conv.buffer=buf;}
 function rageRate(){return Math.min(1.3,Math.max(1.12,userRate+0.32));}
 function applyAudioFx(){if(!actx)return;const t=actx.currentTime;
   if(dry)dry.gain.setTargetAtTime((rageOn?0.72:1)*(1-revAmt*0.35),t,0.03);
@@ -191,6 +225,28 @@ function setUI(on){playing=on;const ic=on?'❚❚':'▶';if(pbtn)pbtn.textConten
 function toggle(){if(bgMode==='yt'){if(ytIsPlaying())ytPause();else ytPlay();return;}if(audio.paused)startAudio();else{audio.pause();setUI(false);}}
 if(pbtn)pbtn.onclick=toggle;if(disc)disc.onclick=toggle;
 audio.addEventListener('play',()=>{if(bgMode==='local')setUI(true);});audio.addEventListener('pause',()=>{if(bgMode==='local')setUI(false);});
+/* the <audio> is no longer loop-attributed: advance the playlist when a track finishes. */
+audio.addEventListener('ended',()=>{if(bgMode==='local')bgNext();});
+/* a track that won't load (e.g. a corrupt/empty upload) is skipped so it never stalls the
+   queue — guarded so an all-bad list can't spin forever; the guard resets on a good load. */
+let _skipGuard=0;
+audio.addEventListener('error',()=>{if(bgMode!=='local')return;if(_skipGuard++>=LOCAL_TRACKS.length)return;loadTrack(trackIdx+1,playing||_resumeWanted);});
+audio.addEventListener('canplay',()=>{_skipGuard=0;});
+
+/* ===================== CONTENT PROTECTION =====================
+   The catalog streams from the site but shouldn't be casually downloadable. There's no
+   visible <audio controls> (so no native "save audio" item already), and on top of that we
+   block the right-click "Save…" menu and drag-to-save on the player + artwork, strip any
+   download intent, and refuse Ctrl/Cmd+S. The MP3 is also served Content-Disposition: inline
+   + X-Robots-Tag: noindex (see _headers / vercel.json) so hosts that honor it don't offer it
+   as a download or index it. NOTE: anything that plays in a browser is, by nature, reachable
+   to a determined user via devtools/network — this raises the bar against casual saving, it
+   is not DRM. */
+const PROTECT_SEL='img,audio,video,canvas,picture,.cover,.art,.pwart,.srart,.disc,.playerwin,.srwrap,.musicbar,.mhead,.dropfeat .cover';
+addEventListener('contextmenu',e=>{if(e.target.closest(PROTECT_SEL)){e.preventDefault();toast('☠ downloads are disabled');}});
+addEventListener('dragstart',e=>{if(e.target.closest(PROTECT_SEL))e.preventDefault();});
+addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&!e.altKey&&(e.key==='s'||e.key==='S')){e.preventDefault();toast('☠ downloads are disabled');}},{capture:true});
+try{audio.removeAttribute('controls');audio.setAttribute('controlsList','nodownload noplaybackrate noremoteplayback');audio.disableRemotePlayback=true;}catch(_){}
 
 /* ── BACKGROUND RADIO (local track + YouTube playlist) ──
    The signature MP3 is track #1 and powers all the Web Audio fx (visualizer, lab,
@@ -199,17 +255,28 @@ audio.addEventListener('play',()=>{if(bgMode==='local')setUI(true);});audio.addE
    is loaded lazily on the first skip so it never slows the initial page. */
 let bgMode='local',ytPlayer=null,ytReady=false,ytWantPlay=false,_ytApiLoading=false;
 const BG_PLAYLIST=(()=>{try{return(window.SB_DEFAULTS&&SB_DEFAULTS.music&&SB_DEFAULTS.music.bgPlaylist)||'';}catch(_){return'';}})();
-function localTitle(){try{return(window.SB&&SB.music&&SB.music.playerTitle)||'Man Of My Word';}catch(_){return'Man Of My Word';}}
+function localTitle(){try{return(window.SB&&SB.music&&SB.music.playerTitle)||curTrack().title;}catch(_){return curTrack().title;}}
 function ytIsPlaying(){try{return!!(ytPlayer&&ytReady&&ytPlayer.getPlayerState&&ytPlayer.getPlayerState()===1);}catch(_){return false;}}
 function bgIsPlaying(){return bgMode==='yt'?ytIsPlaying():!audio.paused;}
-function updateBgTitle(){let title=localTitle();if(bgMode==='yt'&&ytPlayer&&ytPlayer.getVideoData){try{const d=ytPlayer.getVideoData();if(d&&d.title)title=d.title;}catch(_){}}document.querySelectorAll('#musicbar .stitle').forEach(el=>el.textContent=title);const pwt=document.querySelector('#music .pwtitle');if(pwt)pwt.textContent=title;}
+function updateBgTitle(){const title=localTitle();document.querySelectorAll('#musicbar .stitle').forEach(el=>el.textContent=title);const pwt=document.querySelector('#music .pwtitle');if(pwt)pwt.textContent=title;const sr=document.getElementById('srTitle');if(sr)sr.textContent=title;/* the lab's "now bending" title */}
 function loadYTApi(){if(window.YT&&window.YT.Player){initYT();return;}if(_ytApiLoading)return;_ytApiLoading=true;const prev=window.onYouTubeIframeAPIReady;window.onYouTubeIframeAPIReady=function(){try{if(prev)prev();}catch(_){}initYT();};const s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';document.head.appendChild(s);}
 function initYT(){if(ytPlayer||!BG_PLAYLIST||!document.getElementById('ytbg'))return;try{ytPlayer=new YT.Player('ytbg',{width:'200',height:'120',host:'https://www.youtube-nocookie.com',playerVars:{listType:'playlist',list:BG_PLAYLIST,autoplay:0,controls:0,disablekb:1,fs:0,modestbranding:1,playsinline:1,rel:0,loop:1},events:{onReady:()=>{ytReady=true;try{ytPlayer.setVolume(Math.round(audio.volume*100));}catch(_){}if(ytWantPlay){ytWantPlay=false;ytPlay();}},onStateChange:onYTState}});}catch(_){}}
 function onYTState(e){const Y=window.YT&&YT.PlayerState;if(!Y)return;if(e.data===Y.PLAYING){if(bgMode!=='yt'){bgMode='yt';try{audio.pause();}catch(_){}}setUI(true);updateBgTitle();}else if(e.data===Y.PAUSED){if(bgMode==='yt')setUI(false);}}
 function ytPlay(){if(!BG_PLAYLIST)return;if(!ytPlayer){ytWantPlay=true;loadYTApi();return;}if(!ytReady){ytWantPlay=true;return;}try{audio.pause();}catch(_){}bgMode='yt';try{ytPlayer.setVolume(Math.round(audio.volume*100));ytPlayer.playVideo();}catch(_){}setUI(true);updateBgTitle();}
 function ytPause(){if(ytPlayer&&ytReady){try{ytPlayer.pauseVideo();}catch(_){}}setUI(false);}
-function bgNext(){if(!BG_PLAYLIST){startAudio();return;}if(bgMode==='local'){ytPlay();return;}if(ytPlayer&&ytReady){let idx=0,len=0;try{idx=ytPlayer.getPlaylistIndex();len=(ytPlayer.getPlaylist()||[]).length;}catch(_){}if(len&&idx>=len-1)startAudio();else{try{ytPlayer.nextVideo();}catch(_){}}}}
-function bgPrev(){if(bgMode==='yt'&&ytPlayer&&ytReady){let idx=0;try{idx=ytPlayer.getPlaylistIndex();}catch(_){}if(idx<=0)startAudio();else{try{ytPlayer.previousVideo();}catch(_){}}return;}try{audio.currentTime=0;}catch(_){}if(audio.paused)startAudio();}
+/* Move through the LOCAL playlist (wraps both ends). The signature track + the "My Time"
+   catalog ARE the radio now — the prev/next buttons cycle the songs the artist uploaded. */
+function loadTrack(i,autoplay){
+  const n=LOCAL_TRACKS.length;trackIdx=((i%n)+n)%n;
+  const wantPlay=(autoplay==null)?(playing||!audio.paused):autoplay;
+  try{audio.src=trackUrl(curTrack());audio.load();}catch(_){}
+  updateBgTitle();saveAudioState();
+  if(wantPlay)startAudio();else setUI(false);
+}
+function bgNext(){loadTrack(trackIdx+1,true);}
+/* prev restarts the current song if you're more than 3s in (the usual transport feel),
+   otherwise it steps back a track. */
+function bgPrev(){if(audio.currentTime>3){try{audio.currentTime=0;}catch(_){}return;}loadTrack(trackIdx-1,true);}
 {const pv=document.getElementById('prevbtn'),nx=document.getElementById('nextbtn');if(pv)pv.onclick=bgPrev;if(nx)nx.onclick=bgNext;}
 function listenNow(){startAudio();const v=document.getElementById('visualizer');if(v)v.scrollIntoView({behavior:'smooth'});}
 /* Always arm a first-interaction fallback: the very first tap / scroll / key resumes the
@@ -224,7 +291,7 @@ audio.addEventListener('loadedmetadata',()=>{const d=fmt(audio.duration);const p
 audio.addEventListener('timeupdate',()=>{const c=fmt(audio.currentTime),pct=(audio.currentTime/audio.duration*100||0)+'%';const pwcur=document.getElementById('pwcur'),pwfill=document.getElementById('pwprogfill');if(pwcur)pwcur.textContent=c;if(pwfill)pwfill.style.width=pct;const sc=document.getElementById('srCur'),sf=document.getElementById('srProgFill');if(sc)sc.textContent=c;if(sf)sf.style.width=pct;});
 /* BACK TO TOP */
 const totop=document.getElementById('totop');totop.onclick=()=>scrollTo({top:0,behavior:'smooth'});
-addEventListener('scroll',()=>totop.classList.toggle('show',scrollY>600));
+addEventListener('scroll',()=>totop.classList.toggle('show',scrollY>600),{passive:true});
 /* SPACEBAR = play/pause (when not typing / not on a control) */
 addEventListener('keydown',e=>{if(e.code==='Space'&&!isTyping()&&!e.target.closest('button,a,input,[role=button]')){e.preventDefault();toggle();}});
 disc.addEventListener('keydown',e=>{if(e.key==='Enter'||e.code==='Space'){e.preventDefault();toggle();}});
@@ -699,10 +766,27 @@ function eqbars(ctx,w,h){const n=22,bw=w/n,cols=['#ff1f2e','#8dff2b','#9b3cff'];
 let parts=[];for(let i=0;i<34;i++)parts.push({x:Math.random(),y:Math.random(),s:Math.random()*2+.5,v:Math.random()*.0004+.0001,c:emberC[Math.floor(Math.random()*4)]});
 
 /* The snake pit (full-page WebGL + a 2D overlay) is the heavy part of this loop.
-   Cap it to ~40fps and skip it entirely inside the admin preview iframe. The rest of
-   the loop (cursor trail, visualizers) still runs every frame so it stays smooth. */
-let _snakeLast=-1e9; const SNAKE_DT=1000/40;
-function frame(t){updateLevels(t);const energy=levels.reduce((a,b)=>a+b,0)/levels.length+(rageOn?0.35:0);
+   Cap it to ~30fps and skip it entirely inside the admin preview iframe. It's a soft,
+   blurred, slow-drifting background, so 30fps is imperceptible but meaningfully cheaper —
+   which frees the main thread/GPU on desktop and the audio thread on mobile. */
+let _snakeLast=-1e9; const SNAKE_DT=1000/30;
+/* Master loop cap (~60fps). High-refresh desktop monitors (120/144/165Hz) fire rAF at the
+   panel's rate, so every heavy frame (WebGL pit + canvas visualizers) ran 2–3× more often
+   than needed and saturated the main thread — which delayed pointer/scroll events into the
+   "sluggish cursor + navigation" on desktop. 60Hz displays are unaffected; phones (≤60/120,
+   browser-throttled) stay smooth. */
+let _frameLast=-1e9; const FRAME_DT=14;
+function frame(t){
+  requestAnimationFrame(frame);
+  if(t-_frameLast<FRAME_DT)return;        // throttle high-refresh displays to ~60fps
+  _frameLast=t;
+  // deferred pointer work — kept off the raw mousemove so the cursor itself tracks 1:1
+  if(_mouseMoved){_mouseMoved=false;
+    emit(mx,my,1);
+    if(heroIn){const hi=heroInnerEl||(heroInnerEl=document.getElementById('heroinner'));
+      if(hi){hi.style.setProperty('--px',((mx/innerWidth-.5)*16)+'px');hi.style.setProperty('--py',((my/innerHeight-.5)*12)+'px');}}
+  }
+  updateLevels(t);const energy=levels.reduce((a,b)=>a+b,0)/levels.length+(rageOn?0.35:0);
   // SNAKE PIT (full page) — throttled; runs much slower under reduced-motion
   const snakeDt=sbReduceMotion?100:SNAKE_DT;
   if(!SB_PREVIEW && (t-_snakeLast)>=snakeDt){ _snakeLast=t; drawSnakes(t,energy); }
@@ -724,9 +808,11 @@ function frame(t){updateLevels(t);const energy=levels.reduce((a,b)=>a+b,0)/level
     tctx.globalAlpha=1;tctx.shadowBlur=0;embers=embers.filter(p=>p.life>.05);
     if(bolts.length)drawBolts();
     if(!embers.length&&!bolts.length)tctx.clearRect(0,0,tcv.width,tcv.height);}
-  requestAnimationFrame(frame);}
-requestAnimationFrame(frame);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){resizeAll();sizeSnake();}});
+}
+requestAnimationFrame(frame);   // next frame is scheduled at the top of frame()
+/* coming back to the tab: resize the canvases and, on mobile especially, resume the audio
+   context iOS suspends on background/interruption so the lab + player keep their sound. */
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){resizeAll();sizeSnake();if(actx&&actx.state==='suspended'&&playing){actx.resume().catch(()=>{});}}});
 
 /* RAGE MODE — faster + distorted audio, red snake pit, and a configurable stack of
    effects. Which effects fire is content-driven (SB.rageFx, edited in the admin) so
@@ -816,6 +902,55 @@ async function signbook(){
   }
   burst(innerWidth/2,innerHeight*.7,20,'#8dff2b');snakeLunge();
 }
+
+/* ===================== JOIN POPUP — first-visit email capture =====================
+   A one-time, dismissible modal that asks new visitors onto the slime list to pull in more
+   sign-ups. Reuses the accessible modal (focus trap + Esc) and the SAME Supabase sign-up
+   path as the connect page — including the queue-on-failure fallback, so a missed write is
+   retried, never dropped, and no permanent PII list is kept. Shown once per visitor; skipped
+   for the admin preview and for automation/crawlers. */
+function openJoinPopup(){
+  try{localStorage.setItem('sb_joinpop','1');}catch(_){}     // remember we showed it (once per visitor)
+  openModal(`<div class="mbody joinpop">
+    <span class="kicker">✦ join the slime</span>
+    <h3>get on the <em>list</em> ☠</h3>
+    <p>first access to drops, merch &amp; shows — straight to your inbox. no spam, ever.</p>
+    <div class="joinrow" style="margin-top:16px">
+      <input id="jpEmail" type="email" autocomplete="email" inputmode="email" placeholder="your@email.com" aria-label="your email">
+      <button type="button" id="jpGo">join ☠</button>
+    </div>
+    <div class="joinnote" id="jpNote" style="text-align:left">drops, merch &amp; shows only · unsubscribe anytime · we never sell your info</div>
+    <button type="button" class="jpskip" id="jpSkip">maybe later</button>
+  </div>`);
+  const email=document.getElementById('jpEmail'),go=document.getElementById('jpGo'),note=document.getElementById('jpNote'),skip=document.getElementById('jpSkip');
+  if(skip)skip.onclick=closeModal;
+  if(go&&email&&note){
+    const submit=async()=>{
+      const ev=email.value.trim();
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ev)){note.textContent='✗ enter a valid email';note.classList.add('bad');email.focus();return;}
+      note.classList.remove('bad');note.textContent='… adding you to the slime';go.disabled=true;
+      let ok=false;try{ if(typeof sbSubscribe==='function') ok=await sbSubscribe(ev,''); }catch(_){ ok=false; }
+      if(!ok){ const q=pendingGet();q.push({email:ev,phone:'',t:Date.now()});pendingSet(q); }   // queue + retry, same as the form
+      try{localStorage.setItem('sb_joined','1');}catch(_){}
+      note.textContent='✓ you in — welcome to the slime ☠';
+      try{burst(innerWidth/2,innerHeight*.5,18,'#8dff2b');snakeLunge();}catch(_){}
+      toast('☠ welcome to the slime');
+      setTimeout(closeModal,1100);
+    };
+    go.onclick=submit;
+    email.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submit();}});
+  }
+}
+function maybeJoinPopup(){
+  try{
+    if(SB_PREVIEW||navigator.webdriver)return;                 // never in the admin preview or under automation/crawlers
+    if(localStorage.getItem('sb_joinpop')||localStorage.getItem('sb_joined'))return;   // once per visitor; not if already in
+    if(pendingGet().length)return;                             // they already tried to join (queued)
+    const arm=()=>setTimeout(()=>{ if(!modal.classList.contains('open')) openJoinPopup(); },1400);
+    if(document.readyState==='complete')arm(); else addEventListener('load',arm,{once:true});
+  }catch(_){}
+}
+
 let seq='';addEventListener('keydown',e=>{if(e.metaKey||e.ctrlKey||e.altKey||isTyping())return;seq=(seq+e.key.toLowerCase()).slice(-5);if(seq==='slime'){for(let i=0;i<60;i++)setTimeout(()=>burst(innerWidth*Math.random(),innerHeight,8,'#8dff2b'),i*20);stab();snakeLunge();toast('☠ SLIME UNLOCKED ☠');}});
 
 /* ===================== FLESH-OUT FEATURES ===================== */
@@ -924,7 +1059,7 @@ addEventListener('keydown',e=>{if(e.key==='?'&&!isTyping()&&!modal.classList.con
 function wireShare(){const _shareBtn=document.getElementById('shareBtn');if(_shareBtn)_shareBtn.onclick=async()=>{const data={title:'SLIME BY — official',text:'Delaware rap — green pressure, venom, motion.',url:location.href};try{if(navigator.share){await navigator.share(data);}else{await navigator.clipboard.writeText(location.href);toast('link copied to clipboard ☑');}}catch(_){}};}
 
 /* ===================== FEATURED DROP ===================== */
-function previewFeatured(){startAudio();toast('▶ now spinning — Man Of My Word');}
+function previewFeatured(){startAudio();toast('▶ now spinning — '+localTitle());}
 function notifyDrop(){gotoConnectJoin('☠ drop your email — first to know');}
 /* drop date is set from CMS content (drop.dropDate); counts down, then reads OUT NOW.
    Use an explicit offset so every visitor counts down to the same instant (else a
@@ -977,9 +1112,11 @@ function wireLab(){
   srRoom=document.getElementById('srRoom');srRoomV=document.getElementById('srRoomV');
   srPlayBtn=document.getElementById('srPlay');srProgEl=document.getElementById('srProg');srModeEl=document.getElementById('srMode');
   if(!srSpeed&&!srReverb&&!srPlayBtn)return false;   // not the lab page
-  if(srSpeed)srSpeed.oninput=()=>{setSpeed(+srSpeed.value);markPreset(null);};
-  if(srReverb)srReverb.oninput=()=>{setReverb(+srReverb.value);markPreset(null);};
-  if(srRoom){srRoom.oninput=()=>{setRoom(+srRoom.value);markPreset(null);};srRoom.onchange=()=>rebuildImpulse();}
+  /* ensureCtx() on each knob: a touch-drag is a user gesture, so this creates/resumes the
+     audio context on mobile (where it starts suspended) and the reverb actually engages. */
+  if(srSpeed)srSpeed.oninput=()=>{ensureCtx();setSpeed(+srSpeed.value);markPreset(null);};
+  if(srReverb)srReverb.oninput=()=>{ensureCtx();setReverb(+srReverb.value);markPreset(null);};
+  if(srRoom){srRoom.oninput=()=>{ensureCtx();setRoom(+srRoom.value);markPreset(null);};srRoom.onchange=()=>rebuildImpulse();}
   document.querySelectorAll('.srpresets button').forEach(b=>b.onclick=()=>{ensureCtx();applyPreset(b.dataset.preset);if(audio.paused)startAudio();});
   if(srPlayBtn)srPlayBtn.onclick=toggle;
   if(srProgEl)srProgEl.onclick=e=>{if(!isFinite(audio.duration))return;const r=srProgEl.getBoundingClientRect();audio.currentTime=(e.clientX-r.left)/r.width*audio.duration;};
@@ -1213,13 +1350,13 @@ function applyContent(c){
     href('#presaveBtn',c.drop.presaveUrl);
     if(c.drop.dropDate){const d=new Date(c.drop.dropDate);if(!isNaN(d.getTime()))dropDate=d;tickCountdown();}}
 
-  if(c.music){bg('#music .pwart',c.music.playerCover);txt('#music .pwtitle',c.music.playerTitle);
-    /* keep the persistent bottom player bar (shown on every page) in sync with the
-       CMS track title + cover so it never disagrees with the music page. */
-    bg('#disc',c.music.playerCover);txt('#musicbar .stitle',c.music.playerTitle);
+  if(c.music){bg('#music .pwart',c.music.playerCover);
+    /* keep the persistent bottom player bar (shown on every page) in sync with the CMS
+       cover; the title comes from the live playlist track (or a CMS playerTitle override). */
+    bg('#disc',c.music.playerCover);
     const emb=q('#music .embedwrap iframe');if(emb&&c.music.spotifyArtistId)emb.src=`https://open.spotify.com/embed/artist/${encodeURIComponent(c.music.spotifyArtistId)}?utm_source=generator&theme=0`;
     renderReleases(c.music.releases);
-    if(typeof updateBgTitle==='function'&&bgMode==='yt')updateBgTitle();}  /* don't let a CMS refresh stomp the live YouTube title */
+    if(typeof updateBgTitle==='function')updateBgTitle();}  /* reflect the current track title (or a CMS override) */
 
   if(c.about){setHtml('#about .lead',c.about.lead);txt('#about .about p',c.about.text);src('#about .pic img',c.about.portrait);txt('#about .badge',c.about.badge);
     const sw=q('#about .stats');if(sw&&c.about.stats)sw.innerHTML=c.about.stats.map(s=>`<div class="stat"><div class="n">${esc(s.n)}</div><div class="l">${esc(s.l)}</div></div>`).join('');}
@@ -1431,6 +1568,7 @@ function deepLinkJoin(){ if(/join/.test(location.hash)){const g=document.getElem
    one-time chrome / audio graph / snake pit / global listeners set up above are never
    re-run here, so nothing double-binds and the music keeps playing. */
 function sbInitPage(){
+  heroInnerEl=null;       // <main> was swapped — drop the cached hero-parallax node
   resizeAll();            // re-grab + size this page's visualizer canvases
   setupCulling();         // re-observe on-screen sections for render culling
   observeReveals();       // reveal-on-scroll for the new content
@@ -1456,3 +1594,6 @@ sbInitPage();
 
 /* retry any sign-ups that were queued while the backend was unreachable, then forget them */
 if(!SB_PREVIEW){try{flushPending();}catch(_){}}
+
+/* first-visit: invite new visitors onto the slime list (once per visitor) */
+maybeJoinPopup();

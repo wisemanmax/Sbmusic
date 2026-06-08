@@ -14,3 +14,15 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(), camera=(), microphone=()
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+
+# The catalog streams inline only — served so the browser plays it rather than offering a
+# "Save As" download, and kept out of search indexes. (Audio that plays in a browser can
+# still be captured by a determined user; this just stops casual downloads.)
+/assets/man-of-my-word.mp3
+  Content-Disposition: inline
+  X-Robots-Tag: noindex, nofollow
+  Cache-Control: public, max-age=31536000, immutable
+/assets/mp3%20my%20time/*
+  Content-Disposition: inline
+  X-Robots-Tag: noindex, nofollow
+  Cache-Control: public, max-age=31536000, immutable

@@ -476,6 +476,13 @@ body.rage.rfx-glitch #main{animation:rfxglitch 2.8s steps(1) infinite}
 .sizes button.sel{background:var(--slime);color:#08120a;border-color:var(--slime)}
 .mcta{margin-top:22px;display:flex;gap:10px;flex-wrap:wrap}
 
+/* FIRST-VISIT JOIN POPUP (reuses the modal shell + .joinrow / .joinnote) */
+.joinpop .kicker{justify-content:flex-start}
+.joinpop h3 em{color:var(--slime2);font-style:normal}
+.joinpop .joinrow input{font-size:16px}
+.jpskip{display:block;margin:16px auto 0;background:none;border:none;color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:1px;text-decoration:underline;cursor:pointer}
+.jpskip:hover{color:var(--slime)}
+
 /* MUSIC FILTER TABS */
 .mfilter{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
 .mfilter button{font-family:var(--ui);font-weight:700;font-size:12px;letter-spacing:2px;text-transform:uppercase;padding:8px 16px;border:1px solid rgba(255,255,255,.18);background:transparent;color:var(--soft);cursor:pointer;transition:.16s}

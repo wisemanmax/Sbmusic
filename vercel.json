@@ -11,6 +11,13 @@
         { "key": "Permissions-Policy", "value": "geolocation=(), camera=(), microphone=()" },
         { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" }
       ]
+    },
+    {
+      "source": "/assets/(.*).mp3",
+      "headers": [
+        { "key": "Content-Disposition", "value": "inline" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+      ]
     }
   ]
 }
