@@ -234,6 +234,18 @@ try {
       return !!document.querySelector('script[src*="iframe_api"]');
     });
     check('radio: next lazy-loads the YouTube API', loaded);
+    const duck = await page.evaluate(async () => {
+      if (audio.paused) startAudio();
+      await new Promise(s => setTimeout(s, 200));
+      const wasPlaying = !audio.paused;
+      openModal('<div class="mbody"><h3>Clip</h3><div class="vembed"><iframe src="about:blank" title="x"></iframe></div></div>');
+      await new Promise(s => setTimeout(s, 150));
+      const duckedPaused = audio.paused;
+      closeModal();
+      await new Promise(s => setTimeout(s, 250));
+      return { wasPlaying, duckedPaused, resumed: !audio.paused };
+    });
+    check('radio: ducks for an embedded video, resumes on close', duck.wasPlaying && duck.duckedPaused && duck.resumed);
     check('radio: skip controls raise no JS errors', errs.length === 0, errs.join(' | '));
     await page.close();
   }

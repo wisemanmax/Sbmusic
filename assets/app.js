@@ -824,7 +824,7 @@ function toast(msg,type){const wrap=document.getElementById('toasts');const el=d
 
 /* MODAL — accessible dialog: moves focus in, traps Tab, restores focus on close */
 const modal=document.getElementById('modal'),modalContent=document.getElementById('modalContent');
-let _modalOpener=null;
+let _modalOpener=null,_duckedRadio=false;
 const _focSel='a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 function _modalFocusable(){return Array.from(modal.querySelectorAll(_focSel)).filter(el=>el.offsetWidth||el.offsetHeight||el===document.activeElement);}
 function openModal(html){
@@ -832,6 +832,10 @@ function openModal(html){
   modalContent.innerHTML=html;
   const h=modalContent.querySelector('h2,h3');                 // label the dialog from its heading
   if(h){if(!h.id)h.id='sbModalTitle';modal.setAttribute('aria-labelledby',h.id);}else modal.removeAttribute('aria-labelledby');
+  /* If this modal embeds a video (vault clip), duck the background radio so the two
+     don't play over each other; remember it so we can resume on close. */
+  _duckedRadio=false;
+  if(modalContent.querySelector('iframe')&&bgIsPlaying()){_duckedRadio=true;if(bgMode==='yt')ytPause();else{audio.pause();setUI(false);}}
   modal.classList.add('open');modal.setAttribute('aria-hidden','false');
   /* the dialog fades in (visibility transition), so the close button isn't focusable
      for a few frames — focus it the moment it actually becomes visible */
@@ -843,6 +847,8 @@ function closeModal(){
   modal.classList.remove('open');modal.setAttribute('aria-hidden','true');
   if(_modalOpener&&_modalOpener.focus){try{_modalOpener.focus();}catch(_){}}
   _modalOpener=null;
+  /* resume whatever the radio was playing before we ducked it for a video */
+  if(_duckedRadio){_duckedRadio=false;if(bgMode==='yt')ytPlay();else startAudio();}
 }
 document.getElementById('modalX').onclick=closeModal;
 modal.addEventListener('click',e=>{if(e.target===modal)closeModal();});
@@ -1383,11 +1389,17 @@ function initMerch(){ const pg=document.getElementById('pgrid'); if(!pg)return;
 /* boot content: render defaults instantly, then overlay whatever's published in Supabase.
    Guarded so a missing/failed cms.js can never break the rest of the page. */
 var SB_PREVIEW=/[?&]preview\b/.test(location.search);
+/* Cache the resolved (defaults + published) content for the session so client-side
+   navigation re-renders from memory instead of refetching Supabase on every click.
+   First load (or after the TTL) still fetches fresh. */
+let _cmsCache=null,_cmsCacheAt=0; const CMS_TTL=5*60*1000;
 function loadContent(){
   try{ if(typeof SB_DEFAULTS!=='undefined') applyContent(SB_DEFAULTS); }catch(e){}
   /* In preview the admin drives the content via postMessage, so skip the remote
      fetch — otherwise it could resolve late and clobber the live edits. */
-  if(!SB_PREVIEW){ try{ if(typeof sbGetContent==='function') sbGetContent().then(c=>{window.__sbContentLoaded=true;applyContent(c);}).catch(()=>{window.__sbContentLoaded=true;}); }catch(e){} }
+  if(SB_PREVIEW)return;
+  if(_cmsCache && (Date.now()-_cmsCacheAt)<CMS_TTL){ try{applyContent(_cmsCache);}catch(_){} window.__sbContentLoaded=true; return; }
+  try{ if(typeof sbGetContent==='function') sbGetContent().then(c=>{_cmsCache=c;_cmsCacheAt=Date.now();window.__sbContentLoaded=true;applyContent(c);}).catch(()=>{window.__sbContentLoaded=true;}); }catch(e){}
 }
 
 /* ===================== LIVE PREVIEW CHANNEL =====================
