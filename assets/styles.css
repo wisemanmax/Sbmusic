@@ -746,21 +746,26 @@ html.wipe-armed::before{content:"";position:fixed;inset:0;z-index:10850;pointer-
 .pt-join{margin-top:30px}
 @media(max-width:600px){.pt-social .sl-btn{flex-basis:120px}}
 
-/* ===== SLIME THE GAME — chrome while a run is live =====
-   quest.js adds body.q-playing during play. On phones we dock the music bar into a
-   compact top-centre pill (clear of both thumb zones) and tuck away the floating
-   help/back-to-top buttons so they never sit on the JUMP/BLAST cluster. Desktop and
-   every other page are untouched. */
+/* ===== SLIME THE GAME — mobile chrome =====
+   On phones the quest page hands its bottom thumb-zone to the fixed control deck
+   (defined in quest.html). So here we give the NOW-PLAYING bar its own zone, docked
+   just above that deck, and tuck away the floating help / back-to-top buttons so they
+   can never collide with the DASH / RAGE / JUMP cluster. The footer is padded clear of
+   both. Scoped to body.page-quest, so desktop and every other page are untouched. */
 @media(max-width:760px){
-  body.q-playing .musicbar{
-    left:50%; right:auto; bottom:auto;
-    top:calc(env(safe-area-inset-top,0px) + 58px);
+  body.page-quest .musicbar{
+    left:50%; right:auto; top:auto;
+    bottom:calc(env(safe-area-inset-bottom,0px) + 178px);
     transform:translateX(-50%);
-    padding:5px 6px; background:rgba(8,12,8,.78);
+    max-width:calc(100vw - 24px); z-index:1950;
+    padding:6px 8px; background:rgba(8,12,8,.85);
   }
-  body.q-playing .musicbar .minfo,
-  body.q-playing .musicbar #prevbtn,
-  body.q-playing .musicbar #nextbtn{ display:none; } /* compact: just the disc + play/pause */
-  body.q-playing .totop,
-  body.q-playing .helpbtn{ display:none; }
+  body.page-quest .musicbar.open .minfo{ max-width:150px; } /* keep the title, lose the clutter */
+  body.page-quest .musicbar #prevbtn,
+  body.page-quest .musicbar #nextbtn{ display:none; }
+  body.page-quest .totop,
+  body.page-quest .helpbtn{ display:none; }
+  /* keep the footer + toasts above the fixed deck and the docked player */
+  body.page-quest footer{ padding-bottom:calc(250px + env(safe-area-inset-bottom,0px)); }
+  body.page-quest #toasts{ bottom:calc(250px + env(safe-area-inset-bottom,0px)); }
 }
