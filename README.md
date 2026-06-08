@@ -189,7 +189,10 @@ on the apex domain. To finish hooking it up:
    `185.199.111.153` — (and the AAAA equivalents `2606:50c0:8000::153` … `8003::153` for
    IPv6). Add a `www` **CNAME** → `<your-user>.github.io` if you also want `www`.
 2. **Settings → Pages → Custom domain**: confirm `slimeby.com`, then tick **Enforce
-   HTTPS** once the cert is issued (can take a few minutes to an hour).
+   HTTPS** once the cert is issued (can take a few minutes to an hour). Every page also
+   self-upgrades to HTTPS in the browser (a `<head>` redirect + `upgrade-insecure-requests`
+   meta), so plain-HTTP visitors are bounced to `https://` even before that box is ticked —
+   but still tick it for the proper server-side 301 + HSTS.
 3. If you front the domain with Cloudflare, set SSL/TLS mode to **Full** and either keep
    the apex records **DNS-only** (grey cloud) until GitHub verifies the domain, or use
    Cloudflare's CNAME-flattening to `<your-user>.github.io`.
