@@ -223,17 +223,18 @@ function ensureCtx(){if(!actx){try{
 /* Reverb tail. The convolution runs in real time, so a long stereo impulse is costly on
    phones — cap it on mobile (still a full, roomy tail) so the lab reverb doesn't stutter. */
 function rebuildImpulse(){if(!actx||!conv)return;const sec=Math.min(sbIsMobile?2.0:4.0,0.4+roomP*3.6),rate=actx.sampleRate,len=Math.max(1,Math.floor(sec*rate));const buf=actx.createBuffer(2,len,rate);for(let ch=0;ch<2;ch++){const d=buf.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.5);}conv.buffer=buf;}
-function rageRate(){return Math.min(1.3,Math.max(1.12,userRate+0.32));}
+/* Rage mode distorts + drives the track but no longer changes its SPEED — the playback
+   rate always follows userRate (1.0 everywhere, the lab's slow on lab.html). */
 function applyAudioFx(){if(!actx)return;const t=actx.currentTime;
   if(dry)dry.gain.setTargetAtTime((rageOn?0.72:1)*(1-revAmt*0.35),t,0.03);
   if(wet)wet.gain.setTargetAtTime(revAmt*0.9,t,0.03);
   if(shaper)shaper.curve=(rageOn&&rageFlags().distortAudio)?distc(7):null;
   try{audio.preservesPitch=false;audio.mozPreservesPitch=false;audio.webkitPreservesPitch=false;}catch(_){}
-  audio.playbackRate=rageOn?rageRate():userRate;}
+  audio.playbackRate=userRate;}
 /* Switch the live track between the two players. The site plays normal everywhere;
    only the lab page swaps in its slowed + reverb bend. */
-function applyNormalFx(){userRate=1.0;revAmt=0;try{audio.playbackRate=rageOn?rageRate():1.0;}catch(_){}applyAudioFx();}
-function applyLabFx(){userRate=labRate;revAmt=labRev;roomP=labRoom;try{audio.playbackRate=rageOn?rageRate():userRate;}catch(_){}if(actx)rebuildImpulse();applyAudioFx();}
+function applyNormalFx(){userRate=1.0;revAmt=0;try{audio.playbackRate=1.0;}catch(_){}applyAudioFx();}
+function applyLabFx(){userRate=labRate;revAmt=labRev;roomP=labRoom;try{audio.playbackRate=userRate;}catch(_){}if(actx)rebuildImpulse();applyAudioFx();}
 function connectMedia(){if(graphReady)return;ensureCtx();try{srcNode=actx.createMediaElementSource(audio);srcNode.connect(mix);graphReady=true;}catch(e){}}
 function startAudio(){if(bgMode==='yt'&&ytPlayer&&ytReady){try{ytPlayer.pauseVideo();}catch(_){}}bgMode='local';connectMedia();ensureCtx();applyAudioFx();armKick();audio.play().then(()=>setUI(true)).catch(()=>{});updateBgTitle();}
 function setUI(on){playing=on;const ic=on?'❚❚':'▶';if(pbtn)pbtn.textContent=ic;if(pwplay)pwplay.textContent=ic;if(disc)disc.classList.toggle('spin',on);if(musicbar)musicbar.classList.toggle('open',on);const sp=document.getElementById('srPlay');if(sp)sp.textContent=on?'❚❚ pause':'▶ play';const sa=document.getElementById('srArt');if(sa)sa.classList.toggle('spin',on);const pw=document.querySelector('.playerwin');if(pw)pw.classList.toggle('live',on);updateNowPlaying();}
@@ -974,8 +975,8 @@ function frame(t){
   if(E.w&&musicIn)drawPlayerViz(E.x,E.w,E.h,t);
   if(SRW.w&&labIn){const{x,w,h}=SRW;x.clearRect(0,0,w,h);snakeWave(x,w,h,t*.6,7+energy*9,3+energy*4,h*.5);}
   }
-  // spark rain — steady drizzle of sparks from the top while rage is on
-  if(rageOn&&!sbReduceMotion&&rageFlags().sparkRain&&Math.random()<0.45){
+  // spark rain — a steady drizzle of sparks from the top. On by default (calm); rage pours it on.
+  if(!sbReduceMotion&&rageFlags().sparkRain&&Math.random()<(rageOn?0.45:0.16)){
     embers.push({x:Math.random()*innerWidth,y:-4,vx:(Math.random()-.5)*1.4,vy:Math.random()*3+2.5,life:1,c:Math.random()<.5?'#ff7b1f':'#ff1f2e',s:Math.random()*2+1});
   }
   if(embers.length||bolts.length){tctx.clearRect(0,0,tcv.width,tcv.height);tctx.globalCompositeOperation='lighter';
@@ -989,16 +990,21 @@ requestAnimationFrame(frame);   // next frame is scheduled at the top of frame()
    context iOS suspends on background/interruption so the lab + player keep their sound. */
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){resizeAll();sizeSnake();if(actx&&actx.state==='suspended'&&playing){actx.resume().catch(()=>{});}}});
 
-/* RAGE MODE — faster + distorted audio, red snake pit, and a configurable stack of
-   effects. Which effects fire is content-driven (SB.rageFx, edited in the admin) so
-   the artist can dial the intensity up or down without touching code. */
+/* RAGE MODE — distorted audio, red snake pit, and a configurable stack of effects.
+   Which effects fire is content-driven (SB.rageFx, edited in the admin) so the artist
+   can dial the intensity up or down without touching code. A subset (snake strikes,
+   ember bursts, lightning, spark rain, heartbeat vignette) is part of the base vibe and
+   runs even with rage off; the rest only ignite while rage is engaged. */
 const flashEl=document.getElementById('flash');
 function flash(c){if(!flashEl)return;flashEl.style.background=c||'var(--slime)';flashEl.style.transition='none';flashEl.style.opacity='.45';requestAnimationFrame(()=>{flashEl.style.transition='opacity .55s ease';flashEl.style.opacity='0';});}
 /* merged effect flags: built-in defaults overlaid with whatever's published */
 function rageFlags(){const d=(window.SB_DEFAULTS&&SB_DEFAULTS.rageFx)||{};const c=(window.SB&&SB.rageFx)||{};return Object.assign({},d,c);}
-/* toggle the CSS-driven effect classes on <body> to match the flags (only while rage is on) */
+/* toggle the CSS-driven effect classes on <body> to match the flags (ambient ones stay on
+   even with rage off; the rest only while rage is engaged) */
 const RFX_CLASS={shake:'rfx-shake',redOverlay:'rfx-overlay',glitch:'rfx-glitch',heartbeat:'rfx-heart',fire:'rfx-fire',static:'rfx-static',bloodDrip:'rfx-drip'};
-function applyRageClasses(){const f=rageFlags(),b=document.body.classList;for(const k in RFX_CLASS)b.toggle(RFX_CLASS[k],rageOn&&!!f[k]);}
+/* CSS effects that belong to the base vibe — they stay on (when flagged) even with rage off */
+const RFX_AMBIENT={heartbeat:1};
+function applyRageClasses(){const f=rageFlags(),b=document.body.classList;for(const k in RFX_CLASS)b.toggle(RFX_CLASS[k],!!f[k]&&(RFX_AMBIENT[k]||rageOn));}
 
 /* ---- lightning — jagged bolts drawn on the shared trail canvas ---- */
 let bolts=[];
@@ -1041,6 +1047,18 @@ function enterRage(){
   }
 }
 const _rageBtn=document.getElementById('rageBtn');if(_rageBtn)_rageBtn.onclick=()=>{enterRage();setMenu(false);};
+
+/* AMBIENT EFFECT LOOP — snake strikes, ember bursts and lightning fire even with rage off,
+   at a calmer cadence, so they read as part of the base vibe (the heartbeat vignette + spark
+   rain run continuously elsewhere). Each stays gated by its flag + reduce-motion; while rage
+   is ON its own faster interval (above) takes over so the two never stack. */
+setInterval(()=>{
+  if(rageOn||sbReduceMotion||document.hidden)return;
+  const g=rageFlags();
+  if(g.emberBursts)burst(Math.random()*innerWidth,innerHeight*(0.5+Math.random()*0.5),8);
+  if(g.snakeLunge&&Math.random()<0.5)snakeLunge();
+  if(g.lightning&&Math.random()<0.12)strikeLightning();
+},2600);
 
 /* GUESTBOOK + easter egg */
 function storeLocal(key,val){try{const a=JSON.parse(localStorage.getItem(key)||'[]');if(!a.includes(val)){a.push(val);localStorage.setItem(key,JSON.stringify(a));}}catch(_){}}
@@ -1270,7 +1288,7 @@ function srModeText(){if(rageOn)return'rage';const slow=userRate<0.97,fast=userR
   if(fast)return rev?'nightcore + reverb':'nightcore';
   if(slow&&rev)return'slowed + reverb';if(slow)return'slowed';if(rev)return'reverb';return'original';}
 function srSync(){if(srModeEl)srModeEl.textContent=srModeText();}
-function setSpeed(v){userRate=Math.max(.5,Math.min(1.25,v/100));labRate=userRate;if(srSpeedV)srSpeedV.textContent=userRate.toFixed(2)+'×';if(!rageOn)audio.playbackRate=userRate;saveLabState();srSync();}
+function setSpeed(v){userRate=Math.max(.5,Math.min(1.25,v/100));labRate=userRate;if(srSpeedV)srSpeedV.textContent=userRate.toFixed(2)+'×';audio.playbackRate=userRate;saveLabState();srSync();}
 function setReverb(v){revAmt=Math.max(0,Math.min(1,v/100));labRev=revAmt;if(srReverbV)srReverbV.textContent=Math.round(revAmt*100)+'%';applyAudioFx();saveLabState();srSync();}
 function setRoom(v){roomP=Math.max(0,Math.min(1,v/100));labRoom=roomP;if(srRoomV)srRoomV.textContent=roomLabel(roomP);saveLabState();}
 const SR_PRESETS={slowrev:[80,30,55],deep:[70,58,80],night:[118,8,26],clean:[100,0,40]};
@@ -1282,7 +1300,7 @@ function matchPreset(){const cur=[Math.round(userRate*100),Math.round(revAmt*100
 function syncLab(){userRate=labRate;revAmt=labRev;roomP=labRoom;
   if(srSpeed)srSpeed.value=Math.round(labRate*100);if(srReverb)srReverb.value=Math.round(labRev*100);if(srRoom)srRoom.value=Math.round(labRoom*100);
   if(srSpeedV)srSpeedV.textContent=labRate.toFixed(2)+'×';if(srReverbV)srReverbV.textContent=Math.round(labRev*100)+'%';if(srRoomV)srRoomV.textContent=roomLabel(labRoom);
-  if(!rageOn)audio.playbackRate=userRate;if(actx)rebuildImpulse();applyAudioFx();markPreset(matchPreset());srSync();}
+  audio.playbackRate=userRate;if(actx)rebuildImpulse();applyAudioFx();markPreset(matchPreset());srSync();}
 /* wire the lab controls + engage the bend — called from sbInitPage() on lab.html only */
 function wireLab(){
   srSpeed=document.getElementById('srSpeed');srSpeedV=document.getElementById('srSpeedV');

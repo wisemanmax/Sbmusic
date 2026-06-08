@@ -473,7 +473,7 @@ body.rage .rmtag{opacity:1}
 #rfx{position:fixed;inset:0;z-index:9994;pointer-events:none}
 #rfx>div{position:absolute;inset:0;opacity:0;transition:opacity .3s}
 /* heartbeat — a red vignette pulsing like a racing heart */
-body.rage.rfx-heart .fx-heart{opacity:1;mix-blend-mode:screen;background:radial-gradient(125% 95% at 50% 50%,transparent 48%,rgba(255,12,12,.5) 100%);animation:rfxheart 1.05s ease-in-out infinite}
+body.rfx-heart .fx-heart{opacity:1;mix-blend-mode:screen;background:radial-gradient(125% 95% at 50% 50%,transparent 48%,rgba(255,12,12,.5) 100%);animation:rfxheart 1.05s ease-in-out infinite}
 @keyframes rfxheart{0%,100%{opacity:.22}28%{opacity:.85}42%{opacity:.38}}
 /* fire — flames licking up from the bottom edge */
 body.rage.rfx-fire .fx-fire{opacity:1;top:auto;bottom:0;height:44vh;mix-blend-mode:screen;background:radial-gradient(60% 100% at 18% 100%,rgba(255,86,12,.6),transparent 72%),radial-gradient(55% 95% at 50% 100%,rgba(255,176,24,.55),transparent 70%),radial-gradient(60% 100% at 82% 100%,rgba(255,44,12,.6),transparent 72%);animation:rfxfire .5s ease-in-out infinite alternate}

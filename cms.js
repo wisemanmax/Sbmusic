@@ -107,22 +107,23 @@ const SB_DEFAULTS = {
     copy: '© 2026 slime by · delaware · the snake moves',
   },
   /* RAGE MODE effects — flip any of these on/off from the admin "Rage Mode" panel.
-     The public site reads them when the ☠ rage button is hit. Everything respects the
-     visitor's "reduce motion" setting regardless. */
+     Snake strikes, ember bursts, lightning, spark rain and the heartbeat vignette are part
+     of the base vibe and run by default (calmer cadence), even with rage off; the rest kick
+     in when the ☠ rage button is hit. Everything respects "reduce motion" regardless. */
   rageFx: {
-    shake: true,        // the whole screen judders
-    redOverlay: true,   // venom-red scanline + vignette wash
-    distortAudio: true, // the track gets driven / distorted
-    snakeLunge: true,   // the snakes strike on the beat
-    emberBursts: true,  // bursts of red embers
-    strobe: true,       // hard red strobe flashes
-    lightning: true,    // jagged lightning bolts crack across the screen
-    heartbeat: true,    // pulsing red vignette like a racing heartbeat
-    sparkRain: false,   // sparks rain down from the top
-    fire: false,        // flames lick up from the bottom edge
-    glitch: false,      // RGB-split / datamosh glitch bursts
-    bloodDrip: false,   // blood drips down from the top of the screen
-    static: false,      // TV-static noise flicker over everything
+    shake: true,        // the whole screen judders (rage only)
+    redOverlay: true,   // venom-red scanline + vignette wash (rage only)
+    distortAudio: true, // the track gets driven / distorted (rage only)
+    snakeLunge: true,   // the snakes strike on the beat (on by default)
+    emberBursts: true,  // bursts of red embers (on by default)
+    strobe: true,       // hard red strobe flashes (rage only)
+    lightning: true,    // jagged lightning bolts crack across the screen (on by default)
+    heartbeat: true,    // pulsing red vignette like a racing heartbeat (on by default)
+    sparkRain: true,    // sparks rain down from the top (on by default)
+    fire: true,         // flames lick up from the bottom edge (rage only)
+    glitch: true,       // RGB-split / datamosh glitch bursts (rage only)
+    bloodDrip: true,    // blood drips down from the top of the screen (rage only)
+    static: true,       // TV-static noise flicker over everything (rage only)
   },
   /* Extra info blocks for the landing (home) page — an intro band, a stat strip and a
      "tap in" call-to-action. Each can be hidden with its `show` toggle. */
@@ -263,7 +264,7 @@ const SB_SECTIONS = [
   { key: 'marquee',  label: 'Marquee',     icon: '➤', desc: 'The scrolling band of words under the hero.' },
   { key: 'drop',     label: 'Featured Drop', icon: '✦', desc: 'Spotlight release, smart links, and the next-drop countdown.' },
   { key: 'landing',  label: 'Landing Info', icon: '⌂', desc: 'Extra info bands on the home page — the intro/bio strip, stat counters, and a tap-in call-to-action.' },
-  { key: 'rageFx',   label: 'Rage Mode',   icon: '⚡', desc: 'Pick which effects fire when a visitor hits ☠ rage mode. All effects still respect a visitor’s reduce-motion setting.' },
+  { key: 'rageFx',   label: 'Rage Mode',   icon: '⚡', desc: 'Pick which effects are live. Snake strikes, ember bursts, lightning, spark rain and the heartbeat vignette run by default (even with rage off); the rest kick in on ☠ rage mode. All effects respect a visitor’s reduce-motion setting.' },
   { key: 'music',    label: 'Music',       icon: '♫', desc: 'The in-page player, release grid, and Spotify embed.' },
   { key: 'about',    label: 'About',       icon: '✶', desc: 'Bio, portrait, and the stat badges.' },
   { key: 'universe', label: 'SB World',    icon: '◉', desc: 'The five-powers lore map.' },
