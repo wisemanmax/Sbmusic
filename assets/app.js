@@ -51,11 +51,14 @@ function buildChrome(){
 <div class="musicbar" id="musicbar">
   <div class="disc" id="disc" style="background-image:url('assets/my-time-cover.jpg')" role="button" tabindex="0" aria-label="play / pause"></div>
   <div class="minfo"><div class="now">now playing</div><div class="stitle">Man Of My Word</div></div>
+  <button class="mbtn" id="prevbtn" type="button" aria-label="previous track" title="previous">⏮</button>
   <button class="pbtn" id="pbtn" aria-label="play / pause">▶</button>
+  <button class="mbtn" id="nextbtn" type="button" aria-label="next track" title="next">⏭</button>
 </div>
 <button class="totop" id="totop" aria-label="back to top">↑</button>
 <button class="helpbtn" id="helpbtn" aria-label="keyboard shortcuts" title="keyboard shortcuts">?</button>
 <audio id="audio" loop preload="auto" src="assets/man-of-my-word.mp3" crossorigin="anonymous"></audio>
+<div id="ytbg" aria-hidden="true"></div>
 <div id="toasts" aria-live="polite"></div>
 <div class="modal" id="modal" role="dialog" aria-modal="true" aria-hidden="true">
   <div class="box" id="modalBox"><button class="x" id="modalX" aria-label="close">✕</button><div id="modalContent"></div></div>
@@ -183,11 +186,31 @@ function applyAudioFx(){if(!actx)return;const t=actx.currentTime;
 function applyNormalFx(){userRate=1.0;revAmt=0;try{audio.playbackRate=rageOn?rageRate():1.0;}catch(_){}applyAudioFx();}
 function applyLabFx(){userRate=labRate;revAmt=labRev;roomP=labRoom;try{audio.playbackRate=rageOn?rageRate():userRate;}catch(_){}if(actx)rebuildImpulse();applyAudioFx();}
 function connectMedia(){if(graphReady)return;ensureCtx();try{srcNode=actx.createMediaElementSource(audio);srcNode.connect(mix);graphReady=true;}catch(e){}}
-function startAudio(){connectMedia();ensureCtx();applyAudioFx();armKick();audio.play().then(()=>setUI(true)).catch(()=>{});}
+function startAudio(){if(bgMode==='yt'&&ytPlayer&&ytReady){try{ytPlayer.pauseVideo();}catch(_){}}bgMode='local';connectMedia();ensureCtx();applyAudioFx();armKick();audio.play().then(()=>setUI(true)).catch(()=>{});updateBgTitle();}
 function setUI(on){playing=on;const ic=on?'❚❚':'▶';if(pbtn)pbtn.textContent=ic;if(pwplay)pwplay.textContent=ic;if(disc)disc.classList.toggle('spin',on);if(musicbar)musicbar.classList.toggle('open',on);const sp=document.getElementById('srPlay');if(sp)sp.textContent=on?'❚❚ pause':'▶ play';const sa=document.getElementById('srArt');if(sa)sa.classList.toggle('spin',on);}
-function toggle(){if(audio.paused)startAudio();else{audio.pause();setUI(false);}}
+function toggle(){if(bgMode==='yt'){if(ytIsPlaying())ytPause();else ytPlay();return;}if(audio.paused)startAudio();else{audio.pause();setUI(false);}}
 if(pbtn)pbtn.onclick=toggle;if(disc)disc.onclick=toggle;
-audio.addEventListener('play',()=>setUI(true));audio.addEventListener('pause',()=>setUI(false));
+audio.addEventListener('play',()=>{if(bgMode==='local')setUI(true);});audio.addEventListener('pause',()=>{if(bgMode==='local')setUI(false);});
+
+/* ── BACKGROUND RADIO (local track + YouTube playlist) ──
+   The signature MP3 is track #1 and powers all the Web Audio fx (visualizer, lab,
+   rage). Past it the visitor skips (⏭) into a YouTube playlist played through a
+   hidden IFrame player. Only one source is ever audible at a time; the YouTube API
+   is loaded lazily on the first skip so it never slows the initial page. */
+let bgMode='local',ytPlayer=null,ytReady=false,ytWantPlay=false,_ytApiLoading=false;
+const BG_PLAYLIST=(()=>{try{return(window.SB_DEFAULTS&&SB_DEFAULTS.music&&SB_DEFAULTS.music.bgPlaylist)||'';}catch(_){return'';}})();
+function localTitle(){try{return(window.SB&&SB.music&&SB.music.playerTitle)||'Man Of My Word';}catch(_){return'Man Of My Word';}}
+function ytIsPlaying(){try{return!!(ytPlayer&&ytReady&&ytPlayer.getPlayerState&&ytPlayer.getPlayerState()===1);}catch(_){return false;}}
+function bgIsPlaying(){return bgMode==='yt'?ytIsPlaying():!audio.paused;}
+function updateBgTitle(){let title=localTitle();if(bgMode==='yt'&&ytPlayer&&ytPlayer.getVideoData){try{const d=ytPlayer.getVideoData();if(d&&d.title)title=d.title;}catch(_){}}document.querySelectorAll('#musicbar .stitle').forEach(el=>el.textContent=title);const pwt=document.querySelector('#music .pwtitle');if(pwt)pwt.textContent=title;}
+function loadYTApi(){if(window.YT&&window.YT.Player){initYT();return;}if(_ytApiLoading)return;_ytApiLoading=true;const prev=window.onYouTubeIframeAPIReady;window.onYouTubeIframeAPIReady=function(){try{if(prev)prev();}catch(_){}initYT();};const s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';document.head.appendChild(s);}
+function initYT(){if(ytPlayer||!BG_PLAYLIST||!document.getElementById('ytbg'))return;try{ytPlayer=new YT.Player('ytbg',{width:'200',height:'120',host:'https://www.youtube-nocookie.com',playerVars:{listType:'playlist',list:BG_PLAYLIST,autoplay:0,controls:0,disablekb:1,fs:0,modestbranding:1,playsinline:1,rel:0,loop:1},events:{onReady:()=>{ytReady=true;try{ytPlayer.setVolume(Math.round(audio.volume*100));}catch(_){}if(ytWantPlay){ytWantPlay=false;ytPlay();}},onStateChange:onYTState}});}catch(_){}}
+function onYTState(e){const Y=window.YT&&YT.PlayerState;if(!Y)return;if(e.data===Y.PLAYING){if(bgMode!=='yt'){bgMode='yt';try{audio.pause();}catch(_){}}setUI(true);updateBgTitle();}else if(e.data===Y.PAUSED){if(bgMode==='yt')setUI(false);}}
+function ytPlay(){if(!BG_PLAYLIST)return;if(!ytPlayer){ytWantPlay=true;loadYTApi();return;}if(!ytReady){ytWantPlay=true;return;}try{audio.pause();}catch(_){}bgMode='yt';try{ytPlayer.setVolume(Math.round(audio.volume*100));ytPlayer.playVideo();}catch(_){}setUI(true);updateBgTitle();}
+function ytPause(){if(ytPlayer&&ytReady){try{ytPlayer.pauseVideo();}catch(_){}}setUI(false);}
+function bgNext(){if(!BG_PLAYLIST){startAudio();return;}if(bgMode==='local'){ytPlay();return;}if(ytPlayer&&ytReady){let idx=0,len=0;try{idx=ytPlayer.getPlaylistIndex();len=(ytPlayer.getPlaylist()||[]).length;}catch(_){}if(len&&idx>=len-1)startAudio();else{try{ytPlayer.nextVideo();}catch(_){}}}}
+function bgPrev(){if(bgMode==='yt'&&ytPlayer&&ytReady){let idx=0;try{idx=ytPlayer.getPlaylistIndex();}catch(_){}if(idx<=0)startAudio();else{try{ytPlayer.previousVideo();}catch(_){}}return;}try{audio.currentTime=0;}catch(_){}if(audio.paused)startAudio();}
+{const pv=document.getElementById('prevbtn'),nx=document.getElementById('nextbtn');if(pv)pv.onclick=bgPrev;if(nx)nx.onclick=bgNext;}
 function listenNow(){startAudio();const v=document.getElementById('visualizer');if(v)v.scrollIntoView({behavior:'smooth'});}
 /* Always arm a first-interaction fallback: the very first tap / scroll / key resumes the
    audio context (required even when autoplay "succeeds" into a still-suspended context) and
@@ -668,7 +691,7 @@ function setupCulling(){
 let _rzT;addEventListener('resize',()=>{clearTimeout(_rzT);_rzT=setTimeout(()=>{sizeTrail();sizeSnake();buildSnakes();resizeAll();},150);});
 function rg(ctx,w){const g=ctx.createLinearGradient(0,0,w,0);g.addColorStop(0,'#ff1f2e');g.addColorStop(.5,'#9b3cff');g.addColorStop(1,'#8dff2b');return g;}
 let levels=new Array(64).fill(0);
-function updateLevels(t){if(graphReady&&playing&&analyser){analyser.getByteFrequencyData(freq);for(let i=0;i<levels.length;i++)levels[i]+=(freq[i%freq.length]/255-levels[i])*.4;}else{for(let i=0;i<levels.length;i++){const b=.14+.12*Math.sin(t*.0013+i*.35)+.09*Math.sin(t*.0026+i*.7);levels[i]+=(Math.max(0,b)-levels[i])*.08;}}}
+function updateLevels(t){if(graphReady&&playing&&analyser&&bgMode==='local'){analyser.getByteFrequencyData(freq);for(let i=0;i<levels.length;i++)levels[i]+=(freq[i%freq.length]/255-levels[i])*.4;}else{for(let i=0;i<levels.length;i++){const b=.14+.12*Math.sin(t*.0013+i*.35)+.09*Math.sin(t*.0026+i*.7);levels[i]+=(Math.max(0,b)-levels[i])*.08;}}}
 function snakeWave(ctx,w,h,t,amp,thick,yc){ctx.save();ctx.lineCap='round';ctx.shadowColor='#ff1f2e';ctx.shadowBlur=18;const seg=70;for(let pass=0;pass<2;pass++){ctx.beginPath();for(let i=0;i<=seg;i++){const p=i/seg,x=p*w;const lv=levels[Math.floor(p*(levels.length-1))]||0;const wob=Math.sin(p*7+t*.0022+pass*1.6)*amp*(.4+lv*1.6)+Math.sin(p*3-t*.0015)*amp*.4;const y=yc+wob;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.strokeStyle=pass===0?rg(ctx,w):'rgba(255,255,255,.45)';ctx.globalAlpha=pass===0?.95:.3;ctx.lineWidth=thick*(pass===0?1:.4);ctx.stroke();}ctx.restore();}
 function bars(ctx,w,h,base){const n=levels.length,bw=w/n,cols=['#ff1f2e','#8dff2b','#9b3cff'];for(let i=0;i<n;i++){const bh=levels[i]*h*.5;const g=ctx.createLinearGradient(0,base,0,base-bh);g.addColorStop(0,cols[i%3]);g.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=g;ctx.globalAlpha=.85;ctx.fillRect(i*bw+bw*.2,base-bh,bw*.6,bh);ctx.globalAlpha=1;}}
 function ring(ctx,cx,cy,r,t){const n=48,cols=['#ff1f2e','#8dff2b','#9b3cff'];ctx.save();ctx.shadowColor='#8dff2b';ctx.shadowBlur=12;for(let i=0;i<n;i++){const a=i/n*Math.PI*2;const len=8+levels[i%levels.length]*70;ctx.strokeStyle=cols[i%3];ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);ctx.lineTo(cx+Math.cos(a)*(r+len),cy+Math.sin(a)*(r+len));ctx.lineWidth=2;ctx.stroke();}ctx.restore();}
@@ -801,7 +824,7 @@ function toast(msg,type){const wrap=document.getElementById('toasts');const el=d
 
 /* MODAL — accessible dialog: moves focus in, traps Tab, restores focus on close */
 const modal=document.getElementById('modal'),modalContent=document.getElementById('modalContent');
-let _modalOpener=null;
+let _modalOpener=null,_duckedRadio=false;
 const _focSel='a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 function _modalFocusable(){return Array.from(modal.querySelectorAll(_focSel)).filter(el=>el.offsetWidth||el.offsetHeight||el===document.activeElement);}
 function openModal(html){
@@ -809,6 +832,10 @@ function openModal(html){
   modalContent.innerHTML=html;
   const h=modalContent.querySelector('h2,h3');                 // label the dialog from its heading
   if(h){if(!h.id)h.id='sbModalTitle';modal.setAttribute('aria-labelledby',h.id);}else modal.removeAttribute('aria-labelledby');
+  /* If this modal embeds a video (vault clip), duck the background radio so the two
+     don't play over each other; remember it so we can resume on close. */
+  _duckedRadio=false;
+  if(modalContent.querySelector('iframe')&&bgIsPlaying()){_duckedRadio=true;if(bgMode==='yt')ytPause();else{audio.pause();setUI(false);}}
   modal.classList.add('open');modal.setAttribute('aria-hidden','false');
   /* the dialog fades in (visibility transition), so the close button isn't focusable
      for a few frames — focus it the moment it actually becomes visible */
@@ -820,6 +847,8 @@ function closeModal(){
   modal.classList.remove('open');modal.setAttribute('aria-hidden','true');
   if(_modalOpener&&_modalOpener.focus){try{_modalOpener.focus();}catch(_){}}
   _modalOpener=null;
+  /* resume whatever the radio was playing before we ducked it for a video */
+  if(_duckedRadio){_duckedRadio=false;if(bgMode==='yt')ytPlay();else startAudio();}
 }
 document.getElementById('modalX').onclick=closeModal;
 modal.addEventListener('click',e=>{if(e.target===modal)closeModal();});
@@ -882,7 +911,7 @@ function wireMerchAlert(){const merchAlertBtn=document.getElementById('merchAler
 function wireVault(){document.querySelectorAll('#vault .vcard').forEach(card=>card.addEventListener('click',e=>{if(e.metaKey||e.ctrlKey||e.shiftKey)return;e.preventDefault();const img=card.querySelector('img').src,title=card.querySelector('.vt').textContent,sub=card.querySelector('.vs').textContent,href=card.getAttribute('href');openModal(`<div class="mhead wide" style="background-image:url('${img}')"></div><div class="mbody"><span class="kicker">${sub}</span><h3>${title}</h3><p>The full visual lives in the SB vault on YouTube. Tap in for the complete drop.</p><div class="mcta"><a class="bigbtn bSlime" href="${href}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);}));}
 
 /* SHOWS — content-driven (edit in the admin page) */
-function renderShows(SHOWS){SHOWS=SHOWS||[];const list=document.getElementById('showlist'),empty=document.getElementById('showsEmpty');if(!list||!empty)return;if(!SHOWS.length){list.style.display='none';empty.style.display='';return;}empty.style.display='none';list.style.display='';list.innerHTML=SHOWS.map(s=>`<div class="showrow"><div class="date">${esc(s.date)}</div><div class="venue"><div class="v1">${esc(s.venue)}</div><div class="v2">${esc(s.city)}</div></div>${s.url?`<a class="tix" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">tickets</a>`:'<span class="tix" style="opacity:.5">soon</span>'}</div>`).join('');}
+function renderShows(SHOWS){SHOWS=SHOWS||[];const list=document.getElementById('showlist'),empty=document.getElementById('showsEmpty');if(!list||!empty)return;if(!SHOWS.length){list.style.display='none';empty.style.display='';return;}empty.style.display='none';list.style.display='';list.innerHTML=SHOWS.map(s=>{const u=safeUrl(s.url);/* sanitize CMS ticket links — escaping alone still allows javascript: schemes */return `<div class="showrow"><div class="date">${esc(s.date)}</div><div class="venue"><div class="v1">${esc(s.venue)}</div><div class="v2">${esc(s.city)}</div></div>${u?`<a class="tix" href="${esc(u)}" target="_blank" rel="noopener noreferrer">tickets</a>`:'<span class="tix" style="opacity:.5">soon</span>'}</div>`;}).join('');}
 function wireTour(){const _tourBtn=document.getElementById('tourAlertBtn');if(_tourBtn)_tourBtn.onclick=()=>gotoConnectJoin('drop your email below for tour alerts ☠');}
 
 /* SHORTCUTS HELP */
@@ -1189,7 +1218,8 @@ function applyContent(c){
        CMS track title + cover so it never disagrees with the music page. */
     bg('#disc',c.music.playerCover);txt('#musicbar .stitle',c.music.playerTitle);
     const emb=q('#music .embedwrap iframe');if(emb&&c.music.spotifyArtistId)emb.src=`https://open.spotify.com/embed/artist/${encodeURIComponent(c.music.spotifyArtistId)}?utm_source=generator&theme=0`;
-    renderReleases(c.music.releases);}
+    renderReleases(c.music.releases);
+    if(typeof updateBgTitle==='function'&&bgMode==='yt')updateBgTitle();}  /* don't let a CMS refresh stomp the live YouTube title */
 
   if(c.about){setHtml('#about .lead',c.about.lead);txt('#about .about p',c.about.text);src('#about .pic img',c.about.portrait);txt('#about .badge',c.about.badge);
     const sw=q('#about .stats');if(sw&&c.about.stats)sw.innerHTML=c.about.stats.map(s=>`<div class="stat"><div class="n">${esc(s.n)}</div><div class="l">${esc(s.l)}</div></div>`).join('');}
@@ -1359,11 +1389,17 @@ function initMerch(){ const pg=document.getElementById('pgrid'); if(!pg)return;
 /* boot content: render defaults instantly, then overlay whatever's published in Supabase.
    Guarded so a missing/failed cms.js can never break the rest of the page. */
 var SB_PREVIEW=/[?&]preview\b/.test(location.search);
+/* Cache the resolved (defaults + published) content for the session so client-side
+   navigation re-renders from memory instead of refetching Supabase on every click.
+   First load (or after the TTL) still fetches fresh. */
+let _cmsCache=null,_cmsCacheAt=0; const CMS_TTL=5*60*1000;
 function loadContent(){
   try{ if(typeof SB_DEFAULTS!=='undefined') applyContent(SB_DEFAULTS); }catch(e){}
   /* In preview the admin drives the content via postMessage, so skip the remote
      fetch — otherwise it could resolve late and clobber the live edits. */
-  if(!SB_PREVIEW){ try{ if(typeof sbGetContent==='function') sbGetContent().then(c=>{window.__sbContentLoaded=true;applyContent(c);}).catch(()=>{window.__sbContentLoaded=true;}); }catch(e){} }
+  if(SB_PREVIEW)return;
+  if(_cmsCache && (Date.now()-_cmsCacheAt)<CMS_TTL){ try{applyContent(_cmsCache);}catch(_){} window.__sbContentLoaded=true; return; }
+  try{ if(typeof sbGetContent==='function') sbGetContent().then(c=>{_cmsCache=c;_cmsCacheAt=Date.now();window.__sbContentLoaded=true;applyContent(c);}).catch(()=>{window.__sbContentLoaded=true;}); }catch(e){}
 }
 
 /* ===================== LIVE PREVIEW CHANNEL =====================
@@ -1400,7 +1436,7 @@ function sbInitPage(){
   observeReveals();       // reveal-on-scroll for the new content
   pwplay=document.getElementById('pwplay'); if(pwplay)pwplay.onclick=toggle;
   const pwprog=document.getElementById('pwprog'); if(pwprog)pwprog.onclick=e=>{if(!isFinite(audio.duration))return;const r=pwprog.getBoundingClientRect();audio.currentTime=(e.clientX-r.left)/r.width*audio.duration;};
-  const pwvol=document.getElementById('pwvol'); if(pwvol){pwvol.value=Math.round(audio.volume*100);pwvol.oninput=()=>{audio.volume=pwvol.value/100;};}
+  const pwvol=document.getElementById('pwvol'); if(pwvol){pwvol.value=Math.round(audio.volume*100);pwvol.oninput=()=>{audio.volume=pwvol.value/100;if(ytPlayer&&ytReady){try{ytPlayer.setVolume(+pwvol.value);}catch(_){}}};}
   const hm=document.getElementById('heroMono'); if(hm)hm.onclick=e=>slimeSplash(e.clientX,e.clientY);
   const cm=document.getElementById('contactMono'); if(cm)cm.onclick=e=>slimeSplash(e.clientX,e.clientY);
   wireMfilter(); wireMerchAlert(); wireVault(); wireTour(); wireShare(); initMerch(); wireMagnetic();
@@ -1408,7 +1444,8 @@ function sbInitPage(){
   if(currentPage()==='lab.html') wireLab(); else applyNormalFx();   // lab = slowed+reverb, else normal
   loadContent();          // apply CMS defaults + fetch published content for this page
   deepLinkJoin();
-  setUI(!audio.paused);   // reflect play state on the new page's transport UI
+  setUI(bgIsPlaying());   // reflect play state on the new page's transport UI
+  updateBgTitle();        // keep the now-playing title in sync (local track or YouTube)
 }
 
 /* legacy full-load wipe cleanup (kept for hard navigations / no-JS-router fallbacks) */

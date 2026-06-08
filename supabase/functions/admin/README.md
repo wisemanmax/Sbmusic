@@ -20,15 +20,29 @@ expired token can never lock the admin out.
 supabase functions deploy admin --no-verify-jwt
 ```
 
+## Implemented hardening
+
+- **Hashed password.** `admin_config.password` is stored as `pbkdf2$<iters>$<salt>$<hash>`
+  (PBKDF2-HMAC-SHA256, WebCrypto, no external dep). A legacy plaintext value is accepted
+  once and transparently upgraded to a hash on the next successful login. Comparisons are
+  constant-time.
+- **Token revocation.** Tokens embed `session_version` (column on `admin_config`).
+  `set_password` bumps it, so changing the password instantly invalidates every
+  outstanding token instead of waiting out the 8h TTL.
+- **CORS allowlist.** Responses reflect only allow-listed origins (`slimeby.com`,
+  `www.slimeby.com`, localhost), not `*`. Override with the `ALLOWED_ORIGINS` env
+  (comma-separated) without redeploying.
+- **Login rate limiting.** Best-effort per-IP lockout (8 failures / 15 min) on password
+  attempts; cryptographic token auth is not throttled.
+- **Upload validation.** Server enforces a content-type allowlist
+  (`image/jpeg|png|webp|gif`) and an 8 MB cap after base64 decode, and writes to a random
+  `crypto.randomUUID()` object key rather than the client-supplied filename.
+
 ## Remaining hardening (recommended)
 
-- **Hash the stored password.** `admin_config.password` is currently plaintext. Have
-  `set_password` store a hash (e.g. scrypt/bcrypt) and `login` compare against it.
-  Migrate by accepting the existing plaintext once, then writing the hash.
 - **HttpOnly cookie tokens.** The token currently rides in JSON and is kept in
   `sessionStorage`. If the admin is served same-site with the function, set it as an
   `HttpOnly; Secure; SameSite=Strict` cookie so page JS can't read it at all.
-- **Phone-merge (review #6).** Sign-ups are inserted client-side (anon INSERT). To merge
-  a later phone onto an existing email, add a `subscribe` action here (service role,
-  upsert on `email`) and route the join form through it.
-- **Rate-limit `login`.**
+- **Phone-merge.** Sign-ups are inserted client-side (anon INSERT). To merge a later
+  phone onto an existing email, add a `subscribe` action here (service role, upsert on
+  `email`) and route the join form through it.

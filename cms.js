@@ -36,6 +36,9 @@ const SB_DEFAULTS = {
     playerTitle: 'Man Of My Word',
     playerCover: 'assets/my-time-cover.jpg',
     spotifyArtistId: '70LnkJjJc5yq650kELO09A',
+    /* Background "radio": the signature track plays first, then the visitor can skip
+       (⏭) into this YouTube playlist — extra songs that keep the site alive. */
+    bgPlaylist: 'PLg9MBVDt3XDq6n2jgBpTO5S7wwz2kihSA',
     releases: [
       { title: 'My Time', sub: 'album · 2024', type: 'album', img: 'assets/my-time-cover.jpg', url: 'https://open.spotify.com/album/5RickWrPNRszADHSzJJYUc' },
       { title: 'Save Her', sub: 'single · 2024', type: 'single', img: 'https://i.scdn.co/image/ab67616d00001e028a915904da619cc9a6ee6fc5', url: 'https://open.spotify.com/album/6T2tcMpvYytltsEjPgyhEw' },
@@ -298,6 +301,7 @@ const SB_SCHEMA = {
   'music.playerTitle':     { label: 'Player track title' },
   'music.playerCover':     { label: 'Player cover art', type: 'image' },
   'music.spotifyArtistId': { label: 'Spotify artist ID', hint: 'The ID in open.spotify.com/artist/<ID>.' },
+  'music.bgPlaylist':      { label: 'Background YouTube playlist', hint: 'Playlist ID (the list= value in a youtube.com/playlist link). Visitors skip into it with ⏭ on the music bar. Leave blank to disable.' },
   'music.releases':        { label: 'Releases', itemLabel: 'release', titleKey: 'title' },
   'music.releases.title':  { label: 'Title' },
   'music.releases.sub':    { label: 'Subtitle', placeholder: 'single · 2025' },
@@ -502,6 +506,10 @@ window.sbAdmin = sbAdmin;
 /* capture a sign-up in the `subscribers` table (anon insert is allowed by RLS).
    Returns true on success; callers should keep their local fallback regardless. */
 async function sbSubscribe(email, phone) {
+  // Normalize the address so it matches the unique(email) index the upsert conflicts on
+  // (see migration 20260608120000). Without normalization "A@x.com" and "a@x.com" would
+  // both slip past the case-insensitive dedupe we promise.
+  email = email ? String(email).trim().toLowerCase() : null;
   try {
     const r = await fetch(SB_CFG.url + '/rest/v1/subscribers?on_conflict=email', {
       method: 'POST',
@@ -513,6 +521,9 @@ async function sbSubscribe(email, phone) {
       },
       body: JSON.stringify({ email: email || null, phone: phone || null }),
     });
+    // A non-2xx here means the row didn't land — surface it so a broken funnel (e.g. a
+    // missing conflict target) is visible instead of silently queueing offline forever.
+    if (!r.ok) { try { console.warn('[sb] subscribe failed', r.status, await r.text()); } catch (_) {} }
     return r.ok;
   } catch (_) {
     return false;
