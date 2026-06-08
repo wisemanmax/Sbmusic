@@ -107,82 +107,123 @@
         #qRoot .q-who.quest{ color:var(--q-toxic); text-shadow:0 0 8px var(--q-toxic); }
         #qRoot .q-txt{ font-size:13px; line-height:1.5; color:#eafbe4; }
 
-        /* ===== TOUCH CONTROL DECK =====
+        /* ===== HANDHELD CONTROL DECK (Delta-style console body) =====
            On touch devices the engine adds .q-has-touch to #qRoot; the deck then
-           docks below the 16:9 frame and fills the otherwise-empty vertical space,
-           so the controls never sit on top of the gameplay. Buttons are driven by
-           pointer events (multi-touch) and get a .pressed class for glow feedback. */
-        #qRoot .q-deck{ display:none; width:100%; box-sizing:border-box; justify-content:space-between; align-items:flex-end; gap:14px;
-          padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px)); touch-action:none; user-select:none;
-          background:linear-gradient(180deg,rgba(8,18,9,0),rgba(6,12,6,.55) 45%); }
+           reads like a real handheld controller — L/R shoulders, a cross d-pad, two
+           round face buttons (A/B) and a MENU·SELECT·START system row — all themed
+           in slime green to match the cabinet. Buttons keep their engine IDs and are
+           driven by pointer events (multi-touch) with a .pressed class for glow.
+           The full-bleed, viewport-filling layout lives in the mobile media query. */
+        #qRoot .q-deck{ display:none; flex-direction:column; gap:14px; width:100%; box-sizing:border-box;
+          padding:14px 18px calc(14px + env(safe-area-inset-bottom,0px)); touch-action:none; user-select:none;
+          background:linear-gradient(180deg,rgba(8,18,9,0),rgba(6,12,6,.55)); }
         #qRoot.q-has-touch .q-deck{ display:flex; }
-        #qRoot .q-dpad{ display:flex; gap:12px; }
-        #qRoot .q-cluster{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
-        #qRoot .q-btn{ -webkit-tap-highlight-color:transparent; touch-action:none; user-select:none; position:relative; display:grid; place-items:center; cursor:pointer;
+
+        /* shoulder row — L/R triggers flanking the console wordmark */
+        #qRoot .q-shoulders{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+        #qRoot .q-brand{ font-family:var(--q-mono); font-weight:900; letter-spacing:5px; font-size:11px; color:#6f9a64;
+          text-shadow:0 0 12px rgba(141,255,43,.28); white-space:nowrap; }
+        #qRoot .q-shoulder{ flex:0 0 auto; min-width:108px; height:30px; padding:0 12px; font-size:11px;
+          border-radius:7px 7px 15px 15px; }
+
+        /* main row — cross d-pad on the left, diagonal face buttons on the right */
+        #qRoot .q-body{ display:flex; align-items:center; justify-content:space-between; gap:14px; }
+        #qRoot .q-dpad{ display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr);
+          width:clamp(126px,38vw,150px); aspect-ratio:1; }
+        #qRoot .q-dpad .q-pad{ font-size:clamp(15px,4.6vw,20px); }
+        #qRoot .q-pad-u{ grid-area:1/2/2/3; border-bottom:0; border-radius:13px 13px 0 0; }
+        #qRoot .q-pad-l{ grid-area:2/1/3/2; border-right:0; border-radius:13px 0 0 13px; }
+        #qRoot .q-pad-r{ grid-area:2/3/3/4; border-left:0; border-radius:0 13px 13px 0; }
+        #qRoot .q-pad-d{ grid-area:3/2/4/3; border-top:0; border-radius:0 0 13px 13px; }
+        #qRoot .q-pad-nub{ grid-area:2/2/3/3; align-self:stretch; justify-self:stretch; display:grid; place-items:center;
+          border-top:1.5px solid rgba(141,255,43,.5); border-bottom:1.5px solid rgba(141,255,43,.5);
+          background:radial-gradient(circle at 50% 38%,rgba(141,255,43,.28),rgba(141,255,43,.04)); }
+        #qRoot .q-pad-nub::after{ content:""; width:34%; height:34%; border-radius:50%;
+          background:rgba(141,255,43,.18); box-shadow:inset 0 0 6px rgba(141,255,43,.4); }
+        #qRoot .q-pad-d.q-pad-off{ color:#2f4a28; opacity:.55; place-items:center; display:grid;
+          border:1.5px solid rgba(141,255,43,.5); border-top:0;
+          background:linear-gradient(180deg,rgba(141,255,43,.06),rgba(141,255,43,.01)); }
+
+        #qRoot .q-cluster{ display:grid; grid-template-columns:auto auto; grid-template-rows:auto auto; gap:10px; }
+        #qRoot .q-face{ width:clamp(58px,17vw,68px); height:clamp(58px,17vw,68px); border-radius:50%;
+          flex-direction:column; gap:1px; line-height:1; }
+        #qRoot .q-face b{ font-size:clamp(16px,4.8vw,20px); }
+        #qRoot .q-face span{ font-size:8px; letter-spacing:1px; opacity:.85; font-weight:700; }
+        #qRoot .q-blast{ grid-area:1/1/2/2; }   /* B — upper-left  */
+        #qRoot .q-jump{ grid-area:2/2/3/3; }     /* A — lower-right */
+
+        /* system row — MENU · SELECT · START */
+        #qRoot .q-system{ display:flex; align-items:flex-start; justify-content:center; gap:26px; }
+        #qRoot .q-sys{ -webkit-tap-highlight-color:transparent; touch-action:manipulation; cursor:pointer;
+          font-family:var(--q-mono); font-weight:700; letter-spacing:2px; font-size:9px; color:#7fae72;
+          background:none; border:0; padding:0; }
+        #qRoot .q-sys::before{ content:""; display:block; width:30px; height:8px; margin:0 auto 6px; border-radius:6px;
+          background:linear-gradient(180deg,#1c2c18,#0c160b); border:1px solid rgba(141,255,43,.4);
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.08); transition:.12s; }
+        #qRoot .q-sys:active::before{ background:linear-gradient(180deg,rgba(141,255,43,.45),rgba(141,255,43,.15));
+          box-shadow:0 0 12px rgba(141,255,43,.4); }
+        #qRoot .q-sys-dot{ opacity:.5; pointer-events:none; }
+
+        /* shared button shell — face buttons, d-pad arms and shoulders all build on this */
+        #qRoot .q-btn{ -webkit-tap-highlight-color:transparent; touch-action:none; user-select:none; position:relative;
+          display:grid; place-items:center; cursor:pointer;
           font-family:var(--q-mono); font-weight:900; letter-spacing:1px; font-size:13px; color:var(--q-slime);
-          border:1.5px solid rgba(141,255,43,.5); border-radius:16px;
+          border:1.5px solid rgba(141,255,43,.5);
           background:linear-gradient(180deg,rgba(141,255,43,.12),rgba(141,255,43,.03));
           box-shadow:0 2px 0 rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.12),0 0 14px rgba(141,255,43,.12);
           transition:transform .06s,box-shadow .12s,background .12s; }
-        #qRoot .q-btn::after{ content:""; position:absolute; inset:-2px; border-radius:inherit; pointer-events:none; opacity:0; }
+        #qRoot .q-shoulder,#qRoot .q-face{ border-radius:50%; }
+        #qRoot .q-shoulder{ border-radius:7px 7px 15px 15px; }
         #qRoot .q-btn.pressed{ transform:translateY(2px) scale(.95);
           background:linear-gradient(180deg,rgba(141,255,43,.34),rgba(141,255,43,.14));
           box-shadow:0 0 24px rgba(141,255,43,.5),inset 0 0 14px rgba(141,255,43,.28); }
-        #qRoot .q-btn.pressed::after{ opacity:1; animation:qpulse .42s ease-out; }
-        @keyframes qpulse{ from{ box-shadow:0 0 0 0 rgba(141,255,43,.55) } to{ box-shadow:0 0 0 16px rgba(141,255,43,0) } }
-        /* fluid button sizes so the deck always fits inside 100vw — clamp to the
-           original 74px on roomy screens, shrink gracefully toward small phones */
-        #qRoot .q-move{ width:clamp(58px,18vw,74px); height:clamp(58px,18vw,74px); font-size:clamp(22px,6.5vw,28px); }
-        #qRoot .q-act{ width:clamp(60px,19vw,74px); height:clamp(50px,14vw,64px); font-size:clamp(11px,3.2vw,13px); }
         #qRoot .q-jump{ color:#06140a; border-color:rgba(194,255,122,.9);
-          background:linear-gradient(180deg,var(--q-bright),#3f9c12); text-shadow:0 1px 0 rgba(255,255,255,.3); font-size:14px;
+          background:linear-gradient(180deg,var(--q-bright),#3f9c12); text-shadow:0 1px 0 rgba(255,255,255,.3);
           box-shadow:0 2px 0 rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.4),0 0 18px rgba(141,255,43,.3); }
+        #qRoot .q-jump span{ color:#06140a; opacity:.7; }
         #qRoot .q-jump.pressed{ background:linear-gradient(180deg,#eaffd2,#5cc41e); box-shadow:0 0 26px rgba(141,255,43,.6),inset 0 0 14px rgba(255,255,255,.4); }
         #qRoot .q-rage{ color:var(--q-rage); border-color:rgba(255,31,46,.55);
           background:linear-gradient(180deg,rgba(255,31,46,.15),rgba(255,31,46,.04));
           box-shadow:0 2px 0 rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.08),0 0 14px rgba(255,31,46,.16); }
         #qRoot .q-rage.pressed{ background:linear-gradient(180deg,rgba(255,31,46,.4),rgba(255,31,46,.16)); box-shadow:0 0 24px rgba(255,31,46,.55),inset 0 0 14px rgba(255,31,46,.3); }
-        #qRoot .q-rage.pressed::after{ animation:qpulser .42s ease-out; }
-        @keyframes qpulser{ from{ box-shadow:0 0 0 0 rgba(255,31,46,.55) } to{ box-shadow:0 0 0 16px rgba(255,31,46,0) } }
 
         /* title-screen control tips swap with the input method */
         #qRoot .q-tip-touch{ display:none; }
         #qRoot.q-has-touch .q-tip-key{ display:none; }
         #qRoot.q-has-touch .q-tip-touch{ display:block; }
 
-        /* ===== MOBILE-FIRST LAYOUT (page-scoped: this <style> only lives on quest.html) =====
-           A phone-first app shell: a compact hero, the 16:9 cabinet edge-to-edge, and a
-           fixed bottom control deck that owns the thumb zone. The hero sits in normal flow
-           with a defined bottom gap so it can never bleed into the game; the container hugs
-           its content (no forced height) so there's no dead vertical band; and the deck is
-           docked out-of-flow at the bottom so it never collides with the gameplay above.
-           dvh keeps it honest through the mobile browser chrome. Verified at 390px. */
+        /* ===== MOBILE: immersive handheld =====
+           Phone-first console: the page chrome steps back, the 16:9 screen sits up top
+           under a black bezel, and the control deck fills the lower viewport like the
+           body of a real handheld — game on the glass, controller in the thumbs. */
         @media (max-width:760px){
           #quest{ padding:0; }
-          .pagehead{ padding:72px 16px 12px; }
-          .pagehead h1{ font-size:clamp(32px,9vw,56px); }
-          .pagehead .psub{ font-size:10px; letter-spacing:2px; margin-top:8px; }
+          .pagehead{ display:none; }  /* the screen + controller own the viewport */
 
-          /* container hugs content — kills the empty band that used to sit above the deck */
-          #qRoot{ gap:10px; padding:0; min-height:auto; justify-content:flex-start; }
-          #qRoot.q-has-touch .q-cabinet{ width:100vw; max-width:100vw; border-radius:0; border-left:0; border-right:0; }
+          /* #qRoot fills the screen and goes black → the gap under the cabinet reads as
+             the console's bezel, exactly like the reference handheld */
+          #qRoot{ gap:0; padding:0; min-height:100dvh; justify-content:flex-start;
+            background:linear-gradient(180deg,#04080a,#02060a 60%,#04080a); }
+          #qRoot.q-has-touch .q-cabinet{ width:100vw; max-width:100vw; border-radius:0; border-left:0; border-right:0;
+            margin-top:calc(env(safe-area-inset-top,0px) + 52px); }
 
-          /* control deck → fixed bottom bar: glassmorphism, safe-area aware, never overflows.
-             Button widths are fluid (see .q-move/.q-act) so the row always fits 100vw. */
+          /* control deck → fixed console body filling the lower viewport */
           #qRoot.q-has-touch .q-deck{
             position:fixed; left:0; right:0; bottom:0; width:100%; z-index:1900;
-            flex:0 0 auto; margin:0; gap:clamp(10px,3vw,16px);
-            padding:12px clamp(12px,4vw,18px) calc(12px + env(safe-area-inset-bottom,0px));
-            background:linear-gradient(180deg,rgba(8,18,9,0),rgba(6,12,6,.92) 40%);
+            flex:0 0 auto; margin:0; gap:clamp(12px,3.2vw,18px);
+            padding:16px clamp(14px,5vw,26px) calc(18px + env(safe-area-inset-bottom,0px));
+            background:
+              radial-gradient(130% 100% at 50% -12%,rgba(141,255,43,.12),transparent 55%),
+              linear-gradient(180deg,#0c160b,#07100a 60%,#050a06);
             -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
-            border-top:1px solid rgba(141,255,43,.18);
-            box-shadow:0 -10px 30px rgba(0,0,0,.45);
+            border-top:1px solid rgba(141,255,43,.28);
+            box-shadow:inset 0 1px 0 rgba(141,255,43,.18),0 -12px 34px rgba(0,0,0,.6);
           }
           #qRoot .q-legend{ display:none; }
         }
         @media (max-width:360px){ /* squeeze the deck onto the narrowest phones (e.g. iPhone SE) */
-          #qRoot .q-deck{ padding-left:10px; padding-right:10px; gap:8px; }
-          #qRoot .q-dpad{ gap:10px; } #qRoot .q-cluster{ gap:10px; }
+          #qRoot .q-deck{ padding-left:12px; padding-right:12px; gap:10px; }
+          #qRoot .q-system{ gap:18px; }
         }
 
         /* overlay screens */
@@ -277,17 +318,30 @@
         <div class="q-scan"></div><div class="q-vig"></div>
       </div>
 
-      <!-- touch control deck — shown only on touch devices (engine adds .q-has-touch) -->
+      <!-- handheld control deck — a Delta-style console body, shown only on touch (engine adds .q-has-touch) -->
       <div class="q-deck" id="qDeck">
-        <div class="q-dpad">
-          <button class="q-btn q-move" id="qtL" type="button" aria-label="move left">◄</button>
-          <button class="q-btn q-move" id="qtR" type="button" aria-label="move right">►</button>
+        <div class="q-shoulders">
+          <button class="q-btn q-shoulder q-dash" id="qtD" type="button" aria-label="dash">L · DASH</button>
+          <span class="q-brand">SLIME&nbsp;BY</span>
+          <button class="q-btn q-shoulder q-rage" id="qtRG" type="button" aria-label="rage">RAGE · R</button>
         </div>
-        <div class="q-cluster">
-          <button class="q-btn q-act q-dash" id="qtD" type="button" aria-label="dash">DASH</button>
-          <button class="q-btn q-act q-rage" id="qtRG" type="button" aria-label="rage">RAGE</button>
-          <button class="q-btn q-act q-blast" id="qtA" type="button" aria-label="blast">BLAST</button>
-          <button class="q-btn q-act q-jump" id="qtJ" type="button" aria-label="jump">JUMP</button>
+        <div class="q-body">
+          <div class="q-dpad" role="group" aria-label="move">
+            <button class="q-btn q-pad q-pad-u" id="qtU" type="button" aria-label="jump">▲</button>
+            <button class="q-btn q-pad q-pad-l" id="qtL" type="button" aria-label="move left">◄</button>
+            <span class="q-pad-nub" aria-hidden="true"></span>
+            <button class="q-btn q-pad q-pad-r" id="qtR" type="button" aria-label="move right">►</button>
+            <span class="q-pad q-pad-d q-pad-off" aria-hidden="true">▼</span>
+          </div>
+          <div class="q-cluster">
+            <button class="q-btn q-face q-blast" id="qtA" type="button" aria-label="blast"><b>B</b><span>BLAST</span></button>
+            <button class="q-btn q-face q-jump" id="qtJ" type="button" aria-label="jump"><b>A</b><span>JUMP</span></button>
+          </div>
+        </div>
+        <div class="q-system">
+          <button class="q-sys" id="qtMenu" type="button" aria-label="pause">MENU</button>
+          <span class="q-sys q-sys-dot" aria-hidden="true">SELECT</span>
+          <button class="q-sys" id="qtStart" type="button" aria-label="start / pause">START</button>
         </div>
       </div>
 

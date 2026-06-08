@@ -755,7 +755,7 @@ html.wipe-armed::before{content:"";position:fixed;inset:0;z-index:10850;pointer-
 @media(max-width:760px){
   body.page-quest .musicbar{
     left:50%; right:auto; top:auto;
-    bottom:calc(env(safe-area-inset-bottom,0px) + 178px);
+    bottom:calc(env(safe-area-inset-bottom,0px) + 272px);
     transform:translateX(-50%);
     max-width:calc(100vw - 24px); z-index:1950;
     padding:6px 8px; background:rgba(8,12,8,.85);
@@ -765,7 +765,7 @@ html.wipe-armed::before{content:"";position:fixed;inset:0;z-index:10850;pointer-
   body.page-quest .musicbar #nextbtn{ display:none; }
   body.page-quest .totop,
   body.page-quest .helpbtn{ display:none; }
-  /* keep the footer + toasts above the fixed deck and the docked player */
-  body.page-quest footer{ padding-bottom:calc(250px + env(safe-area-inset-bottom,0px)); }
-  body.page-quest #toasts{ bottom:calc(250px + env(safe-area-inset-bottom,0px)); }
+  /* keep the footer + toasts above the fixed console deck and the docked player */
+  body.page-quest footer{ padding-bottom:calc(300px + env(safe-area-inset-bottom,0px)); }
+  body.page-quest #toasts{ bottom:calc(300px + env(safe-area-inset-bottom,0px)); }
 }

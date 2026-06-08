@@ -987,10 +987,14 @@
     bindInputs();
     bindTouch(q('qtL'), () => K.l = true, () => K.l = false);
     bindTouch(q('qtR'), () => K.r = true, () => K.r = false);
+    bindTouch(q('qtU'), () => { K.jump = true; K.jumpEdge = true; }, () => K.jump = false);  // d-pad up → jump
     bindTouch(q('qtJ'), () => { K.jump = true; K.jumpEdge = true; }, () => K.jump = false);
     bindTouch(q('qtA'), () => { K.atk = true; K.atkEdge = true; }, () => K.atk = false);
     bindTouch(q('qtD'), () => { K.dash = true; K.dashEdge = true; }, () => K.dash = false);
     bindTouch(q('qtRG'), () => { K.rage = true; K.rageEdge = true; }, () => K.rage = false);
+    // system row: START/MENU begin the quest from a menu screen, or pause/resume mid-run
+    const sysBtn = () => { if (state === 'play' || state === 'paused') togglePause(); else startGame(); };
+    ['qtStart', 'qtMenu'].forEach(id => { const b = q(id); if (b) b.onclick = sysBtn; });
     wireScreens();
     // (re)start at the title screen
     state = 'title'; win = false;
