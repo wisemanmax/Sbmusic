@@ -94,8 +94,13 @@ admin at `admin.html`.
   an automatic local **draft** that offers to restore your work if you close the tab.
 - **Analytics** — a built-in, Google-Analytics-style dashboard: pageviews, unique visitors,
   sessions and clicks over a 7 / 30 / 90-day or yearly window, a daily pageviews chart, plus
-  **top pages**, **what people click**, **where they leave off** (exit pages) and **referrers**.
-  Anonymous and first-party — no cookies, no personal data, no third-party tags.
+  **top pages**, **what people click**, **where they leave off** (exit pages), **referrers**, and
+  **device / browser / OS** breakdowns of the audience.
+  First-party and **consent-gated**: a banner asks on first visit and **nothing is tracked until
+  the visitor accepts** (decline → no identifier, no events). On accept it collects the usage
+  signals above plus device type, browser, OS, a coarse screen bucket, language and timezone —
+  but never an IP address, fingerprint, or third-party/cross-site tag. A public `privacy.html`
+  page documents it and lets visitors change their choice (footer links + `window.sbConsent`).
 - **Audience** — everyone who joined the slime list from the site, with totals and **CSV export**.
 - **Settings** — change the admin password, **export / import** your whole content model as JSON,
   and reset to the built-in defaults.
@@ -115,7 +120,8 @@ admin at `admin.html`.
   RLS allows anonymous **insert only** (no public read). The admin reads *aggregates* (never raw
   rows) through the edge function's `analytics` action, backed by a service-role-only
   `analytics_summary()` function. Tracking lives in `assets/analytics.js` (auto-loaded by `app.js`);
-  it skips the admin page and the editor preview.
+  it skips the admin page and the editor preview, and **only runs after the visitor accepts the
+  consent banner** (the choice is stored in `localStorage` as `sb_consent`).
 - To change the password: use **Settings → Change password** (or update `admin_config` directly).
 - Note: Supabase's free tier pauses a project after ~1 week of inactivity; if that happens
   the site still renders (from `cms.js` defaults) but published edits won't show until the

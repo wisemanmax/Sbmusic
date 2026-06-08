@@ -48,6 +48,7 @@ function buildChrome(){
   <a class="fmark" href="index.html" aria-label="Slime By — home">SB</a>
   <div class="fbadges"><span class="fbadge">★ BEST VIEWED IN RAGE MODE</span><span class="fbadge">MADE IN DE</span><span class="fbadge">100% INDEPENDENT</span><span class="fbadge">SB UNIVERSE ☠</span></div>
   <div class="fcopy">© 2026 slime by · delaware · the snake moves</div>
+  <div class="flinks"><a href="privacy.html">privacy &amp; data</a> · <a href="privacy.html" data-track="privacy choices" onclick="if(window.sbConsent){window.sbConsent('reset');return false}">privacy choices</a></div>
 </footer>
 <div class="musicbar" id="musicbar">
   <div class="disc" id="disc" style="background-image:url('assets/my-time-cover.jpg')" role="button" tabindex="0" aria-label="play / pause"></div>

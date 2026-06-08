@@ -822,6 +822,9 @@ async function renderAnalytics(root){
     grid.appendChild(tableCard('What people click',s.top_clicks,'clicks',['Element','Clicks'],[r=>escA(r.target),r=>fmtNum(r.clicks)]));
     grid.appendChild(tableCard('Where they leave off',s.exit_pages,'exits',['Exit page','Exits'],[r=>escA(r.page),r=>fmtNum(r.exits)]));
     grid.appendChild(tableCard('Referrers',s.referrers,'count',['Source','Visits'],[r=>escA(r.referrer),r=>fmtNum(r.count)]));
+    if(s.devices&&s.devices.length) grid.appendChild(tableCard('Devices',s.devices,'count',['Device','Views'],[r=>escA(r.device),r=>fmtNum(r.count)]));
+    if(s.browsers&&s.browsers.length) grid.appendChild(tableCard('Browsers',s.browsers,'count',['Browser','Views'],[r=>escA(r.browser),r=>fmtNum(r.count)]));
+    if(s.os&&s.os.length) grid.appendChild(tableCard('Operating systems',s.os,'count',['OS','Views'],[r=>escA(r.os),r=>fmtNum(r.count)]));
     host.appendChild(grid);
   }
   async function load(){
