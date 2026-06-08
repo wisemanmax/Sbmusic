@@ -31,7 +31,9 @@ a{color:inherit;text-decoration:none}
 .vig{position:fixed;inset:0;z-index:9992;pointer-events:none;box-shadow:inset 0 0 200px rgba(0,0,0,.8),inset 0 0 80px rgba(141,255,43,.05)}
 
 /* CURSOR + EMBERS */
-.cursor{position:fixed;top:0;left:0;width:26px;height:26px;border:2px solid var(--slime);border-radius:50%;pointer-events:none;z-index:10000;transform:translate(-50%,-50%);box-shadow:0 0 12px var(--slime),inset 0 0 8px rgba(141,255,43,.4);transition:width .15s,height .15s,border-color .15s}
+/* z-index sits ABOVE the modal/popup (11200) + loader so the custom ring stays visible while
+   the native pointer is hidden — otherwise the cursor "disappears" the moment you hover a popup. */
+.cursor{position:fixed;top:0;left:0;width:26px;height:26px;border:2px solid var(--slime);border-radius:50%;pointer-events:none;z-index:12001;transform:translate(-50%,-50%);box-shadow:0 0 12px var(--slime),inset 0 0 8px rgba(141,255,43,.4);transition:width .15s,height .15s,border-color .15s}
 .cursor::after{content:"";position:absolute;inset:0;margin:auto;width:3px;height:3px;border-radius:50%;background:var(--blood);box-shadow:0 0 8px var(--blood)}
 .cursor.big{width:54px;height:54px;border-color:var(--slime2);box-shadow:0 0 22px var(--slime)}
 #trail{position:fixed;inset:0;z-index:9996;pointer-events:none}
@@ -192,6 +194,10 @@ section{padding:clamp(60px,9vw,116px) clamp(18px,5vw,56px);position:relative;z-i
 .joinrow input{flex:1;min-width:170px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.18);color:var(--ink);padding:12px 14px;font-family:var(--ui);font-size:14px}
 .joinrow input:focus{outline:none;border-color:var(--slime)}
 .joinrow button{font-family:var(--disp);font-size:16px;padding:0 22px;border:1px solid var(--slime);background:var(--slime);color:#08120a;cursor:pointer}
+/* stacked variant — used by the first-visit popup so email + phone sit full-width over the CTA */
+.joinrow-col{flex-direction:column}
+.joinrow-col input,.joinrow-col button{width:100%;flex:none;min-width:0}
+.joinrow-col button{padding:13px 22px}
 .joinnote{font-family:var(--mono);font-size:11px;letter-spacing:.5px;color:var(--muted);margin-top:8px;text-align:center}
 .joinnote.bad{color:var(--blood)}
 
@@ -201,18 +207,82 @@ section{padding:clamp(60px,9vw,116px) clamp(18px,5vw,56px);position:relative;z-i
 .pwbar .dots{display:flex;gap:6px}.pwbar .dots i{width:11px;height:11px;border-radius:50%;display:block}
 .pwbar .dots .r{background:var(--blood)}.pwbar .dots .y{background:var(--slime)}.pwbar .dots .g{background:var(--alien)}
 .pwbar .pwt{font-family:var(--disp);font-size:16px;letter-spacing:.5px}.pwbar .pwz{margin-left:auto;font-family:var(--mono);font-size:10px;opacity:.6}
-.pwbody{display:flex;gap:16px;padding:18px;align-items:center}
-.pwart{width:84px;height:84px;flex-shrink:0;background-size:cover;background-position:center;border:1px solid rgba(141,255,43,.3);box-shadow:0 0 20px rgba(141,255,43,.2)}
+.pwbody{display:flex;gap:18px;padding:20px;align-items:center}
+.pwart{position:relative;width:96px;height:96px;flex-shrink:0;background-size:cover;background-position:center;border:1px solid rgba(141,255,43,.3);box-shadow:0 0 20px rgba(141,255,43,.2);transition:box-shadow .3s}
+/* while a track is live the cover breathes + its halo cycles through the slime palette */
+.playerwin.live .pwart{animation:pwpulse 1.7s ease-in-out infinite,pwglow 6s linear infinite}
+.playerwin.live.is-preview .pwart{animation:pwpulse 1.7s ease-in-out infinite,pwglowp 3s ease-in-out infinite}
+@keyframes pwpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+@keyframes pwglow{0%{box-shadow:0 0 30px rgba(141,255,43,.5)}33%{box-shadow:0 0 32px rgba(155,60,255,.5)}66%{box-shadow:0 0 32px rgba(255,31,46,.45)}100%{box-shadow:0 0 30px rgba(141,255,43,.5)}}
+@keyframes pwglowp{0%,100%{box-shadow:0 0 26px rgba(155,60,255,.45)}50%{box-shadow:0 0 40px rgba(155,60,255,.72)}}
 .pwinfo{flex:1;min-width:0}
 .pwnow{font-weight:700;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--slime2)}
-.pwtitle{font-family:var(--disp);font-size:22px;margin-top:2px;color:var(--ink)}
-.pweq{width:100%;height:30px;margin-top:8px;display:block}
-.pwprog{height:8px;background:rgba(255,255,255,.12);margin-top:10px;cursor:pointer;overflow:hidden}
+.pwtitle{font-family:var(--disp);font-size:23px;margin-top:2px;color:var(--ink);line-height:1.05}
+.pwbadge{display:inline-block;margin-top:6px;font-family:var(--mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#08120a;background:var(--alien);padding:3px 9px;border-radius:3px;box-shadow:0 0 16px rgba(155,60,255,.5)}
+.pwbadge[hidden]{display:none}
+.pweq{width:100%;height:124px;margin-top:10px;display:block;border-radius:4px;background:radial-gradient(120% 90% at 50% 60%,rgba(141,255,43,.04),transparent 70%)}
+.pwprog{height:8px;background:rgba(255,255,255,.12);margin-top:10px;cursor:pointer;overflow:hidden;border-radius:4px}
 .pwprog i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--slime),var(--blood))}
 .pwbtns{display:flex;align-items:center;gap:10px;margin-top:12px}
 .pwplay{width:46px;height:46px;border-radius:50%;border:1px solid var(--slime);cursor:pointer;color:var(--slime);font-size:15px;background:rgba(141,255,43,.08);transition:.14s}
 .pwplay:hover{background:var(--slime);color:#08120a}.pwplay:active{transform:scale(.95)}
+.pwnav{width:36px;height:36px;flex-shrink:0;border-radius:50%;border:1px solid rgba(141,255,43,.4);cursor:pointer;color:var(--slime);font-size:12px;background:rgba(141,255,43,.05);transition:.14s;display:flex;align-items:center;justify-content:center}
+.pwnav:hover{background:var(--slime);color:#08120a;border-color:var(--slime)}.pwnav:active{transform:scale(.94)}
 .pwtime{font-family:var(--mono);font-size:12px;color:var(--soft);letter-spacing:1px}
+.pwlinks{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin-top:14px}
+.pwlinks[hidden]{display:none}
+.pwlbl{font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+.pwlink{font-family:var(--ui);font-weight:700;font-size:12px;letter-spacing:.5px;text-decoration:none;padding:7px 13px;border-radius:4px;border:1px solid rgba(255,255,255,.18);color:var(--ink);background:rgba(255,255,255,.04);transition:.16s;display:inline-flex;align-items:center;gap:7px}
+.pwlink::before{content:"";width:13px;height:13px;border-radius:50%;flex:none;box-shadow:0 0 8px currentColor}
+.pwlink[hidden]{display:none}
+.pwsp{color:#1ed760}.pwsp:hover{background:rgba(30,215,96,.14);border-color:#1ed760}
+.pwap{color:#fc5c7d}.pwap:hover{background:rgba(252,92,125,.14);border-color:#fc5c7d}
+/* phones: keep the transport from overflowing — let it wrap, drop the volume to its own row */
+@media(max-width:560px){
+  .pwbody{gap:14px;padding:16px}
+  .pwart{width:74px;height:74px}
+  .pwtitle{font-size:20px}
+  .pweq{height:96px}
+  .pwbtns{flex-wrap:wrap;gap:8px}
+  .pwvol{margin-left:0;flex:1 1 100%;width:100%}
+  .trk{padding:12px 12px}
+}
+
+/* TRACKLIST */
+.tracklist-wrap{max-width:640px;margin:0 auto 30px}
+.tlhead{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.tlhead h3{font-family:var(--disp);font-size:24px}.tlhead h3 em{color:var(--slime);font-style:normal}
+.tlsub{font-family:var(--mono);font-size:10.5px;letter-spacing:1px;color:var(--muted);text-transform:uppercase}.tlsub b{color:var(--alien)}
+.tracklist{list-style:none;margin:0;padding:0;border:1px solid rgba(255,255,255,.12);background:rgba(12,9,7,.45)}
+.trk{display:flex;align-items:center;gap:12px;padding:11px 14px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06);transition:background .16s,box-shadow .16s;position:relative}
+.trk:last-child{border-bottom:0}
+.trk:hover{background:rgba(141,255,43,.07)}
+.trk:focus-visible{outline:none;box-shadow:inset 3px 0 0 var(--slime);background:rgba(141,255,43,.07)}
+.tnum{font-family:var(--mono);font-size:12px;color:var(--muted);width:22px;flex:none;text-align:center}
+.tname{font-family:var(--ui);font-weight:600;font-size:15px;color:var(--ink);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tdur{font-family:var(--mono);font-size:11px;color:var(--muted);flex:none}
+.tgo{font-size:11px;color:var(--slime);flex:none;opacity:0;transition:opacity .16s;width:14px;text-align:center}
+.trk:hover .tgo{opacity:1}
+.tbadge{font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#08120a;background:var(--alien);padding:2px 7px;border-radius:3px;flex:none;box-shadow:0 0 12px rgba(155,60,255,.45)}
+/* the little animated EQ that lights the row that's actually playing */
+.teq{display:none;align-items:flex-end;gap:2px;width:16px;height:16px;flex:none}
+.teq i{width:3px;background:var(--slime);border-radius:1px;height:30%}
+.trk.active .teq{display:flex}
+.trk.active .tnum{display:none}
+.trk.active{background:rgba(141,255,43,.1)}
+.trk.active .tname{color:var(--slime)}
+.trk.active .tgo{opacity:1}
+.trk.playing .teq i{animation:teqb .9s ease-in-out infinite}
+.trk.playing .teq i:nth-child(2){animation-delay:.18s}
+.trk.playing .teq i:nth-child(3){animation-delay:.36s}
+.trk.playing .teq i:nth-child(4){animation-delay:.12s}
+@keyframes teqb{0%,100%{height:20%}50%{height:100%}}
+.trk.preview{background:rgba(155,60,255,.06)}
+.trk.preview .tname{color:#c9a3ff}
+.trk.preview.active{background:rgba(155,60,255,.12)}
+.trk.preview.active .tname{color:var(--alien)}
+.trk.preview .teq i{background:var(--alien)}
+.trk.preview:hover{background:rgba(155,60,255,.12)}
 
 /* MUSIC GRID */
 .mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}

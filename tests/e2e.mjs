@@ -197,16 +197,18 @@ try {
   }
 
   // ---------------------------------------------------------------
-  group('persistent music bar follows CMS');
+  group('persistent music bar: cover follows CMS, title follows the live track');
   {
     const page = await browser.newPage();
     await page.goto(base + '/world.html', { waitUntil: 'load' });
     await page.waitForTimeout(800);
     const r = await page.evaluate(() => {
-      applyContent({ music: { playerTitle: 'NEW TRACK', playerCover: 'assets/slime-by.jpg', releases: [] } });
-      return { title: document.querySelector('#musicbar .stitle').textContent, disc: document.getElementById('disc').style.backgroundImage };
+      // the cover is CMS-driven; the now-playing title always reflects the loaded track now
+      // (no fixed override — that used to pin every page to one stale name)
+      applyContent({ music: { playerCover: 'assets/slime-by.jpg', releases: [] } });
+      return { title: document.querySelector('#musicbar .stitle').textContent, live: curTrack().title, disc: document.getElementById('disc').style.backgroundImage };
     });
-    check('bar title + cover follow CMS', r.title === 'NEW TRACK' && /slime-by\.jpg/.test(r.disc));
+    check('bar cover follows CMS; title follows the live track', r.title === r.live && /slime-by\.jpg/.test(r.disc), JSON.stringify(r));
     await page.close();
   }
 
