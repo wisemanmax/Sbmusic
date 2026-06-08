@@ -145,9 +145,26 @@ supabase functions deploy admin --no-verify-jwt
 
 ## 4. Subscriber phone-merge  (review #6, backend half)
 
-`sbSubscribe` posts with `Prefer: resolution=ignore-duplicates`, so a visitor who joins
-with email only and later adds a phone never gets the phone saved. Anon is (correctly)
-INSERT-only on `subscribers`, so the client **cannot** upsert — do the merge **inside the
-`admin` edge function** (service role), keyed on `email`, when capturing sign-ups. The
-client already sends `phone: null` when absent, so a later email-only submit won't clobber
-a stored phone.
+`sbSubscribe` does a plain `INSERT` and treats a duplicate (HTTP 409) as "already
+subscribed". A visitor who joins with email only and later adds a phone therefore won't get
+the phone saved (the second submit just 409s). Anon is (correctly) INSERT-only on
+`subscribers` with **no SELECT** policy, so the client **cannot** upsert — an
+`ON CONFLICT` upsert would need the proposed row to be visible and gets rejected by RLS
+(see §5). Do the email→phone merge **inside the `admin` edge function** (service role),
+keyed on `email`, when capturing sign-ups. The client already sends `phone: null` when
+absent, so a later email-only submit won't clobber a stored phone.
+
+---
+
+## 5. Sign-ups silently dropped via `ON CONFLICT` + RLS  (fixed)
+
+`sbSubscribe` used to post to `?on_conflict=email` with
+`Prefer: resolution=ignore-duplicates`, making PostgREST emit
+`INSERT ... ON CONFLICT (email) DO NOTHING`. That speculative-insert path needs the proposed
+row to be visible to the caller, but `anon` has **no SELECT policy** on `subscribers` (by
+design — the list must not be readable with the public key). Postgres rejected every sign-up
+with `42501 "new row violates row-level security policy"`, the client saw a non-2xx and
+queued each one under `localStorage.sb_pending` forever, so **nothing reached the table**.
+Adding the unique index alone did not help — the `ON CONFLICT` path itself is what RLS
+rejects. Fix: the client now does a plain `INSERT` (passes the INSERT `WITH CHECK` policy)
+and relies on the `unique(email)` index to dedupe, treating the resulting 409 as success.
