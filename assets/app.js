@@ -27,6 +27,7 @@ function buildChrome(){
 <canvas id="snake"></canvas>
 <div class="grain"></div><div class="scan"></div><div class="vig"></div>
 <div id="rageOverlay"></div><div id="flash"></div>
+<div id="rfx" aria-hidden="true"><div class="fx-heart"></div><div class="fx-fire"></div><div class="fx-static"></div><div class="fx-drip"></div></div>
 <div class="cursor" id="cursor"></div>
 <canvas id="trail"></canvas>
 <div class="rmtag">☠ RAGE MODE ☠ click again to exit</div>
@@ -174,7 +175,7 @@ function rageRate(){return Math.min(1.3,Math.max(1.12,userRate+0.32));}
 function applyAudioFx(){if(!actx)return;const t=actx.currentTime;
   if(dry)dry.gain.setTargetAtTime((rageOn?0.72:1)*(1-revAmt*0.35),t,0.03);
   if(wet)wet.gain.setTargetAtTime(revAmt*0.9,t,0.03);
-  if(shaper)shaper.curve=rageOn?distc(7):null;
+  if(shaper)shaper.curve=(rageOn&&rageFlags().distortAudio)?distc(7):null;
   try{audio.preservesPitch=false;audio.mozPreservesPitch=false;audio.webkitPreservesPitch=false;}catch(_){}
   audio.playbackRate=rageOn?rageRate():userRate;}
 /* Switch the live track between the two players. The site plays normal everywhere;
@@ -691,32 +692,68 @@ function frame(t){updateLevels(t);const energy=levels.reduce((a,b)=>a+b,0)/level
   if(E.w&&musicIn)eqbars(E.x,E.w,E.h);
   if(SRW.w&&labIn){const{x,w,h}=SRW;x.clearRect(0,0,w,h);snakeWave(x,w,h,t*.6,7+energy*9,3+energy*4,h*.5);}
   }
-  if(embers.length){tctx.clearRect(0,0,tcv.width,tcv.height);tctx.globalCompositeOperation='lighter';
+  // spark rain — steady drizzle of sparks from the top while rage is on
+  if(rageOn&&!sbReduceMotion&&rageFlags().sparkRain&&Math.random()<0.45){
+    embers.push({x:Math.random()*innerWidth,y:-4,vx:(Math.random()-.5)*1.4,vy:Math.random()*3+2.5,life:1,c:Math.random()<.5?'#ff7b1f':'#ff1f2e',s:Math.random()*2+1});
+  }
+  if(embers.length||bolts.length){tctx.clearRect(0,0,tcv.width,tcv.height);tctx.globalCompositeOperation='lighter';
     for(const p of embers){p.life*=.95;p.x+=p.vx;p.y+=p.vy;p.vy+=.02;const s=p.s*p.life+.4;tctx.globalAlpha=p.life;tctx.fillStyle=p.c;tctx.shadowColor=p.c;tctx.shadowBlur=8;tctx.beginPath();tctx.arc(p.x,p.y,s,0,7);tctx.fill();}
-    tctx.globalAlpha=1;embers=embers.filter(p=>p.life>.05);if(!embers.length)tctx.clearRect(0,0,tcv.width,tcv.height);}
+    tctx.globalAlpha=1;tctx.shadowBlur=0;embers=embers.filter(p=>p.life>.05);
+    if(bolts.length)drawBolts();
+    if(!embers.length&&!bolts.length)tctx.clearRect(0,0,tcv.width,tcv.height);}
   requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){resizeAll();sizeSnake();}});
 
-/* RAGE MODE — faster + distorted audio, red snake pit, ember bursts + strobe */
+/* RAGE MODE — faster + distorted audio, red snake pit, and a configurable stack of
+   effects. Which effects fire is content-driven (SB.rageFx, edited in the admin) so
+   the artist can dial the intensity up or down without touching code. */
 const flashEl=document.getElementById('flash');
 function flash(c){if(!flashEl)return;flashEl.style.background=c||'var(--slime)';flashEl.style.transition='none';flashEl.style.opacity='.45';requestAnimationFrame(()=>{flashEl.style.transition='opacity .55s ease';flashEl.style.opacity='0';});}
+/* merged effect flags: built-in defaults overlaid with whatever's published */
+function rageFlags(){const d=(window.SB_DEFAULTS&&SB_DEFAULTS.rageFx)||{};const c=(window.SB&&SB.rageFx)||{};return Object.assign({},d,c);}
+/* toggle the CSS-driven effect classes on <body> to match the flags (only while rage is on) */
+const RFX_CLASS={shake:'rfx-shake',redOverlay:'rfx-overlay',glitch:'rfx-glitch',heartbeat:'rfx-heart',fire:'rfx-fire',static:'rfx-static',bloodDrip:'rfx-drip'};
+function applyRageClasses(){const f=rageFlags(),b=document.body.classList;for(const k in RFX_CLASS)b.toggle(RFX_CLASS[k],rageOn&&!!f[k]);}
+
+/* ---- lightning — jagged bolts drawn on the shared trail canvas ---- */
+let bolts=[];
+function strikeLightning(){
+  const x0=Math.random()*innerWidth,segs=11+Math.floor(Math.random()*8),dy=innerHeight/segs;
+  const pts=[{x:x0,y:0}];let x=x0,y=0;
+  for(let i=0;i<segs;i++){x+=(Math.random()-.5)*100;y+=dy;pts.push({x,y});}
+  bolts.push({pts,life:1});
+  flash('rgba(190,215,255,0.85)');   // cold electric flash to sell the strike
+}
+function drawBolts(){
+  tctx.globalCompositeOperation='lighter';tctx.lineCap='round';tctx.lineJoin='round';
+  for(const b of bolts){b.life*=.84;tctx.globalAlpha=Math.min(1,b.life);tctx.strokeStyle='#dfecff';tctx.shadowColor='#9fc0ff';tctx.shadowBlur=18;tctx.lineWidth=1.5+b.life*2.5;
+    tctx.beginPath();b.pts.forEach((p,i)=>i?tctx.lineTo(p.x,p.y):tctx.moveTo(p.x,p.y));tctx.stroke();}
+  tctx.globalAlpha=1;tctx.shadowBlur=0;bolts=bolts.filter(b=>b.life>.06);
+}
+
 let rageOn=false,rageTimer=null;
 function enterRage(){
-  rageOn=!rageOn;document.body.classList.toggle('rage',rageOn);ensureCtx();
+  rageOn=!rageOn;document.body.classList.toggle('rage',rageOn);applyRageClasses();ensureCtx();
   if(rageOn){
     startAudio();applyAudioFx();
     const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
-    burst(innerWidth/2,innerHeight*0.5,40,'#ff1f2e');snakeLunge();toast('☠ RAGE MODE ☠','blood');
+    const f=rageFlags();
+    if(f.emberBursts)burst(innerWidth/2,innerHeight*0.5,40,'#ff1f2e');
+    if(f.snakeLunge)snakeLunge();
+    if(f.lightning&&!reduce)strikeLightning();
+    toast('☠ RAGE MODE ☠','blood');
     clearInterval(rageTimer);
     rageTimer=setInterval(()=>{
       if(!rageOn)return;
-      burst(Math.random()*innerWidth,innerHeight*(0.55+Math.random()*0.45),14,'#ff1f2e');
-      if(!reduce&&Math.random()<0.5)flash('rgba(255,31,46,0.9)');
-      if(Math.random()<0.4)snakeLunge();
+      const g=rageFlags();
+      if(g.emberBursts)burst(Math.random()*innerWidth,innerHeight*(0.55+Math.random()*0.45),14,'#ff1f2e');
+      if(g.strobe&&!reduce&&Math.random()<0.5)flash('rgba(255,31,46,0.9)');
+      if(g.snakeLunge&&Math.random()<0.4)snakeLunge();
+      if(g.lightning&&!reduce&&Math.random()<0.55)strikeLightning();
     },820);
   }else{
-    clearInterval(rageTimer);rageTimer=null;applyAudioFx();toast('rage off — back to the slime');
+    clearInterval(rageTimer);rageTimer=null;bolts=[];applyAudioFx();toast('rage off — back to the slime');
   }
 }
 const _rageBtn=document.getElementById('rageBtn');if(_rageBtn)_rageBtn.onclick=()=>{enterRage();setMenu(false);};
@@ -798,6 +835,46 @@ modal.addEventListener('keydown',e=>{                          // trap Tab withi
 /* MUSIC FILTER */
 function wireMfilter(){document.querySelectorAll('#mfilter button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#mfilter button').forEach(x=>x.classList.remove('on'));b.classList.add('on');const f=b.dataset.f;document.querySelectorAll('#mgrid .rel').forEach(c=>c.classList.toggle('hide',f!=='all'&&c.dataset.type!==f));});}
 
+/* LANDING INFO — extra home-page bands (intro/bio, stat strip, tap-in CTA).
+   Each band hides itself when its `show` flag is off or it has no content. */
+function renderLanding(L){
+  if(!L)return;
+  const q=s=>document.querySelector(s);
+  const setHtml=(s,v)=>{const e=q(s);if(e&&v!=null)e.innerHTML=sanitizeHtml(v);};
+  // intro / bio band
+  const intro=L.intro||{},isec=q('#lintro');
+  if(isec){
+    const on=intro.show!==false && (intro.heading||intro.text);
+    isec.style.display=on?'':'none';
+    if(on){
+      const k=q('#lintro .lkicker');if(k&&intro.kicker!=null)k.textContent=intro.kicker;
+      setHtml('#lintro .lhead',intro.heading);
+      const t=q('#lintro .lbody');if(t&&intro.text!=null)t.textContent=intro.text;
+      const img=q('#lintro .lpic img');if(img){const u=safeImg(intro.image);if(u)img.src=u;img.parentElement.style.display=intro.image?'':'none';}
+      const b=q('#lintro .lbtn');if(b){if(intro.buttonLabel){b.textContent=intro.buttonLabel;const u=safeUrl(intro.buttonUrl);if(u)b.href=u;b.style.display='';}else b.style.display='none';}
+    }
+  }
+  // stat strip
+  const ssec=q('#lstats'),sg=q('#lstatgrid');
+  if(ssec&&sg){
+    const stats=L.stats||[];
+    ssec.style.display=stats.length?'':'none';
+    if(stats.length)sg.innerHTML=stats.map(s=>`<div class="lstat"><div class="ln">${esc(s.n)}</div><div class="ll">${esc(s.l)}</div></div>`).join('');
+  }
+  // tap-in CTA band
+  const cta=L.cta||{},csec=q('#lcta');
+  if(csec){
+    const on=cta.show!==false && (cta.heading||cta.text);
+    csec.style.display=on?'':'none';
+    if(on){
+      const k=q('#lcta .lkicker');if(k&&cta.kicker!=null)k.textContent=cta.kicker;
+      setHtml('#lcta .lctahead',cta.heading);
+      const t=q('#lcta .lctatext');if(t&&cta.text!=null)t.textContent=cta.text;
+      const b=q('#lcta .lctabtn');if(b){if(cta.buttonLabel){b.textContent=cta.buttonLabel;const u=safeUrl(cta.buttonUrl);if(u)b.href=u;b.style.display='';}else b.style.display='none';}
+    }
+  }
+}
+
 /* MERCH — coming soon, route to the slime list */
 function wireMerchAlert(){const merchAlertBtn=document.getElementById('merchAlertBtn');if(merchAlertBtn)merchAlertBtn.onclick=()=>{burst(innerWidth/2,innerHeight*.6,16,'#8dff2b');gotoConnectJoin('☠ drop your email — first access to the slime shop');};}
 
@@ -829,10 +906,15 @@ tickCountdown();setInterval(tickCountdown,1000);
 
 /* ===================== VIDEOS (content-driven) ===================== */
 let VIDEOS=[];
+/* YouTube auto-thumbnail: whenever a clip has a YouTube id we pull its still straight
+   from YouTube (hqdefault always exists). A custom image is only a fallback for clips
+   with no id (e.g. ones that just link out). */
+function ytThumb(id){return id?'https://i.ytimg.com/vi/'+encodeURIComponent(id)+'/hqdefault.jpg':'';}
+function videoThumb(v){const id=ytId(v&&v.id);return id?ytThumb(id):((v&&v.img)?safeImg(v.img):'');}
 function renderVideos(list){VIDEOS=list||[];const g=document.getElementById('vidgrid');if(!g)return;
-  g.innerHTML=VIDEOS.map((v,i)=>`<div class="vid reveal${i%3?' d'+(i%3):''}" data-i="${i}"><img loading="lazy" decoding="async" src="${esc(safeImg(v.img))}" alt="${esc(v.t)}"><div class="pp">▶</div><div class="vmeta"><div class="vmt">${esc(v.t)}</div><div class="vms">${esc(v.s)}</div></div></div>`).join('');
-  g.querySelectorAll('.vid').forEach(c=>{io.observe(c);c.onclick=()=>{const v=VIDEOS[+c.dataset.i];burst(innerWidth/2,innerHeight*.5,10,'#8dff2b');
-    if(v.id){openModal(`<div class="mbody"><span class="kicker">${esc(v.s)}</span><h3>${esc(v.t)}</h3><div class="vembed"><iframe src="https://www.youtube.com/embed/${encodeURIComponent(v.id)}?autoplay=1&rel=0" title="${esc(v.t)}" allow="autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe></div></div>`);}
+  g.innerHTML=VIDEOS.map((v,i)=>`<div class="vid reveal${i%3?' d'+(i%3):''}" data-i="${i}"><img loading="lazy" decoding="async" src="${esc(videoThumb(v))}" alt="${esc(v.t)}"><div class="pp">▶</div><div class="vmeta"><div class="vmt">${esc(v.t)}</div><div class="vms">${esc(v.s)}</div></div></div>`).join('');
+  g.querySelectorAll('.vid').forEach(c=>{io.observe(c);c.onclick=()=>{const v=VIDEOS[+c.dataset.i];const vid=ytId(v.id);burst(innerWidth/2,innerHeight*.5,10,'#8dff2b');
+    if(vid){openModal(`<div class="mbody"><span class="kicker">${esc(v.s)}</span><h3>${esc(v.t)}</h3><div class="vembed"><iframe src="https://www.youtube.com/embed/${encodeURIComponent(vid)}?autoplay=1&rel=0" title="${esc(v.t)}" allow="autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe></div></div>`);}
     else{openModal(`<div class="mbody"><span class="kicker">${esc(v.s)}</span><h3>${esc(v.t)}</h3><p>Add this clip's YouTube video ID in the admin page to play it right here. For now, catch the full vault on YouTube.</p><div class="mcta"><a class="bigbtn bSlime" href="${esc(safeUrl((window.SB&&SB.vault&&SB.vault.youtube)||'')||'https://youtube.com/@slimeby_')}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);}};});
 }
 
@@ -1119,6 +1201,9 @@ function applyContent(c){
       vg.querySelectorAll('.vcard').forEach(card=>{io.observe(card);card.addEventListener('click',e=>{if(e.metaKey||e.ctrlKey||e.shiftKey)return;e.preventDefault();const img=card.querySelector('img').src,title=card.querySelector('.vt').textContent,sub=card.querySelector('.vs').textContent,h=card.getAttribute('href');openModal(`<div class="mhead wide" style="background-image:url('${img}')"></div><div class="mbody"><span class="kicker">${sub}</span><h3>${title}</h3><p>The full visual lives in the SB vault on YouTube. Tap in for the complete drop.</p><div class="mcta"><a class="bigbtn bSlime" href="${h}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);});});}}
 
   renderVideos(c.videos);
+
+  renderLanding(c.landing);
+  applyRageClasses();   // re-sync rage effects if the CMS changed the flags mid-rage
 
   if(c.merch){txt('#merch .kicker',c.merch.kicker);setHtml('#merch .shead h2',c.merch.heading);txt('#merch .msub',c.merch.text);txt('#merchAlertBtn',c.merch.button);}
 

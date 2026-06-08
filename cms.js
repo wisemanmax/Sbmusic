@@ -93,7 +93,7 @@ const SB_DEFAULTS = {
     apple: 'https://music.apple.com/us/artist/slime-by/1542729349',
     youtube: 'https://youtube.com/@slimeby_',
     instagram: 'https://instagram.com/slimeby_sb',
-    tiktok: 'https://www.tiktok.com/@slimeby_sb',
+    tiktok: 'https://www.tiktok.com/@_slimeby',
     bookingEmail: 'booking@slimeby.com',
     joinTitle: 'join the slime ☠',
     joinSub: 'first access to drops, merch & shows — email for news, phone for SMS alerts',
@@ -101,6 +101,51 @@ const SB_DEFAULTS = {
   footer: {
     badges: ['★ BEST VIEWED IN RAGE MODE', 'MADE IN DE', '100% INDEPENDENT', 'SB UNIVERSE ☠'],
     copy: '© 2026 slime by · delaware · the snake moves',
+  },
+  /* RAGE MODE effects — flip any of these on/off from the admin "Rage Mode" panel.
+     The public site reads them when the ☠ rage button is hit. Everything respects the
+     visitor's "reduce motion" setting regardless. */
+  rageFx: {
+    shake: true,        // the whole screen judders
+    redOverlay: true,   // venom-red scanline + vignette wash
+    distortAudio: true, // the track gets driven / distorted
+    snakeLunge: true,   // the snakes strike on the beat
+    emberBursts: true,  // bursts of red embers
+    strobe: true,       // hard red strobe flashes
+    lightning: true,    // jagged lightning bolts crack across the screen
+    heartbeat: true,    // pulsing red vignette like a racing heartbeat
+    sparkRain: false,   // sparks rain down from the top
+    fire: false,        // flames lick up from the bottom edge
+    glitch: false,      // RGB-split / datamosh glitch bursts
+    bloodDrip: false,   // blood drips down from the top of the screen
+    static: false,      // TV-static noise flicker over everything
+  },
+  /* Extra info blocks for the landing (home) page — an intro band, a stat strip and a
+     "tap in" call-to-action. Each can be hidden with its `show` toggle. */
+  landing: {
+    intro: {
+      show: true,
+      kicker: '☠ who is sb',
+      heading: 'the <em>snake</em> behind the slime',
+      text: 'Slime By is a Delaware artist turning melody, chaos and green pressure into a whole world. Rage, luxury, pain and flex — every drop is another chapter of the SB universe. 100% independent, moving non-stop.',
+      image: 'assets/sb-portrait.jpg',
+      buttonLabel: 'enter the world →',
+      buttonUrl: 'world.html',
+    },
+    stats: [
+      { n: '5+', l: 'releases' },
+      { n: '100%', l: 'independent' },
+      { n: 'DE', l: 'delaware made' },
+      { n: 'SB', l: 'the universe' },
+    ],
+    cta: {
+      show: true,
+      kicker: '✦ tap in',
+      heading: 'join the <em>slime</em>',
+      text: 'first access to drops, merch and shows. follow the snake on every platform and get on the list.',
+      buttonLabel: '☠ tap in',
+      buttonUrl: 'connect.html',
+    },
   },
   /* Extra content blocks appended to the bottom of an existing built-in page.
      Each block picks which page it lands on. Edited in admin → "Page Add-ons". */
@@ -152,10 +197,11 @@ const SB_TEMPLATES = {
   'footer.badges': 'NEW BADGE',
   'music.releases': { title: '', sub: 'single · 2025', type: 'single', img: '', url: '' },
   'about.stats': { n: '', l: '' },
+  'landing.stats': { n: '', l: '' },
   'universe.powers': { id: '00', n: 'new force', c: '#8dff2b', tag: '', short: '', lore: '', stats: [['power', 50]] },
   'universe.powers.stats': ['power', 50],
   'vault.items': { title: '', sub: '', img: '', href: '' },
-  'videos': { t: '', s: '', img: '', id: '' },
+  'videos': { t: '', s: '', id: '', img: '' },
   'shows': { date: '', venue: '', city: '', url: '' },
   // a freeform content block appended to an existing page (adds a target `page`)
   'extras': { page: 'home', ...SB_BLOCK, heading: 'New section' },
@@ -198,6 +244,7 @@ const SB_SECTION_PAGE = {
   vault: 'vault.html', videos: 'vault.html',
   merch: 'shows.html', shows: 'shows.html',
   contact: 'connect.html', footer: 'index.html',
+  landing: 'index.html', rageFx: 'index.html',
   // add-ons preview on the home page; custom pages preview through page.html
   // (the admin retargets these dynamically to the page/slug being edited).
   extras: 'index.html', pages: 'page.html',
@@ -210,6 +257,8 @@ const SB_SECTIONS = [
   { key: 'hero',     label: 'Hero',        icon: '☠', desc: 'The first thing visitors see — title, tagline, and backdrop.' },
   { key: 'marquee',  label: 'Marquee',     icon: '➤', desc: 'The scrolling band of words under the hero.' },
   { key: 'drop',     label: 'Featured Drop', icon: '✦', desc: 'Spotlight release, smart links, and the next-drop countdown.' },
+  { key: 'landing',  label: 'Landing Info', icon: '⌂', desc: 'Extra info bands on the home page — the intro/bio strip, stat counters, and a tap-in call-to-action.' },
+  { key: 'rageFx',   label: 'Rage Mode',   icon: '⚡', desc: 'Pick which effects fire when a visitor hits ☠ rage mode. All effects still respect a visitor’s reduce-motion setting.' },
   { key: 'music',    label: 'Music',       icon: '♫', desc: 'The in-page player, release grid, and Spotify embed.' },
   { key: 'about',    label: 'About',       icon: '✶', desc: 'Bio, portrait, and the stat badges.' },
   { key: 'universe', label: 'SB World',    icon: '◉', desc: 'The five-powers lore map.' },
@@ -284,8 +333,8 @@ const SB_SCHEMA = {
   'videos':                { label: 'Videos', itemLabel: 'video', titleKey: 't' },
   'videos.t':              { label: 'Title' },
   'videos.s':              { label: 'Subtitle' },
-  'videos.img':            { label: 'Thumbnail', type: 'image' },
-  'videos.id':             { label: 'YouTube video ID', hint: 'Just the ID (e.g. dQw4w9WgXcQ). Leave blank to link out instead.' },
+  'videos.id':             { label: 'YouTube video ID or link', hint: 'Paste a YouTube link or just the ID (e.g. dQw4w9WgXcQ). The thumbnail is pulled from YouTube automatically and the clip plays in-page.' },
+  'videos.img':            { label: 'Fallback thumbnail (optional)', type: 'image', hint: 'Only used when there is no YouTube ID above. With an ID set, the thumbnail comes from YouTube automatically.' },
 
   'merch.kicker':          { label: 'Kicker' },
   'merch.heading':         { label: 'Heading', type: 'html' },
@@ -310,6 +359,41 @@ const SB_SCHEMA = {
 
   'footer.badges':         { label: 'Badges', itemLabel: 'badge' },
   'footer.copy':           { label: 'Copyright line' },
+
+  /* ---- Landing info bands (home page) ---- */
+  'landing.intro':           { label: 'Intro / bio band' },
+  'landing.intro.show':      { label: 'Show this band' },
+  'landing.intro.kicker':    { label: 'Kicker', hint: 'Small label above the heading.' },
+  'landing.intro.heading':   { label: 'Heading', type: 'html', hint: 'Wrap a word in <em> to make it slime-green.' },
+  'landing.intro.text':      { label: 'Text', type: 'textarea' },
+  'landing.intro.image':     { label: 'Image', type: 'image' },
+  'landing.intro.buttonLabel': { label: 'Button label', hint: 'Leave blank for no button.' },
+  'landing.intro.buttonUrl':   { label: 'Button link', type: 'url' },
+  'landing.stats':           { label: 'Stat counters', itemLabel: 'stat', titleKey: 'l' },
+  'landing.stats.n':         { label: 'Number' },
+  'landing.stats.l':         { label: 'Label' },
+  'landing.cta':             { label: 'Tap-in call-to-action' },
+  'landing.cta.show':        { label: 'Show this band' },
+  'landing.cta.kicker':      { label: 'Kicker' },
+  'landing.cta.heading':     { label: 'Heading', type: 'html' },
+  'landing.cta.text':        { label: 'Text', type: 'textarea' },
+  'landing.cta.buttonLabel': { label: 'Button label' },
+  'landing.cta.buttonUrl':   { label: 'Button link', type: 'url' },
+
+  /* ---- Rage mode effects ---- */
+  'rageFx.shake':        { label: 'Screen shake', hint: 'The whole page judders.' },
+  'rageFx.redOverlay':   { label: 'Venom-red overlay', hint: 'Red scanlines + vignette wash over the screen.' },
+  'rageFx.distortAudio': { label: 'Distort the audio', hint: 'Drives + distorts the playing track.' },
+  'rageFx.snakeLunge':   { label: 'Snake strikes', hint: 'The background snakes lunge on the beat.' },
+  'rageFx.emberBursts':  { label: 'Ember bursts', hint: 'Bursts of red embers across the screen.' },
+  'rageFx.strobe':       { label: 'Red strobe', hint: 'Hard red strobe flashes.' },
+  'rageFx.lightning':    { label: 'Lightning', hint: 'Jagged lightning bolts crack across the screen.' },
+  'rageFx.heartbeat':    { label: 'Heartbeat vignette', hint: 'A pulsing red vignette like a racing pulse.' },
+  'rageFx.sparkRain':    { label: 'Spark rain', hint: 'Sparks rain down from the top of the screen.' },
+  'rageFx.fire':         { label: 'Fire at the bottom', hint: 'Flames lick up from the bottom edge.' },
+  'rageFx.glitch':       { label: 'Glitch / RGB split', hint: 'Occasional datamosh / RGB-split glitch bursts.' },
+  'rageFx.bloodDrip':    { label: 'Blood drip', hint: 'Blood drips down from the top of the screen.' },
+  'rageFx.static':       { label: 'TV static', hint: 'A noisy TV-static flicker over everything.' },
 
   /* ---- Page add-ons: extra blocks appended to existing pages ---- */
   'extras':                { label: 'Page add-ons', itemLabel: 'block', titleKey: 'heading' },

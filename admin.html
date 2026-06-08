@@ -177,11 +177,44 @@ table.tbl td.muted{color:var(--muted)}
 }
 @media(max-width:780px){
   :root{--side:0px}
-  .side{position:fixed;top:var(--topbar);left:0;bottom:0;width:230px;background:var(--bg);z-index:38;transform:translateX(-105%);transition:.22s;border-right:1px solid var(--line2)}
+  .side{position:fixed;top:var(--topbar);left:0;bottom:0;width:min(82vw,260px);background:var(--bg);z-index:38;transform:translateX(-105%);transition:.22s;border-right:1px solid var(--line2);box-shadow:18px 0 50px rgba(0,0,0,.5)}
   body.show-nav .side{transform:none}
   .layout,.layout.nopreview{grid-template-columns:1fr}
   .mtoggle{display:inline-flex}
   .editor{padding:18px 16px 96px}
+  /* keep form inputs at 16px so mobile Safari doesn't zoom in on focus */
+  .inp,select.inp,textarea.inp,.pwwrap input{font-size:16px}
+  /* roomier touch targets across the editor */
+  .iconbtn{width:34px;height:34px;font-size:15px}
+  .navitem{padding:12px}
+  /* the image control stacks so the URL field + upload aren't crushed beside the preview */
+  .imgctl{flex-wrap:wrap;gap:10px}
+  .imgprev{width:72px;height:72px}
+  .imgright{flex-basis:100%;order:3;min-width:100%}
+  /* trim the top bar so the brand + actions all fit a phone width */
+  .topbar{gap:8px;padding:0 10px}
+  .brand{font-size:0}                 /* keep just the logo mark, drop the wordmark */
+  .brand svg{width:26px;height:26px}
+  .topbar a.btn.neutral{display:none} /* "view site" lives in the open page anyway */
+  .savepill{font-size:0;padding:6px;gap:0}   /* collapse to just the status dot */
+  .savepill .dot{width:9px;height:9px}
+  .btn{padding:9px 13px}
+  /* array-item action buttons wrap instead of overflowing the row */
+  .aih .ttl{font-size:12.5px}
+  .aitools{flex-wrap:wrap;justify-content:flex-end}
+  .tuple{flex-wrap:wrap}
+  .tuple .inp:last-child{max-width:none;flex:1}
+}
+@media(max-width:480px){
+  .editor{padding:16px 12px 90px}
+  .card{padding:14px 13px}
+  .ehead h2{font-size:21px}
+  .statgrid{gap:8px}
+  .statcard{min-width:46%}
+  .arritem>.aih{padding:10px}
+  /* the preview overlay sits above the editor when toggled on small screens */
+  body.show-preview .preview{inset:var(--topbar) 0 0 0;z-index:39}
+  .pvframewrap.phone #pvframe{width:100%}
 }
 
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(16px);background:#0d120e;border:1px solid var(--slime);color:var(--ink);padding:11px 18px;border-radius:9px;opacity:0;transition:.3s;z-index:200;font-size:13px;pointer-events:none;max-width:90vw;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.5)}
