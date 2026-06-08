@@ -86,7 +86,14 @@ function gotoConnectJoin(msg){
 
 /* LOADER + AUTOPLAY ON LOAD */
 function hideLoader(){const l=document.getElementById('loader');if(l)l.classList.add('gone');}
-window.addEventListener('load',()=>{setTimeout(hideLoader,400);/* kick the track the moment the page is in — falls back to first interaction if the browser blocks it. carries the play state across pages: if the visitor paused earlier, stay paused. */ if(!/[?&]preview\b/.test(location.search)){ if(_hadAudioState&&!_resumeWanted){try{ensureCtx();}catch(_){}} else {try{startAudio();}catch(_){}} }});
+/* We do NOT fire audio.play() here. Browsers block play() without a user gesture and keep the
+   promise PENDING — it then resolves on the first gesture and starts the track a beat after the
+   visitor's own click on the play button, which the button reads as "already playing" and pauses
+   (the "won't play on first click" bug). Instead: ready the audio graph now, and let the first
+   interaction start the music — armKick() does it for a tap anywhere, while a click straight on a
+   transport control is handled by that control. If the visitor explicitly paused on a previous
+   page (saved state, not a resume), stay paused until they ask for it. */
+window.addEventListener('load',()=>{setTimeout(hideLoader,400); if(!/[?&]preview\b/.test(location.search)){ try{ensureCtx();}catch(_){} if(!_hadAudioState||_resumeWanted){try{armKick();}catch(_){}} }});
 setTimeout(hideLoader,2600); /* safety: never let the loader trap the page */
 (()=>{const el=document.getElementById('vcount');let n=parseInt(localStorage.getItem('sb_visits')||'0',10);if(!n||isNaN(n))n=690+Math.floor(Math.random()*9000);if(!sessionStorage.getItem('sb_counted')){n++;try{localStorage.setItem('sb_visits',n);sessionStorage.setItem('sb_counted','1');}catch(_){}}if(el)el.textContent=String(n).padStart(6,'0');})();
 
@@ -162,7 +169,6 @@ const LOCAL_TRACKS=[
   {src:'assets/mp3 my time/1) My Time.mp3',                  title:'My Time',                    spotify:MYTIME_SPOTIFY, apple:SB_APPLE},
   {src:'assets/mp3 my time/2) Turn This Up.mp3',             title:'Turn This Up',               spotify:'https://open.spotify.com/album/2yiGZO9RmY8ql8h1OtManp', apple:SB_APPLE},
   {src:'assets/mp3 my time/3) Blowing Up ft SmokesAlot.mp3', title:'Blowing Up (ft. SmokesAlot)',spotify:MYTIME_SPOTIFY, apple:SB_APPLE},
-  {src:'assets/mp3 my time/3) NightTime.mp3',                title:'NightTime',                  spotify:MYTIME_SPOTIFY, apple:SB_APPLE},
   {src:'assets/mp3 my time/5) Money like this .mp3',         title:'Money Like This',            spotify:MYTIME_SPOTIFY, apple:SB_APPLE},
   {src:'assets/mp3 my time/5)Flip .mp3',                     title:'Flip',                       spotify:'https://open.spotify.com/album/5zZBRNMJqFr6hBpB6cjfyI', apple:SB_APPLE},
   {src:'assets/mp3 my time/7) High As It Gets .mp3',         title:'High As It Gets',            spotify:MYTIME_SPOTIFY, apple:SB_APPLE},
@@ -284,9 +290,10 @@ function updateNowPlaying(){
       links.hidden=!any;
     }
   }
-  const list=document.getElementById('tracklist');
-  if(list)list.querySelectorAll('.trk').forEach(r=>{const on=(+r.dataset.i===trackIdx);r.classList.toggle('active',on);r.classList.toggle('playing',on&&playing);});
+  /* light the active row in every track list on the page (music tracklist + the lab picker) */
+  document.querySelectorAll('.trk[data-i]').forEach(r=>{const on=(+r.dataset.i===trackIdx);r.classList.toggle('active',on);r.classList.toggle('playing',on&&playing);});
   const pw=document.querySelector('.playerwin');if(pw)pw.classList.toggle('is-preview',!!t.preview);
+  const srw=document.querySelector('.srwrap');if(srw)srw.classList.toggle('is-preview',!!t.preview);
 }
 function loadYTApi(){if(window.YT&&window.YT.Player){initYT();return;}if(_ytApiLoading)return;_ytApiLoading=true;const prev=window.onYouTubeIframeAPIReady;window.onYouTubeIframeAPIReady=function(){try{if(prev)prev();}catch(_){}initYT();};const s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';document.head.appendChild(s);}
 function initYT(){if(ytPlayer||!BG_PLAYLIST||!document.getElementById('ytbg'))return;try{ytPlayer=new YT.Player('ytbg',{width:'200',height:'120',host:'https://www.youtube-nocookie.com',playerVars:{listType:'playlist',list:BG_PLAYLIST,autoplay:0,controls:0,disablekb:1,fs:0,modestbranding:1,playsinline:1,rel:0,loop:1},events:{onReady:()=>{ytReady=true;try{ytPlayer.setVolume(Math.round(audio.volume*100));}catch(_){}if(ytWantPlay){ytWantPlay=false;ytPlay();}},onStateChange:onYTState}});}catch(_){}}
@@ -307,51 +314,66 @@ function bgNext(){loadTrack(trackIdx+1,true);}
    otherwise it steps back a track. */
 function bgPrev(){if(audio.currentTime>3){try{audio.currentTime=0;}catch(_){}return;}loadTrack(trackIdx-1,true);}
 {const pv=document.getElementById('prevbtn'),nx=document.getElementById('nextbtn');if(pv)pv.onclick=bgPrev;if(nx)nx.onclick=bgNext;}
-/* ── TRACKLIST (music.html) ──
-   Renders the live playlist as a selectable list so a visitor can jump straight to any song
-   (selecting one loads + plays it and surfaces its Spotify / Apple links via updateNowPlaying).
-   The preview cut is flagged so it reads as the next-album teaser, not a released single. */
-function wireTracklist(){
-  const list=document.getElementById('tracklist');if(!list)return;
-  list.innerHTML=LOCAL_TRACKS.map((t,i)=>`<li class="trk${t.preview?' preview':''}" data-i="${i}" role="button" tabindex="0" aria-label="play ${esc(t.title)}">`+
+/* ── TRACK LISTS ──
+   The live playlist renders as a selectable list (music.html tracklist + the lab's "load a
+   track" picker). Selecting a row loads + plays that song — keeping the page's audio character
+   (normal on the music page, slowed + reverb in the lab) — and surfaces its store links via
+   updateNowPlaying(). The preview cut is flagged so it reads as the next-album teaser. */
+function trackRowHTML(t,i){return `<li class="trk${t.preview?' preview':''}" data-i="${i}" role="button" tabindex="0" aria-label="play ${esc(t.title)}">`+
     `<span class="tnum">${String(i+1).padStart(2,'0')}</span>`+
     `<span class="teq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>`+
     `<span class="tname">${esc(t.title)}</span>`+
     (t.preview?'<span class="tbadge">✦ preview</span>':'')+
     `<span class="tdur">${esc(t.dur||'')}</span>`+
     `<span class="tgo" aria-hidden="true">▶</span>`+
-  `</li>`).join('');
-  const pick=r=>{if(!r)return;const i=+r.dataset.i;
-    if(i===trackIdx&&bgMode==='local'){if(audio.paused)startAudio();else{audio.pause();setUI(false);}}   // current row → resume / pause
-    else loadTrack(i,true);};                                                                            // any other row → load + play
-  list.onclick=e=>pick(e.target.closest('.trk'));
-  list.onkeydown=e=>{if(e.key==='Enter'||e.code==='Space'){const r=e.target.closest('.trk');if(r){e.preventDefault();pick(r);}}};
+  `</li>`;}
+function pickTrack(r){if(!r)return;const i=+r.dataset.i;
+  if(i===trackIdx&&bgMode==='local'){if(audio.paused)startAudio();else{audio.pause();setUI(false);}}   // current row → resume / pause
+  else loadTrack(i,true);}                                                                            // any other row → load + play
+function wireTrackList(list){
+  if(!list)return;
+  list.innerHTML=LOCAL_TRACKS.map(trackRowHTML).join('');
+  list.onclick=e=>pickTrack(e.target.closest('.trk'));
+  list.onkeydown=e=>{if(e.key==='Enter'||e.code==='Space'){const r=e.target.closest('.trk');if(r){e.preventDefault();pickTrack(r);}}};
   loadTrackDurations();updateNowPlaying();
 }
+function wireTracklist(){wireTrackList(document.getElementById('tracklist'));}   // music.html
+function wireLabTracks(){wireTrackList(document.getElementById('srTracks'));}     // lab.html — load a track to bend
 /* Fill in each track's runtime lazily + once. A single muted probe element walks the list one
    file at a time (metadata only) so we never fire a dozen parallel requests; results cache on
-   the track so re-renders (client-side nav back to music) are instant. */
+   the track so re-renders (client-side nav, or the lab + music lists) are instant. Updates every
+   list on the page (music tracklist and the lab picker can both be showing the same songs). */
 let _durBusy=false;
 function loadTrackDurations(){
-  const list=document.getElementById('tracklist');if(!list)return;
-  LOCAL_TRACKS.forEach((t,i)=>{if(t.dur){const c=list.querySelector('.trk[data-i="'+i+'"] .tdur');if(c)c.textContent=t.dur;}});
+  if(!document.querySelector('.trk[data-i]'))return;   // no track list on this page
+  const fill=(i,v)=>document.querySelectorAll('.trk[data-i="'+i+'"] .tdur').forEach(c=>{c.textContent=v;});
+  LOCAL_TRACKS.forEach((t,i)=>{if(t.dur)fill(i,t.dur);});
   if(_durBusy||LOCAL_TRACKS.every(t=>t.dur))return;
   _durBusy=true;const probe=new Audio();probe.preload='metadata';probe.muted=true;let i=0;
   (function step(){
     while(i<LOCAL_TRACKS.length&&LOCAL_TRACKS[i].dur)i++;
     if(i>=LOCAL_TRACKS.length){_durBusy=false;return;}
     const idx=i;
-    probe.onloadedmetadata=()=>{if(isFinite(probe.duration)&&probe.duration>0){LOCAL_TRACKS[idx].dur=fmt(probe.duration);const c=document.querySelector('#tracklist .trk[data-i="'+idx+'"] .tdur');if(c)c.textContent=LOCAL_TRACKS[idx].dur;}i++;step();};
+    probe.onloadedmetadata=()=>{if(isFinite(probe.duration)&&probe.duration>0){LOCAL_TRACKS[idx].dur=fmt(probe.duration);fill(idx,LOCAL_TRACKS[idx].dur);}i++;step();};
     probe.onerror=()=>{i++;step();};
     try{probe.src=trackUrl(LOCAL_TRACKS[idx]);}catch(_){i++;step();}
   })();
 }
 function listenNow(){startAudio();const v=document.getElementById('visualizer');if(v)v.scrollIntoView({behavior:'smooth'});}
-/* Always arm a first-interaction fallback: the very first tap / scroll / key resumes the
-   audio context (required even when autoplay "succeeds" into a still-suspended context) and
-   starts the track if the browser blocked autoplay outright. */
+/* Always arm a first-interaction fallback: the very first tap / key starts the track (browsers
+   block autoplay-with-sound until a real gesture) and resumes the audio context. */
 let kicked=false,armed=false;
-function armKick(){if(kicked||armed)return;armed=true;const evs=['pointerdown','touchstart','keydown','wheel','scroll'];function kick(){if(kicked)return;kicked=true;evs.forEach(e=>removeEventListener(e,kick));ensureCtx();if(audio.paused){audio.play().then(()=>setUI(true)).catch(()=>{});}else setUI(true);}evs.forEach(e=>addEventListener(e,kick,{once:true,passive:true}));}
+/* The explicit play / pause / transport controls. If the FIRST interaction lands on one of
+   these, its own click handler is about to run and decide play vs pause — so the kick must NOT
+   also start playback, or the two cancel out: kick starts it, then the control's click sees
+   "already playing" and pauses it, and the music never starts. (This was the "player won't play
+   on the first click" bug.) The kick still readies the audio context. */
+const SB_TRANSPORT_SEL='.pwplay,.pwnav,.pbtn,.mbtn,.disc,.srplay,.trk';
+/* Only DISCRETE gestures (tap / key) arm the ambient start: scroll + wheel don't grant audio
+   user-activation in browsers (so their play() just gets blocked), and worse, a scroll fired as
+   the page settles — or as a transport click scrolls the button into view — would start the
+   track a beat before the click, which the click then reads as "playing" and pauses. */
+function armKick(){if(kicked||armed)return;armed=true;const evs=['pointerdown','touchstart','keydown'];function kick(e){if(kicked)return;kicked=true;evs.forEach(ev=>removeEventListener(ev,kick));ensureCtx();const tgt=e&&e.target;if(tgt&&tgt.closest&&tgt.closest(SB_TRANSPORT_SEL))return;/* a transport control's own click is about to fire — let it start playback so the two don't cancel out */if(audio.paused)startAudio();else setUI(true);}evs.forEach(e=>addEventListener(e,kick,{once:true,passive:true}));}
 function fmt(s){if(!isFinite(s))return'0:00';const m=Math.floor(s/60),x=Math.floor(s%60);return m+':'+String(x).padStart(2,'0');}
 /* progress / time labels are looked up by id each tick so they always target the
    current page's player (the player UI lives inside <main>, which is swapped on nav). */
@@ -1229,6 +1251,7 @@ function wireLab(){
   document.querySelectorAll('.srpresets button').forEach(b=>b.onclick=()=>{ensureCtx();applyPreset(b.dataset.preset);if(audio.paused)startAudio();});
   if(srPlayBtn)srPlayBtn.onclick=toggle;
   if(srProgEl)srProgEl.onclick=e=>{if(!isFinite(audio.duration))return;const r=srProgEl.getBoundingClientRect();audio.currentTime=(e.clientX-r.left)/r.width*audio.duration;};
+  wireLabTracks();   // the "load a track" picker — pick any catalog song to bend
   syncLab();
   return true;
 }

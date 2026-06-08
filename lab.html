@@ -39,13 +39,27 @@
         <div class="srart" id="srArt" style="background-image:url('assets/my-time-cover.jpg')"></div>
         <div class="srmeta">
           <div class="srnow">★ now bending</div>
-          <div class="srtitle" id="srTitle">Man Of My Word</div>
+          <div class="srtitle" id="srTitle">My Time</div>
           <div class="srmode" id="srMode">slowed + reverb</div>
           <canvas class="srwave" id="srWave"></canvas>
           <div class="srprog" id="srProg"><i id="srProgFill"></i></div>
           <div class="srtimes"><span id="srCur">0:00</span><span id="srDur">0:00</span></div>
         </div>
       </div>
+
+      <div class="srtransport">
+        <button class="srplay" id="srPlay">▶ play</button>
+        <div class="srpresetwrap">
+          <span class="srlabel">vibe</span>
+          <div class="srpresets">
+            <button data-preset="slowrev" class="on">slowed + reverb</button>
+            <button data-preset="deep">deep slow</button>
+            <button data-preset="night">nightcore</button>
+            <button data-preset="clean">original</button>
+          </div>
+        </div>
+      </div>
+
       <div class="srknobs">
         <div class="srknob">
           <div class="srk-top"><label for="srSpeed">speed</label><span id="srSpeedV">0.80×</span></div>
@@ -60,16 +74,13 @@
           <input type="range" id="srRoom" min="0" max="100" value="55" aria-label="reverb room size">
         </div>
       </div>
-      <div class="srbar">
-        <button class="srplay" id="srPlay">▶ play</button>
-        <div class="srpresets">
-          <button data-preset="slowrev" class="on">slowed + reverb</button>
-          <button data-preset="deep">deep slow</button>
-          <button data-preset="night">nightcore</button>
-          <button data-preset="clean">original</button>
-        </div>
-      </div>
-      <div class="srhint">drag <b style="color:var(--slime2)">speed</b> to pitch the track down · stack <b style="color:var(--slime2)">reverb</b> + <b style="color:var(--slime2)">room</b> for the cavern · the rest of the site keeps playing the song normally</div>
+
+      <div class="srhint">drag <b>speed</b> to pitch the track down · stack <b>reverb</b> + <b>room</b> for the cavern · the rest of the site keeps playing the song normally</div>
+    </div>
+
+    <div class="srpick panel reveal">
+      <div class="srpickhead"><h3>load a <em>track</em></h3><span class="srpicksub">tap any song to bend it</span></div>
+      <ol class="srtracks" id="srTracks"></ol>
     </div>
   </section>
 
