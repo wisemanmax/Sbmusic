@@ -23,6 +23,14 @@ admin editor fails loudly on a bad content read (`sbGetContentStrict`).
 > Cloudflare (add the headers as a Transform Rule / Workers) or host on
 > Netlify / Cloudflare Pages / Vercel for them to take effect.
 >
+> **HTTPS is also enforced in-page** so it holds even on bare GitHub Pages: every `*.html`
+> carries `<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">`
+> plus a top-of-`<head>` redirect that sends any `http://` load to `https://` (`localhost` /
+> `127.0.0.1` / `::1` are exempt for local dev). That upgrades mixed-content subresources and
+> bounces plain-HTTP visitors even when the host-level HSTS header above is inactive. It is
+> **not** a substitute for ticking **Settings → Pages → Enforce HTTPS** (a server-side 301
+> issued before any byte loads, plus real HSTS) — keep both.
+>
 > `script-src` includes `https://www.youtube.com` for the background-radio IFrame API.
 
 Serve these from the host. The site's real external dependencies are:
