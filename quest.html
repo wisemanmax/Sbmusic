@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎮 slime the game — SLIME BY</title>
+<meta name="description" content="SLIME, THEY NEED YOU! — a beat-reactive arcade quest. Restore the 808 Emerald and save Princess Vena. Plays to the live Slime By soundtrack.">
+<meta name="theme-color" content="#8dff2b">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23060403'/%3E%3Cpath d='M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30 62 M50 16 L50 84' stroke='%238dff2b' stroke-width='8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<meta property="og:type" content="website">
+<meta property="og:title" content="SLIME BY — slime the game">
+<meta property="og:description" content="SLIME, THEY NEED YOU! — restore the 808 Emerald, save Vena, ride the live SB beat.">
+<meta property="og:image" content="assets/my-time-cover.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+<noscript><style>#loader{display:none!important}</style></noscript>
+<script>try{var s=sessionStorage;if(s.getItem('sb_seen'))document.documentElement.className+=' seen';else s.setItem('sb_seen','1');if(s.getItem('sb_wipe'))document.documentElement.className+=' wipe-armed';}catch(e){}</script>
+</head>
+<body>
+
+<div id="loader"><div class="lt">SLIME BY</div><div class="ls">loading the slime…</div><div class="bar"><i></i></div></div>
+<noscript><div class="nojs">SLIME BY — <a href="index.html">home</a> · <a href="music.html">music</a> · <a href="lab.html">slowed</a> · <a href="world.html">sb world</a> · <a href="quest.html">the game</a> · <a href="vault.html">vault</a> · <a href="shows.html">shows</a> · <a href="connect.html">tap in</a></div></noscript>
+
+<main id="main">
+
+  <header class="pagehead">
+    <div class="kicker">slime the game</div>
+    <h1 class="glitch" data-t="THE GAME">THE GAME</h1>
+    <p class="psub">a beat-reactive quest · it plays to the <b>live SB track</b> spinning in the player</p>
+  </header>
+
+  <section id="quest">
+    <!-- ============================================================
+         The whole game lives in #qRoot. assets/quest.js (loaded on
+         demand by app.js) mounts the engine here and wires its audio
+         to the site's real player. Styles are inline + scoped to #qRoot
+         so they travel with the page through the client-side router and
+         never leak into the site chrome.
+    ============================================================= -->
+    <div id="qRoot">
+      <style>
+        #qRoot{ --q-slime:#8dff2b; --q-bright:#c2ff7a; --q-toxic:#d6ff38; --q-gold:#ffd166; --q-rage:#ff1f2e; --q-purple:#9b3cff; --q-blue:#3a6bff;
+          display:flex; flex-direction:column; align-items:center; gap:14px; padding:6px 0 30px; }
+        #qRoot .q-cabinet{
+          position:relative; width:min(1040px, 96vw, calc((100vh - 250px) * 1.7778));
+          aspect-ratio:16/9; background:#000; overflow:hidden; touch-action:none;
+          border:1px solid rgba(141,255,43,.35);
+          box-shadow:0 0 60px rgba(141,255,43,.18), inset 0 0 60px rgba(0,0,0,.6);
+          border-radius:6px;
+        }
+        #qRoot canvas#qGame{ position:absolute; inset:0; width:100%; height:100%; image-rendering:pixelated; image-rendering:crisp-edges; z-index:10; }
+
+        /* CRT / cabinet overlays */
+        #qRoot .q-scan{ position:absolute; inset:0; pointer-events:none; z-index:40;
+          background:repeating-linear-gradient(0deg,rgba(0,0,0,.13) 0,rgba(0,0,0,.13) 1px,transparent 2px,transparent 3px); mix-blend-mode:multiply; opacity:.55; }
+        #qRoot .q-vig{ position:absolute; inset:0; pointer-events:none; z-index:41; background:radial-gradient(ellipse at center,transparent 52%,rgba(0,0,0,.6) 100%); }
+
+        /* HUD */
+        #qRoot .q-hud{ position:absolute; inset:0; z-index:30; pointer-events:none; font-family:'Courier New',monospace; }
+        #qRoot .q-hud-tl{ position:absolute; top:12px; left:14px; }
+        #qRoot .q-hearts{ display:flex; gap:5px; }
+        #qRoot .q-heart{ width:18px; height:16px; position:relative; filter:drop-shadow(0 0 6px var(--q-slime)); }
+        #qRoot .q-heart::before,#qRoot .q-heart::after{ content:""; position:absolute; width:10px; height:15px; border-radius:10px 10px 0 0; background:var(--q-slime); top:0; }
+        #qRoot .q-heart::before{ left:8px; transform:rotate(45deg); transform-origin:0 100%; }
+        #qRoot .q-heart::after{ left:8px; transform:rotate(-45deg); transform-origin:100% 100%; }
+        #qRoot .q-heart.empty{ filter:none; opacity:.85; }
+        #qRoot .q-heart.empty::before,#qRoot .q-heart.empty::after{ background:#1d241c; }
+        #qRoot .q-hud-tc{ position:absolute; top:12px; left:50%; transform:translateX(-50%); text-align:center; }
+        #qRoot .q-lvl{ font-size:12px; letter-spacing:4px; color:var(--q-toxic); font-weight:900; text-shadow:0 0 10px var(--q-toxic); }
+        #qRoot .q-sub{ font-size:8px; letter-spacing:3px; color:#6f9a64; margin-top:2px; }
+        #qRoot .q-hud-tr{ position:absolute; top:12px; right:14px; text-align:right; font-size:14px; font-weight:900; }
+        #qRoot .q-hud-tr .c{ color:var(--q-gold); text-shadow:0 0 8px var(--q-gold); }
+        #qRoot .q-hud-tr .k{ color:var(--q-slime); text-shadow:0 0 8px var(--q-slime); }
+        #qRoot .q-hud-bl{ position:absolute; bottom:12px; left:14px; width:180px; }
+        #qRoot .q-rage-cap{ font-size:9px; letter-spacing:3px; color:var(--q-rage); font-weight:900; text-shadow:0 0 8px var(--q-rage); margin-bottom:3px; display:flex; justify-content:space-between; }
+        #qRoot .q-rage-cap .rdy{ color:var(--q-gold); text-shadow:0 0 8px var(--q-gold); opacity:0; }
+        #qRoot .q-hud-bl.rage-ready .q-rage-cap .rdy{ opacity:1; animation:qblink .6s steps(2) infinite; }
+        #qRoot .q-rage-bar{ height:11px; background:#13030a; border:1.5px solid var(--q-rage); overflow:hidden; clip-path:polygon(0 0,100% 0,calc(100% - 5px) 100%,0 100%); }
+        #qRoot .q-rage-fill{ height:100%; width:0; background:linear-gradient(90deg,var(--q-rage),#ff5a45,var(--q-gold)); box-shadow:0 0 12px var(--q-rage); transition:width .12s; }
+        #qRoot .q-hud-bl.rage-ready .q-rage-fill{ animation:qrgl .5s infinite; }
+        @keyframes qrgl{ 0%,100%{ filter:brightness(1) } 50%{ filter:brightness(1.8) } }
+        #qRoot .q-viz{ position:absolute; bottom:10px; left:50%; transform:translateX(-50%); display:flex; gap:3px; align-items:flex-end; height:34px; }
+        #qRoot .q-viz i{ width:4px; height:4px; background:var(--q-slime); box-shadow:0 0 6px var(--q-slime); border-radius:1px; transition:height .07s; }
+
+        /* combo + dialogue */
+        #qRoot .q-combo{ position:absolute; top:42px; left:50%; transform:translateX(-50%); z-index:31; font-size:17px; font-weight:900; color:var(--q-toxic); text-shadow:0 0 12px var(--q-toxic); opacity:0; transition:opacity .15s; pointer-events:none; font-family:'Courier New',monospace; }
+        #qRoot .q-combo.show{ opacity:1; }
+        #qRoot .q-dlg{ position:absolute; left:50%; bottom:54px; transform:translateX(-50%); z-index:35; width:80%; max-width:640px; pointer-events:none; opacity:0; transition:opacity .25s; font-family:'Courier New',monospace;
+          background:linear-gradient(180deg,rgba(6,12,6,.95),rgba(3,6,3,.97)); border:2px solid var(--q-slime); padding:11px 16px;
+          box-shadow:0 0 28px rgba(141,255,43,.34),inset 0 0 22px rgba(141,255,43,.07); clip-path:polygon(0 0,100% 0,100% 100%,10px 100%,0 calc(100% - 10px)); }
+        #qRoot .q-dlg.show{ opacity:1; }
+        #qRoot .q-who{ font-size:10px; letter-spacing:3px; font-weight:900; margin-bottom:5px; }
+        #qRoot .q-who.elder{ color:var(--q-gold); text-shadow:0 0 8px var(--q-gold); }
+        #qRoot .q-who.slime{ color:var(--q-slime); text-shadow:0 0 8px var(--q-slime); }
+        #qRoot .q-who.vena{ color:var(--q-purple); text-shadow:0 0 10px var(--q-purple); }
+        #qRoot .q-who.king{ color:var(--q-rage); text-shadow:0 0 8px var(--q-rage); }
+        #qRoot .q-who.quest{ color:var(--q-toxic); text-shadow:0 0 8px var(--q-toxic); }
+        #qRoot .q-txt{ font-size:13px; line-height:1.5; color:#eafbe4; }
+
+        /* touch controls */
+        #qRoot .q-touch{ position:absolute; inset:0; z-index:33; display:none; }
+        #qRoot .q-tb{ position:absolute; pointer-events:auto; border-radius:50%; display:grid; place-items:center; user-select:none; font-weight:900; font-size:11px; font-family:'Courier New',monospace; color:var(--q-slime);
+          background:radial-gradient(circle at 35% 30%,rgba(141,255,43,.16),rgba(141,255,43,.05)); border:2px solid rgba(141,255,43,.55); box-shadow:0 0 16px rgba(141,255,43,.25); backdrop-filter:blur(3px); }
+        #qRoot .q-tb:active{ background:rgba(141,255,43,.4); transform:scale(.9); }
+        #qRoot .q-tb.r{ color:var(--q-rage); border-color:var(--q-rage); box-shadow:0 0 16px rgba(255,31,46,.3); background:radial-gradient(circle at 35% 30%,rgba(255,31,46,.18),rgba(255,31,46,.05)); }
+        #qRoot #qtL{ left:12px; bottom:74px; width:60px; height:60px; font-size:20px; }
+        #qRoot #qtR{ left:82px; bottom:74px; width:60px; height:60px; font-size:20px; }
+        #qRoot #qtJ{ right:14px; bottom:118px; width:64px; height:64px; }
+        #qRoot #qtA{ right:86px; bottom:72px; width:60px; height:60px; }
+        #qRoot #qtD{ right:16px; bottom:46px; width:46px; height:46px; font-size:9px; }
+        #qRoot #qtRG{ right:88px; bottom:140px; width:46px; height:46px; font-size:9px; }
+
+        /* overlay screens */
+        #qRoot .q-screen{ position:absolute; inset:0; z-index:60; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px; font-family:'Courier New',monospace;
+          background:radial-gradient(ellipse at 50% 38%,rgba(12,30,8,.92),rgba(0,0,0,.97) 80%); }
+        #qRoot .q-screen.hidden{ display:none; }
+        #qRoot .q-logo{ font-size:clamp(28px,7vw,60px); font-weight:900; line-height:.92; letter-spacing:1px; color:var(--q-slime); text-shadow:0 0 22px var(--q-slime),5px 5px 0 #073500; transform:rotate(-2.5deg); }
+        #qRoot .q-logo .r{ display:block; color:var(--q-rage); text-shadow:0 0 22px var(--q-rage),5px 5px 0 #4d0008; }
+        #qRoot .q-tag{ margin-top:16px; font-size:11px; letter-spacing:4px; color:var(--q-toxic); }
+        #qRoot .q-ctrls{ margin-top:18px; font-size:11px; color:#8fc680; line-height:2; letter-spacing:1px; }
+        #qRoot .q-ctrls b{ color:var(--q-slime); }
+        #qRoot .q-ctrls .hint{ color:#5f8a52; }
+        #qRoot .q-play{ margin-top:22px; font-family:inherit; font-weight:900; font-size:15px; letter-spacing:3px; color:#031400; background:linear-gradient(180deg,var(--q-slime),#2a7a00); border:none; padding:14px 34px; cursor:pointer;
+          box-shadow:0 0 26px var(--q-slime),inset 0 2px 0 rgba(255,255,255,.4); clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%); transition:transform .1s; }
+        #qRoot .q-play:active{ transform:scale(.96); }
+        #qRoot .q-blink{ animation:qblink 1.1s steps(2) infinite; }
+        @keyframes qblink{ 50%{ opacity:.28 } }
+        #qRoot .q-vaultbox{ margin-top:16px; font-size:12px; letter-spacing:2px; color:var(--q-gold); border:1px dashed var(--q-gold); padding:8px 16px; text-shadow:0 0 8px var(--q-gold); }
+        #qRoot .q-winrow{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:20px; }
+        #qRoot .q-wbtn{ font-family:inherit; font-weight:900; font-size:11px; letter-spacing:2px; cursor:pointer; padding:11px 16px; background:#0b0f0b; color:var(--q-slime); border:2px solid var(--q-slime); box-shadow:0 0 14px rgba(141,255,43,.32); transition:.15s; }
+        #qRoot .q-wbtn:hover{ background:var(--q-slime); color:#031400; }
+        #qRoot .q-wbtn.g{ color:var(--q-gold); border-color:var(--q-gold); box-shadow:0 0 14px rgba(255,209,102,.32); }
+        #qRoot .q-wbtn.g:hover{ background:var(--q-gold); color:#241a00; }
+        #qRoot .q-fscore{ margin-top:14px; font-size:11px; letter-spacing:2px; color:#5f8a52; }
+        #qRoot .q-pausebtn{ position:absolute; top:10px; right:50%; transform:translateX(50%); z-index:36; pointer-events:auto; font-family:'Courier New',monospace; font-size:9px; letter-spacing:2px; color:#6f9a64; background:rgba(0,0,0,.35); border:1px solid rgba(141,255,43,.3); padding:3px 8px; cursor:pointer; display:none; }
+        #qRoot .q-cabinet.playing .q-pausebtn{ display:block; }
+
+        #qRoot .q-legend{ font-family:var(--mono); font-size:11px; letter-spacing:1px; color:#7fae72; text-align:center; max-width:680px; line-height:1.7; }
+        #qRoot .q-legend b{ color:var(--q-slime); }
+        #qRoot .q-legend .blue{ color:var(--q-blue); }
+        @media (max-width:620px){ #qRoot .q-legend{ font-size:10px; } }
+      </style>
+
+      <div class="q-cabinet" id="qCabinet">
+        <canvas id="qGame"></canvas>
+
+        <div class="q-hud" id="qHud">
+          <div class="q-hud-tl"><div class="q-hearts" id="qHearts"></div></div>
+          <div class="q-hud-tc"><div class="q-lvl" id="qLvlname">THE SLIME PIT</div><div class="q-sub">SLIMEORIA · ZONE 1</div></div>
+          <div class="q-hud-tr"><span class="c"><span id="qCoins">0</span>◈</span> &nbsp; <span class="k"><span id="qKeys">0</span>/1⚷</span></div>
+          <div class="q-hud-bl">
+            <div class="q-rage-cap"><span>RAGE</span><span class="rdy">● READY [R]</span></div>
+            <div class="q-rage-bar"><div class="q-rage-fill" id="qRagefill"></div></div>
+          </div>
+          <div class="q-viz" id="qViz"></div>
+        </div>
+
+        <button class="q-pausebtn" id="qPause" type="button">❚❚ PAUSE [P]</button>
+        <div class="q-combo" id="qCombo"></div>
+        <div class="q-dlg" id="qDlg"><div class="q-who" id="qDlgwho"></div><div class="q-txt" id="qDlgtxt"></div></div>
+
+        <div class="q-touch" id="qTouch">
+          <div class="q-tb" id="qtL">◄</div>
+          <div class="q-tb" id="qtR">►</div>
+          <div class="q-tb" id="qtJ">JUMP</div>
+          <div class="q-tb" id="qtA">BLAST</div>
+          <div class="q-tb" id="qtD">DASH</div>
+          <div class="q-tb r" id="qtRG">RAGE</div>
+        </div>
+
+        <!-- TITLE -->
+        <div class="q-screen" id="qTitle">
+          <div class="q-logo">SLIME,<span class="r">THEY NEED YOU!</span></div>
+          <div class="q-tag">RESTORE THE 808 EMERALD · SAVE PRINCESS VENA</div>
+          <div class="q-ctrls">
+            <b>A / D</b> · <b>← →</b> MOVE &nbsp;&nbsp; <b>W / SPACE</b> JUMP<br>
+            <b>J</b> MIC BLAST &nbsp; <b>K</b> SLIME DASH &nbsp; <b>R</b> RAGE MODE<br>
+            <span class="hint">jump ON the beat of the SB track for a higher BEAT JUMP ✦</span>
+          </div>
+          <button class="q-play" id="qStart">▶ START QUEST</button>
+          <div class="q-tag q-blink" style="margin-top:24px;">PRESS START — the music becomes your soundtrack</div>
+        </div>
+
+        <!-- GAME OVER -->
+        <div class="q-screen hidden" id="qOver">
+          <div class="q-logo r" style="transform:rotate(-1deg)">SLIME DOWN</div>
+          <div class="q-tag">THE KINGDOM GREW SILENT...</div>
+          <button class="q-play" id="qRetry" style="margin-top:26px;">↻ TRY AGAIN</button>
+        </div>
+
+        <!-- WIN -->
+        <div class="q-screen hidden" id="qWin">
+          <div class="q-logo">QUEST COMPLETE</div>
+          <div style="margin-top:12px;font-size:13px;color:#d6f5cc;line-height:1.6;max-width:520px;">
+            The 808 Emerald blazes green again — the beat floods back into Slimeoria.<br>
+            <span style="color:var(--q-purple);text-shadow:0 0 10px var(--q-purple)">"You heard us when the world went silent."</span> — Vena
+          </div>
+          <div class="q-vaultbox">★ YOU UNLOCKED THE ROYAL VAULT ★</div>
+          <div class="q-winrow">
+            <button class="q-wbtn g" data-link="listen">♫ LISTEN NOW</button>
+            <button class="q-wbtn" data-link="vault">▣ ENTER THE VAULT</button>
+            <button class="q-wbtn" id="qReplay">↻ PLAY AGAIN</button>
+          </div>
+          <div class="q-fscore" id="qFscore"></div>
+        </div>
+
+        <div class="q-scan"></div><div class="q-vig"></div>
+      </div>
+
+      <p class="q-legend">
+        the quest rides the <b>live SB player</b> — hit <b>play</b> in the music bar (or just press START) and the
+        beat visuals, <b>BEAT&nbsp;JUMP</b> and the boss-crown timing all lock to whatever track is spinning.
+        clear the pit, find the <span class="blue">slime key</span>, and dethrone the Red Serpent King.
+      </p>
+    </div>
+  </section>
+
+</main>
+
+<script src="cms.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
