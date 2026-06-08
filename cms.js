@@ -232,6 +232,7 @@ const SB_NAV = [
   { href: 'music.html',   label: 'music' },
   { href: 'lab.html',     label: 'slowed' },
   { href: 'world.html',   label: 'sb world' },
+  { href: 'quest.html',   label: 'the game' },
   { href: 'vault.html',   label: 'vault' },
   { href: 'shows.html',   label: 'shows' },
   { href: 'connect.html', label: 'tap in' },

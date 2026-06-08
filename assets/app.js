@@ -11,6 +11,7 @@ const SNAKE_PATH = "M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30
 const SB_NAV_FALLBACK = [
   { href: 'index.html', label: 'home' }, { href: 'music.html', label: 'music' },
   { href: 'lab.html', label: 'slowed' }, { href: 'world.html', label: 'sb world' },
+  { href: 'quest.html', label: 'the game' },
   { href: 'vault.html', label: 'vault' }, { href: 'shows.html', label: 'shows' },
   { href: 'connect.html', label: 'tap in' }, { href: 'links.html', label: 'links' },
 ];
@@ -1739,6 +1740,38 @@ if(SB_PREVIEW){
 /* deep-link: arriving at connect.html#join lands the visitor on the email field */
 function deepLinkJoin(){ if(/join/.test(location.hash)){const g=document.getElementById('gemail');if(g)setTimeout(()=>{const c=document.getElementById('connect');if(c)c.scrollIntoView({behavior:'smooth'});g.focus();},350);} }
 
+/* ===================== QUEST GAME BRIDGE =====================
+   "Slime the Game" (quest.html + assets/quest.js) rides the site's real player so
+   the quest's beat visuals, BEAT JUMP window and boss-crown timing all react to
+   whatever Slime By track is actually spinning. This exposes a tiny, read-mostly
+   surface: the game taps the SAME AnalyserNode the site visualizer uses, reads the
+   play state, and can start the music as its soundtrack. Nothing here changes site
+   behaviour for any other page. */
+window.SBPlayer = {
+  ensureCtx(){ try{ ensureCtx(); }catch(_){} },
+  start(){ try{ if(bgMode==='yt') ytPlay(); else startAudio(); }catch(_){} },
+  toggle(){ try{ toggle(); }catch(_){} },
+  isPlaying(){ try{ return bgMode==='yt' ? ytIsPlaying() : (!!audio && !audio.paused); }catch(_){ return false; } },
+  analyser(){ return analyser||null; },          // the live AnalyserNode (null until ensureCtx)
+  audio(){ return audio; },
+  title(){ try{ return localTitle(); }catch(_){ return ''; } },
+};
+/* Mount the quest engine when its page is on screen. The module is loaded on demand
+   (the client-side router never executes scripts inside a swapped-in <main>, and the
+   game is dead weight on every other page), then mounted against the freshly-swapped
+   DOM. The game's own loop self-unmounts the moment its canvas leaves the document, so
+   navigating away never leaves a stray rAF / key listeners behind. */
+function sbEnsureQuest(){
+  if(currentPage()!=='quest.html') return;
+  const r=document.getElementById('qRoot'); if(!r) return;
+  if(window.SBQuest){ try{ window.SBQuest.mount(r); }catch(_){} return; }
+  if(sbEnsureQuest._loading) return; sbEnsureQuest._loading=true;
+  const s=document.createElement('script'); s.src='assets/quest.js'; s.async=true;
+  s.onload=()=>{ sbEnsureQuest._loading=false; const root=document.getElementById('qRoot'); if(window.SBQuest&&root){ try{ window.SBQuest.mount(root); }catch(_){} } };
+  s.onerror=()=>{ sbEnsureQuest._loading=false; };
+  document.head.appendChild(s);
+}
+
 /* ===================== PER-PAGE INIT =====================
    Runs on first load AND after every client-side navigation. Re-wires everything that
    lives inside <main> against the freshly-swapped DOM, and engages the right audio
@@ -1765,6 +1798,7 @@ function sbInitPage(){
   deepLinkJoin();
   setUI(bgIsPlaying());   // reflect play state on the new page's transport UI
   updateBgTitle();        // keep the now-playing title in sync (local track or YouTube)
+  sbEnsureQuest();        // mount "Slime the Game" when its page is on screen (no-op elsewhere)
 }
 
 /* legacy full-load wipe cleanup (kept for hard navigations / no-JS-router fallbacks) */
