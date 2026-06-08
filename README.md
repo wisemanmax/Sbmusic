@@ -5,8 +5,8 @@ A **multi-page**, fully interactive experience: real Web-Audio visualizer, a pit
 scroll-tracking snakes, a slowed + reverb studio, SB Universe lore, music, vault, merch,
 shows, and contact.
 
-**Stack:** static HTML/CSS/JS — no build step. The site is split into seven linked
-pages (`index`, `music`, `lab`, `world`, `vault`, `shows`, `connect`). They share one
+**Stack:** static HTML/CSS/JS — no build step. The site is split into eight linked
+pages (`index`, `music`, `lab`, `world`, `quest`, `vault`, `shows`, `connect`). They share one
 stylesheet (`assets/styles.css`) and one engine (`assets/app.js`): the engine injects the
 shared chrome (navbar, footer, persistent player, modal, overlays…) from a single source
 of truth — so the **navbar is identical and all-linking on every page** — and the
@@ -115,6 +115,7 @@ index.html                  # Home — hero, marquee, featured drop + countdown
 music.html                  # Music — slime player, releases, Spotify embed
 lab.html                    # The Lab — slowed + reverb studio + visualizer
 world.html                  # SB World — about + the five-powers lore
+quest.html                  # Slime the Game — beat-reactive arcade quest (rides the live player)
 vault.html                  # Vault — visuals grid + videos
 shows.html                  # Shows — tour dates + merch (coming soon)
 connect.html                # Tap In — socials, join-the-list, booking
@@ -124,6 +125,7 @@ cms.js                      # Supabase config, default content model, nav map, h
 assets/
   styles.css                # all site styles (shared by every page)
   app.js                    # site engine — injects shared chrome + wires every feature
+  quest.js                  # "Slime the Game" engine — mounted on quest.html, beats off the live player
   man-of-my-word.mp3        # background track (loops)
   my-time-cover.jpg         # My Time cover art
   sb-portrait.jpg           # artist photo (hero + about)
