@@ -29,8 +29,14 @@
   };
 
   /* ===================== render target ===================== */
-  const W = 512, H = 288;            // internal 16:9 render res (level tuned to this)
+  const W = 512, H = 288;            // internal 16:9 render width + base height (level tuned to this)
   let cv = null, ctx = null;
+  /* Responsive view: W stays fixed (horizontal gameplay unchanged) but the canvas BUFFER
+     height (VH) tracks the cabinet's real aspect, so a tall mobile viewport shows MORE
+     vertical world instead of stretching or leaving a black void. VOFF pushes the world
+     down so the ground line sits ~64% of the way down; WB (= VH - VOFF) is the world-space
+     bottom that ground + pits fill to. On a 16:9 cabinet VH=H, VOFF=0 → identical to before. */
+  let VH = H, VOFF = 0, WB = H, ro = null, relayoutQueued = false;
 
   /* honour the OS "reduce motion" setting: tame screen-shake + thin out particles */
   const REDUCED = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; } })();
@@ -432,7 +438,7 @@
       const tgt = p.x + (p.x < b.x ? 150 : -150); b.x += (tgt - b.x) * 0.022; b.atkCD--;
       if (b.atkCD <= 0) {
         if (b.phase === 1 || b.phase === 3) { b.vx = (p.x < b.x ? -1 : 1) * (b.phase === 3 ? 5.5 : 3.8); b.lunge = 28; b.atkCD = b.phase === 3 ? 78 : 120; b.sx = 8; b.rear = 16; }
-        else { for (let i = 0; i < 6; i++) notes.push({ x: cam.x + 30 + Math.random() * (W - 60), y: -12, vy: 1.7 + Math.random() * 1.5, kind: 'red', t: 0 }); b.atkCD = 108; b.rear = 14; }
+        else { for (let i = 0; i < 6; i++) notes.push({ x: cam.x + 30 + Math.random() * (W - 60), y: -VOFF - 12, vy: 1.7 + Math.random() * 1.5, kind: 'red', t: 0 }); b.atkCD = 108; b.rear = 14; }
       }
     }
     b.y = GY - b.h; if (b.sx > 0) b.sx *= 0.85;
@@ -473,8 +479,9 @@
     ctx.save(); ctx.translate(sx, sy);
     const bs = QA.beatStrength(), cx = Math.floor(cam.x);
 
-    drawSky(bs); drawParallax(cx, bs);
-    ctx.save(); ctx.translate(-cx, 0);
+    drawSky(bs);
+    ctx.save(); ctx.translate(0, VOFF); drawParallax(cx, bs); ctx.restore();
+    ctx.save(); ctx.translate(-cx, VOFF);
     drawPits(bs); drawPlatforms(bs); drawDecals(); drawTorches(bs); drawCoins();
     if (theKey) drawKey();
     drawNotes();
@@ -485,24 +492,24 @@
     drawPlayer();
     drawParticles(); drawFloaters();
     ctx.restore();
-    drawFireflies(cx, bs);
+    ctx.save(); ctx.translate(0, VOFF); drawFireflies(cx, bs); ctx.restore();
     ctx.restore();
 
-    // post fx
-    if (beatFlash > 0.02 && state === 'play') { ctx.fillStyle = (rageOn ? 'rgba(255,31,46,' : 'rgba(141,255,43,') + (beatFlash * 0.06) + ')'; ctx.fillRect(0, 0, W, H); }
-    if (flash > 0) { ctx.fillStyle = 'rgba(255,255,255,' + (flash / 16) + ')'; ctx.fillRect(0, 0, W, H); }
-    if (rageOn) { ctx.fillStyle = 'rgba(255,31,46,0.07)'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = 'rgba(255,31,46,' + (0.05 + bs * 0.05) + ')'; ctx.fillRect(0, 0, W, 6); ctx.fillRect(0, H - 6, W, 6); }
+    // post fx (full canvas → VH so they cover the whole responsive viewport)
+    if (beatFlash > 0.02 && state === 'play') { ctx.fillStyle = (rageOn ? 'rgba(255,31,46,' : 'rgba(141,255,43,') + (beatFlash * 0.06) + ')'; ctx.fillRect(0, 0, W, VH); }
+    if (flash > 0) { ctx.fillStyle = 'rgba(255,255,255,' + (flash / 16) + ')'; ctx.fillRect(0, 0, W, VH); }
+    if (rageOn) { ctx.fillStyle = 'rgba(255,31,46,0.07)'; ctx.fillRect(0, 0, W, VH); ctx.fillStyle = 'rgba(255,31,46,' + (0.05 + bs * 0.05) + ')'; ctx.fillRect(0, 0, W, 6); ctx.fillRect(0, VH - 6, W, 6); }
     drawBossBar();
     if (state === 'paused') drawPausedOverlay();
   }
 
   function drawSky(bs) {
-    const g = ctx.createLinearGradient(0, 0, 0, H);
+    const g = ctx.createLinearGradient(0, 0, 0, VH);
     if (rageOn) { g.addColorStop(0, '#2a0410'); g.addColorStop(.5, '#1a0208'); g.addColorStop(1, '#070103'); }
     else { g.addColorStop(0, '#0c2e16'); g.addColorStop(.45, '#0a2110'); g.addColorStop(1, '#05150b'); }
-    ctx.fillStyle = g; ctx.fillRect(-30, -30, W + 60, H + 60);
+    ctx.fillStyle = g; ctx.fillRect(-30, -30, W + 60, VH + 60);
     // 808 EMERALD moon — pulses with the live track
-    const mx = W * 0.80, my = H * 0.24, mr = 24 + bs * 7;
+    const mx = W * 0.80, my = VH * 0.2, mr = 24 + bs * 7;
     const mg = ctx.createRadialGradient(mx, my, 2, mx, my, mr * 2.6);
     if (rageOn) { mg.addColorStop(0, 'rgba(255,90,100,.95)'); mg.addColorStop(.4, 'rgba(255,31,46,.4)'); mg.addColorStop(1, 'transparent'); }
     else { mg.addColorStop(0, 'rgba(190,255,150,.9)'); mg.addColorStop(.4, 'rgba(141,255,43,' + (0.3 + bs * 0.25) + ')'); mg.addColorStop(1, 'transparent'); }
@@ -517,7 +524,7 @@
     ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fillRect(-mr * 0.5, -mr * 0.55, 3, 3);
     ctx.restore();
     // stars
-    for (let i = 0; i < 44; i++) { const sxp = (i * 137) % W, syp = (i * 71) % (H * 0.6); ctx.fillStyle = 'rgba(200,255,190,' + (0.2 + 0.5 * ((Math.sin(timeNow * 0.002 + i) + 1) / 2)) + ')'; ctx.fillRect(sxp, syp, 1, 1); }
+    for (let i = 0; i < 44; i++) { const sxp = (i * 137) % W, syp = (i * 71) % (VH * 0.62); ctx.fillStyle = 'rgba(200,255,190,' + (0.2 + 0.5 * ((Math.sin(timeNow * 0.002 + i) + 1) / 2)) + ')'; ctx.fillRect(sxp, syp, 1, 1); }
   }
   function drawParallax(cx, bs) {
     const layers = [{ s: 0.2, col: rageOn ? '#240310' : '#08200f', h: 92, amp: 30 },
@@ -562,20 +569,20 @@
   }
   function drawPits(bs) {
     for (const pit of pits) {
-      const grad = ctx.createLinearGradient(0, H - 40, 0, H);
+      const grad = ctx.createLinearGradient(0, WB - 40, 0, WB);
       if (rageOn) { grad.addColorStop(0, 'rgba(255,31,46,.6)'); grad.addColorStop(1, 'rgba(120,0,15,.9)'); }
       else { grad.addColorStop(0, 'rgba(141,255,43,.55)'); grad.addColorStop(1, 'rgba(8,50,15,.95)'); }
       ctx.fillStyle = grad;
-      for (let x = 0; x < pit[1]; x += 4) { const wv = Math.sin((x + timeNow * 0.005) * 0.25) * 2.5 + Math.sin((x + timeNow * 0.009) * 0.6) * 1.5; ctx.fillRect(pit[0] + x, H - 34 + wv, 4, 40); }
-      for (let i = 0; i < 5; i++) { const bx = pit[0] + 10 + ((i * 23 + timeNow * 0.03) % (pit[1] - 20)); const by = H - 10 - ((timeNow * 0.05 + i * 40) % 30); ctx.fillStyle = rageOn ? 'rgba(255,120,130,.6)' : 'rgba(160,255,122,.6)'; ctx.beginPath(); ctx.arc(bx, by, 1.5, 0, 6.28); ctx.fill(); }
+      for (let x = 0; x < pit[1]; x += 4) { const wv = Math.sin((x + timeNow * 0.005) * 0.25) * 2.5 + Math.sin((x + timeNow * 0.009) * 0.6) * 1.5; ctx.fillRect(pit[0] + x, GY + 2 + wv, 4, WB - GY); }
+      for (let i = 0; i < 5; i++) { const bx = pit[0] + 10 + ((i * 23 + timeNow * 0.03) % (pit[1] - 20)); const by = WB - 10 - ((timeNow * 0.05 + i * 40) % 30); ctx.fillStyle = rageOn ? 'rgba(255,120,130,.6)' : 'rgba(160,255,122,.6)'; ctx.beginPath(); ctx.arc(bx, by, 1.5, 0, 6.28); ctx.fill(); }
     }
   }
   function drawPlatforms(bs) {
     for (const pl of plats) {
       const tall = pl.y === GY;
-      const g = ctx.createLinearGradient(0, pl.y, 0, tall ? H : pl.y + 16);
+      const g = ctx.createLinearGradient(0, pl.y, 0, tall ? WB : pl.y + 16);
       g.addColorStop(0, rageOn ? '#3a1018' : '#15401c'); g.addColorStop(1, rageOn ? '#1a050a' : '#082611');
-      ctx.fillStyle = g; ctx.fillRect(pl.x, pl.y, pl.w, tall ? H - pl.y : 16);
+      ctx.fillStyle = g; ctx.fillRect(pl.x, pl.y, pl.w, tall ? WB - pl.y : 16);
       ctx.fillStyle = rageOn ? '#52131f' : '#1d5226';
       for (let x = pl.x + 4; x < pl.x + pl.w; x += 12) { const yy = pl.y + 8 + ((x * 7) % (tall ? 40 : 8)); ctx.fillRect(x, yy, 2, 2); }
       ctx.fillStyle = rageOn ? '#7a1228' : C.slimeDeep; ctx.fillRect(pl.x, pl.y, pl.w, 5);
@@ -949,13 +956,14 @@
     ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.textAlign = 'left'; ctx.restore();
   }
   function drawPausedOverlay() {
-    ctx.fillStyle = 'rgba(3,8,4,.78)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(3,8,4,.8)'; ctx.fillRect(0, 0, W, VH);
     ctx.textAlign = 'center';
+    const py = Math.max(0, (VH - H) * 0.5);   // keep the help card centered as the view grows
     ctx.fillStyle = C.slime; ctx.shadowColor = C.slime; ctx.shadowBlur = 12; ctx.font = 'bold 22px "Courier New",monospace';
-    ctx.fillText('PAUSED', W / 2, 64); ctx.shadowBlur = 0;
+    ctx.fillText('PAUSED', W / 2, py + 64); ctx.shadowBlur = 0;
     // an at-a-glance controls card so help is always one keypress away mid-run
     ctx.fillStyle = C.toxic; ctx.font = 'bold 9px "Courier New",monospace';
-    ctx.fillText('— HOW TO PLAY —', W / 2, 92);
+    ctx.fillText('— HOW TO PLAY —', W / 2, py + 92);
     const rows = [
       ['MOVE', 'A / D  ·  ← →'],
       ['JUMP', 'W / SPACE  (hold = higher)'],
@@ -965,7 +973,7 @@
       ['RAGE MODE', 'R  (when meter is full)'],
     ];
     ctx.font = '10px "Courier New",monospace';
-    let y = 116;
+    let y = py + 116;
     for (const [k, v] of rows) {
       ctx.textAlign = 'right'; ctx.fillStyle = C.slime; ctx.fillText(k, W / 2 - 8, y);
       ctx.textAlign = 'left'; ctx.fillStyle = '#cfe7bd'; ctx.fillText(v, W / 2 + 8, y);
@@ -1012,13 +1020,38 @@
   }
   function drawBossBar() {
     if (!boss || state !== 'play') return;
-    const bw = 220, bx = (W - bw) / 2, by = H - 22;
+    const bw = 220, bx = (W - bw) / 2, by = VH - 22;
     ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(bx - 3, by - 3, bw + 6, 12);
     ctx.fillStyle = '#2a0008'; ctx.fillRect(bx, by, bw, 7);
     ctx.fillStyle = C.rage; ctx.shadowColor = C.rage; ctx.shadowBlur = 8; ctx.fillRect(bx, by, bw * (boss.hp / boss.maxHp), 7); ctx.shadowBlur = 0;
     ctx.fillStyle = C.toxic; ctx.font = '8px "Courier New",monospace'; ctx.textAlign = 'center';
     ctx.fillText('RED SERPENT KING — PHASE ' + boss.phase, W / 2, by - 5); ctx.textAlign = 'left';
   }
+
+  /* ===================== responsive layout ===================== */
+  /* Match the canvas buffer to the cabinet's real on-screen aspect (square pixels, no
+     stretch) and re-anchor the world so the ground sits ~64% down. Also publishes the
+     live control-deck height as --q-deckh so the CSS can dock the music bar + reserve the
+     exact bottom space, leaving no black void anywhere on mobile. */
+  function fitCanvas() {
+    if (!cv || !ctx) return;
+    const r = cv.getBoundingClientRect();
+    let vh = H;
+    if (r.width > 4 && r.height > 4) vh = Math.round(W * r.height / r.width);
+    if (Math.abs(vh - H) <= 6) vh = H;                 // snap near-16:9 (desktop) to the exact base
+    vh = Math.max(H, Math.min(vh, 900));               // never below 16:9; capped for sanity
+    VOFF = Math.max(0, Math.round(vh * 0.64 - GY));    // place the ground line ~64% down
+    WB = vh - VOFF;                                    // world-space bottom (ground + pits fill to here)
+    if (cv.height !== vh) { cv.height = vh; cv.width = W; }
+    VH = vh; ctx.imageSmoothingEnabled = false;
+  }
+  function relayout() {
+    relayoutQueued = false;
+    if (!root || !cv) return;
+    if (el.deck) { const dh = Math.round(el.deck.getBoundingClientRect().height); document.documentElement.style.setProperty('--q-deckh', (dh || 0) + 'px'); }
+    fitCanvas();
+  }
+  function scheduleRelayout() { if (relayoutQueued) return; relayoutQueued = true; requestAnimationFrame(relayout); }
 
   /* ===================== loop / state ===================== */
   let running = false, rafId = 0, lastFrame = 0;
@@ -1071,8 +1104,9 @@
     root = r;
     cv = q('qGame'); if (!cv) return;
     ctx = cv.getContext('2d'); cv.width = W; cv.height = H; ctx.imageSmoothingEnabled = false;
+    VH = H; VOFF = 0; WB = H;
     el = {
-      cabinet: q('qCabinet'),
+      cabinet: q('qCabinet'), deck: q('qDeck'),
       hearts: q('qHearts'), viz: q('qViz'), coins: q('qCoins'), keys: q('qKeys'),
       lvlname: q('qLvlname'), sub: r.querySelector('.q-sub'),
       ragefill: q('qRagefill'), ragebl: r.querySelector('.q-hud-bl'),
@@ -1094,6 +1128,14 @@
     const sysBtn = () => { if (state === 'play' || state === 'paused') togglePause(); else startGame(); };
     ['qtStart', 'qtMenu'].forEach(id => { const b = q(id); if (b) b.onclick = sysBtn; });
     wireScreens();
+    // size the canvas to the cabinet + keep it synced as the layout/orientation changes
+    if (typeof ResizeObserver === 'function') {
+      ro = new ResizeObserver(scheduleRelayout);
+      ro.observe(el.cabinet); if (el.deck) ro.observe(el.deck);
+    }
+    addEventListener('resize', scheduleRelayout, { signal: inputAC.signal });
+    addEventListener('orientationchange', scheduleRelayout, { signal: inputAC.signal });
+    relayout();
     // (re)start at the title screen
     state = 'title'; win = false;
     el.cabinet && el.cabinet.classList.remove('playing');
@@ -1107,6 +1149,8 @@
   function unmount() {
     running = false; if (rafId) cancelAnimationFrame(rafId); rafId = 0;
     setPlayingChrome(false);
+    if (ro) { try { ro.disconnect(); } catch (_) { } ro = null; }
+    try { document.documentElement.style.removeProperty('--q-deckh'); } catch (_) { }
     if (inputAC) { try { inputAC.abort(); } catch (_) { } inputAC = null; }
     held = {}; for (const k in K) if (typeof K[k] === 'boolean') K[k] = false;
     window.SBQuest._mounted = false;
