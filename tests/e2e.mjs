@@ -149,6 +149,15 @@ try {
   {
     const page = await browser.newPage();
     const errs = []; page.on('pageerror', e => errs.push(e.message));
+    // Intercept the sign-up POST so the test never depends on (or pollutes) the real
+    // Supabase backend. `mode` lets each sub-test pick the response sbSubscribe should see.
+    let mode = 'offline';
+    await page.route('**/rest/v1/subscribers**', route => {
+      if (mode === 'offline') return route.abort();            // network failure → fetch throws
+      if (mode === 'ok') return route.fulfill({ status: 201, body: '' });
+      if (mode === 'dup') return route.fulfill({ status: 409, body: '' });
+      return route.fulfill({ status: 500, body: 'err' });
+    });
     await page.goto(base + '/connect.html', { waitUntil: 'load' });
     await page.waitForTimeout(800);
     await page.fill('#gemail', 'fan@example.com');
@@ -162,6 +171,27 @@ try {
     const withConsent = await page.evaluate(() => ({ pending: JSON.parse(localStorage.getItem('sb_pending')||'null'), list: localStorage.getItem('sb_list'), cleared: document.getElementById('gemail').value==='' }));
     check('consent + offline → queued under sb_pending, no sb_list', Array.isArray(withConsent.pending) && withConsent.pending.length===1 && !withConsent.list);
     check('join form cleared after submit', withConsent.cleared);
+
+    // Backend reachable → a successful insert (201) must land AND flush the queued entry,
+    // leaving sb_pending empty. This is the regression guard for the ON CONFLICT + RLS bug
+    // that silently queued every sign-up forever.
+    mode = 'ok';
+    await page.check('#gconsent');
+    await page.fill('#gemail', 'fan2@example.com');
+    await page.click('#join button');
+    await page.waitForTimeout(1500);
+    const ok = await page.evaluate(() => ({ pending: JSON.parse(localStorage.getItem('sb_pending')||'null'), note: joinnote.textContent }));
+    check('success (201) → not queued, queue flushed', (!ok.pending || ok.pending.length===0) && /you in/i.test(ok.note));
+
+    // A duplicate (409) means the address is already subscribed — treated as success, not re-queued.
+    mode = 'dup';
+    await page.check('#gconsent');
+    await page.fill('#gemail', 'fan3@example.com');
+    await page.click('#join button');
+    await page.waitForTimeout(800);
+    const dup = await page.evaluate(() => ({ pending: JSON.parse(localStorage.getItem('sb_pending')||'null'), note: joinnote.textContent }));
+    check('duplicate (409) → treated as success, not queued', (!dup.pending || dup.pending.length===0) && /you in/i.test(dup.note));
+
     check('connect: no JS errors', errs.length === 0, errs.join(' | '));
     await page.close();
   }
