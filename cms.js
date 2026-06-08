@@ -33,7 +33,7 @@ const SB_DEFAULTS = {
     dropDate: '2026-07-04T00:00:00',
   },
   music: {
-    playerTitle: '',   /* blank = show the live playlist track's own name; set this to force a fixed label */
+    playerTitle: '',   /* superseded: the now-playing title comes from the live playlist track */
     playerCover: 'assets/my-time-cover.jpg',
     spotifyArtistId: '70LnkJjJc5yq650kELO09A',
     /* Background "radio": the signature track plays first, then the visitor can skip
