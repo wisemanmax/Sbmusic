@@ -251,6 +251,31 @@ section{padding:clamp(60px,9vw,116px) clamp(18px,5vw,56px);position:relative;z-i
 .stat .n{font-family:var(--disp);font-size:34px;color:var(--slime)}
 .stat .l{font-weight:600;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-top:3px}
 
+/* ===== LANDING INFO BANDS (home page) ===== */
+.lkicker{justify-content:flex-start}
+.lintro{display:grid;grid-template-columns:.8fr 1.2fr;gap:clamp(28px,5vw,60px);align-items:center}
+.lintro .lpic{position:relative;aspect-ratio:1;overflow:hidden;border:1px solid rgba(141,255,43,.35);box-shadow:0 20px 50px rgba(0,0,0,.5)}
+.lintro .lpic img{width:100%;height:100%;object-fit:cover;object-position:center 30%;filter:contrast(1.06) saturate(1.04)}
+.lintro .lpic::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,rgba(6,4,3,.7)),linear-gradient(120deg,rgba(141,255,43,.12),transparent 45%)}
+.lhead{font-family:var(--disp);font-size:clamp(32px,4.6vw,58px);line-height:.95;color:var(--ink);text-shadow:2px 0 var(--blood)}
+.lhead em{font-style:normal;color:var(--slime)}
+.lbody{font-size:15px;line-height:1.8;margin-top:18px;color:var(--soft);max-width:54ch;font-weight:300}
+.lbtn{margin-top:26px}
+.lstatgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.lstat{padding:26px 16px;border:1px solid rgba(255,255,255,.12);text-align:center;background:rgba(12,9,7,.45)}
+.lstat .ln{font-family:var(--disp);font-size:clamp(34px,5vw,52px);color:var(--slime);text-shadow:0 0 18px rgba(141,255,43,.3)}
+.lstat .ll{font-weight:600;font-size:11px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-top:6px}
+.lctabox{text-align:center;padding:clamp(34px,6vw,64px) clamp(20px,5vw,48px);border:1px solid rgba(255,31,46,.28)}
+.lctahead{font-family:var(--disp);font-size:clamp(36px,7vw,80px);line-height:.9;color:var(--ink);text-shadow:2px 0 var(--blood),-2px 0 rgba(141,255,43,.7)}
+.lctahead em{font-style:normal;color:var(--slime)}
+.lctatext{font-size:15px;line-height:1.7;color:var(--soft);max-width:48ch;margin:16px auto 0;font-weight:300}
+.lctabtn{margin-top:28px}
+@media(max-width:820px){
+  .lintro{grid-template-columns:1fr;gap:26px}
+  .lintro .lpic{max-width:340px}
+  .lstatgrid{grid-template-columns:repeat(2,1fr)}
+}
+
 /* SB UNIVERSE */
 .upanels{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
 .upanel{position:relative;padding:24px 20px 28px;min-height:210px;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;transition:.3s;background:rgba(12,9,7,.55);border:1px solid rgba(255,255,255,.1)}
@@ -349,14 +374,32 @@ footer{padding:48px 22px 40px;text-align:center;position:relative;z-index:1}
 .pbtn:active{transform:scale(.94)}
 
 #rageOverlay{position:fixed;inset:0;z-index:9995;pointer-events:none;opacity:0;transition:opacity .4s;mix-blend-mode:screen;background:repeating-linear-gradient(0deg,rgba(255,31,46,.05) 0 1px,transparent 1px 3px),radial-gradient(60% 50% at 50% 50%,rgba(255,31,46,.1),transparent 70%)}
-body.rage #rageOverlay{opacity:1}
-body.rage{animation:rageshake .09s steps(2) infinite}
+body.rage.rfx-overlay #rageOverlay{opacity:1;background:repeating-linear-gradient(0deg,rgba(255,31,46,.08) 0 1px,transparent 1px 3px),radial-gradient(70% 60% at 50% 50%,rgba(255,31,46,.18),transparent 72%)}
+body.rage.rfx-shake{animation:rageshake .09s steps(2) infinite}
 @keyframes rageshake{0%{transform:translate(0,0)}25%{transform:translate(-2px,2px)}50%{transform:translate(2px,-2px)}75%{transform:translate(-2px,-1px)}100%{transform:translate(2px,1px)}}
 body.rage .blob{filter:blur(80px) hue-rotate(-95deg) saturate(1.4)}
-body.rage #rageOverlay{opacity:1;background:repeating-linear-gradient(0deg,rgba(255,31,46,.08) 0 1px,transparent 1px 3px),radial-gradient(70% 60% at 50% 50%,rgba(255,31,46,.18),transparent 72%)}
 .rmtag{position:fixed;top:58px;left:50%;transform:translateX(-50%);z-index:2001;font-family:var(--disp);font-size:16px;color:#fff;background:var(--blood);padding:6px 16px;opacity:0;transition:.4s;box-shadow:0 0 24px var(--blood);pointer-events:none;letter-spacing:1px}
 body.rage .rmtag{opacity:1}
 #flash{position:fixed;inset:0;z-index:9990;background:var(--slime);opacity:0;pointer-events:none}
+
+/* ===== RAGE MODE EFFECT STACK (toggled per-effect via admin → Rage Mode) ===== */
+#rfx{position:fixed;inset:0;z-index:9994;pointer-events:none}
+#rfx>div{position:absolute;inset:0;opacity:0;transition:opacity .3s}
+/* heartbeat — a red vignette pulsing like a racing heart */
+body.rage.rfx-heart .fx-heart{opacity:1;mix-blend-mode:screen;background:radial-gradient(125% 95% at 50% 50%,transparent 48%,rgba(255,12,12,.5) 100%);animation:rfxheart 1.05s ease-in-out infinite}
+@keyframes rfxheart{0%,100%{opacity:.22}28%{opacity:.85}42%{opacity:.38}}
+/* fire — flames licking up from the bottom edge */
+body.rage.rfx-fire .fx-fire{opacity:1;top:auto;bottom:0;height:44vh;mix-blend-mode:screen;background:radial-gradient(60% 100% at 18% 100%,rgba(255,86,12,.6),transparent 72%),radial-gradient(55% 95% at 50% 100%,rgba(255,176,24,.55),transparent 70%),radial-gradient(60% 100% at 82% 100%,rgba(255,44,12,.6),transparent 72%);animation:rfxfire .5s ease-in-out infinite alternate}
+@keyframes rfxfire{from{transform:translateY(7px) scaleY(.95)}to{transform:translateY(-7px) scaleY(1.06)}}
+/* TV static — noisy flicker over everything */
+body.rage.rfx-static .fx-static{opacity:.14;mix-blend-mode:overlay;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");animation:rfxstatic .1s steps(2) infinite}
+@keyframes rfxstatic{0%{transform:translate(0,0)}50%{transform:translate(-2%,1%)}100%{transform:translate(1%,-2%)}}
+/* blood drip — a smear at the top that bleeds downward */
+body.rage.rfx-drip .fx-drip{opacity:1;background:linear-gradient(180deg,rgba(120,0,0,.85),rgba(120,0,0,.4) 6%,transparent 14%),radial-gradient(8px 38px at 12% 0,rgba(150,0,0,.9),transparent 70%),radial-gradient(7px 60px at 28% 0,rgba(130,0,0,.85),transparent 72%),radial-gradient(9px 30px at 47% 0,rgba(150,0,0,.9),transparent 70%),radial-gradient(6px 72px at 63% 0,rgba(120,0,0,.85),transparent 74%),radial-gradient(8px 44px at 79% 0,rgba(150,0,0,.9),transparent 70%),radial-gradient(7px 54px at 92% 0,rgba(130,0,0,.85),transparent 72%);background-repeat:no-repeat;animation:rfxdrip 6s ease-in forwards}
+@keyframes rfxdrip{from{transform:translateY(-10px)}to{transform:translateY(0)}}
+/* glitch / RGB split — occasional datamosh bursts on the page content */
+body.rage.rfx-glitch #main{animation:rfxglitch 2.8s steps(1) infinite}
+@keyframes rfxglitch{0%,90%,100%{transform:none;filter:none}92%{transform:translate(-3px,0);filter:drop-shadow(2px 0 rgba(255,0,40,.8)) drop-shadow(-2px 0 rgba(0,230,255,.8))}94%{transform:translate(3px,0);filter:drop-shadow(-3px 0 rgba(255,0,40,.8)) drop-shadow(3px 0 rgba(0,230,255,.8))}96%{transform:translate(-2px,1px)}98%{transform:translate(2px,-1px);filter:drop-shadow(2px 0 rgba(255,0,40,.7)) drop-shadow(-2px 0 rgba(0,230,255,.7))}}
 
 .reveal{opacity:0;transform:translateY(34px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
 .reveal.in{opacity:1;transform:none}
@@ -396,7 +439,7 @@ body.rage .rmtag{opacity:1}
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
   html{scroll-behavior:auto}
-  body.rage{animation:none!important}
+  body.rage.rfx-shake{animation:none!important}
   .reveal{opacity:1!important;transform:none!important}
 }
 
