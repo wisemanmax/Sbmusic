@@ -187,10 +187,11 @@
           box-shadow:0 2px 0 rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.08),0 0 14px rgba(255,31,46,.16); }
         #qRoot .q-rage.pressed{ background:linear-gradient(180deg,rgba(255,31,46,.4),rgba(255,31,46,.16)); box-shadow:0 0 24px rgba(255,31,46,.55),inset 0 0 14px rgba(255,31,46,.3); }
 
-        /* title-screen control tips swap with the input method */
+        /* title-screen control tips swap with the input method (kept as flex so the
+           q-how card stays centered on both keyboard and touch) */
         #qRoot .q-tip-touch{ display:none; }
         #qRoot.q-has-touch .q-tip-key{ display:none; }
-        #qRoot.q-has-touch .q-tip-touch{ display:block; }
+        #qRoot.q-has-touch .q-tip-touch{ display:flex; }
 
         /* ===== MOBILE: immersive handheld =====
            Phone-first console: the page chrome steps back, the 16:9 screen sits up top
@@ -236,6 +237,21 @@
         #qRoot .q-ctrls{ margin-top:18px; font-size:11px; color:#8fc680; line-height:2; letter-spacing:1px; }
         #qRoot .q-ctrls b{ color:var(--q-slime); }
         #qRoot .q-ctrls .hint{ color:#5f8a52; }
+
+        /* title-screen "how to play" card — a clean key/action grid so a first-time
+           player understands movement AND combat (stomp + blast) before pressing start */
+        #qRoot .q-how{ margin-top:15px; display:flex; flex-direction:column; align-items:center; gap:10px; }
+        #qRoot .q-how-grid{ display:grid; grid-template-columns:auto auto; gap:6px 16px; align-items:center;
+          font-size:11px; letter-spacing:.5px; text-align:left; max-width:380px; }
+        #qRoot .q-how-grid .key{ justify-self:end; color:#e9ffd6; white-space:nowrap; }
+        #qRoot .q-how-grid .key b{ display:inline-block; color:var(--q-slime); font-weight:900;
+          background:rgba(141,255,43,.10); border:1px solid rgba(141,255,43,.35); border-radius:5px;
+          padding:1px 6px; margin:0 1px; box-shadow:0 0 8px rgba(141,255,43,.12); }
+        #qRoot .q-how-grid .act{ color:#9fd089; }
+        #qRoot .q-how-grid .act.hot{ color:var(--q-toxic); text-shadow:0 0 8px rgba(214,255,56,.4); }
+        #qRoot .q-how .hint{ font-size:10px; letter-spacing:1px; color:#6f9a64; }
+        #qRoot .q-how .hint b{ color:var(--q-gold); }
+        @media (max-width:620px){ #qRoot .q-how-grid{ font-size:10px; gap:5px 12px; } }
         #qRoot .q-play{ margin-top:22px; font-family:inherit; font-weight:900; font-size:15px; letter-spacing:3px; color:#031400; background:linear-gradient(180deg,var(--q-slime),#2a7a00); border:none; padding:14px 34px; cursor:pointer;
           box-shadow:0 0 26px var(--q-slime),inset 0 2px 0 rgba(255,255,255,.4); clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%); transition:transform .1s; }
         #qRoot .q-play:active{ transform:scale(.96); }
@@ -279,24 +295,40 @@
         <div class="q-screen" id="qTitle">
           <div class="q-logo">SLIME,<span class="r">THEY NEED YOU!</span></div>
           <div class="q-tag">RESTORE THE 808 EMERALD · SAVE PRINCESS VENA</div>
-          <div class="q-ctrls q-tip-key">
-            <b>A / D</b> · <b>← →</b> MOVE &nbsp;&nbsp; <b>W / SPACE</b> JUMP<br>
-            <b>J</b> MIC BLAST &nbsp; <b>K</b> SLIME DASH &nbsp; <b>R</b> RAGE MODE<br>
-            <span class="hint">jump ON the beat of the SB track for a higher BEAT JUMP ✦</span>
+          <div class="q-how q-tip-key">
+            <div class="q-how-grid">
+              <span class="key"><b>A</b> <b>D</b> / <b>←</b> <b>→</b></span><span class="act">move</span>
+              <span class="key"><b>W</b> / <b>SPACE</b></span><span class="act">jump &nbsp;(hold for higher)</span>
+              <span class="key"><b>land on a foe</b></span><span class="act hot">STOMP to defeat it</span>
+              <span class="key"><b>J</b></span><span class="act hot">mic blast &nbsp;(ranged hit)</span>
+              <span class="key"><b>K</b></span><span class="act">slime dash &nbsp;(dash through foes)</span>
+              <span class="key"><b>R</b></span><span class="act">rage mode &nbsp;(when meter is full)</span>
+            </div>
+            <span class="hint">jump <b>ON the beat</b> for a higher BEAT JUMP ✦ &nbsp;·&nbsp; press <b>P</b> to pause / view help</span>
           </div>
-          <div class="q-ctrls q-tip-touch">
-            <b>◄ ►</b> MOVE &nbsp; <b>JUMP</b> &nbsp; <b>BLAST</b> &nbsp; <b>DASH</b> &nbsp; <b>RAGE</b><br>
-            <span class="hint">tap JUMP on the beat for a higher BEAT JUMP ✦</span>
+          <div class="q-how q-tip-touch">
+            <div class="q-how-grid">
+              <span class="key"><b>◄</b> <b>►</b></span><span class="act">move</span>
+              <span class="key"><b>A</b> / <b>▲</b></span><span class="act">jump · land on a foe to <span class="hot">STOMP</span></span>
+              <span class="key"><b>B</b></span><span class="act hot">mic blast</span>
+              <span class="key"><b>L</b></span><span class="act">slime dash</span>
+              <span class="key"><b>RAGE</b></span><span class="act">rage mode &nbsp;(meter full)</span>
+            </div>
+            <span class="hint">tap JUMP <b>on the beat</b> for a higher BEAT JUMP ✦</span>
           </div>
           <button class="q-play" id="qStart">▶ START QUEST</button>
-          <div class="q-tag q-blink" style="margin-top:24px;">PRESS START — the music becomes your soundtrack</div>
+          <div class="q-tag q-blink" style="margin-top:18px;">PRESS START — the music becomes your soundtrack</div>
         </div>
 
         <!-- GAME OVER -->
         <div class="q-screen hidden" id="qOver">
           <div class="q-logo r" style="transform:rotate(-1deg)">SLIME DOWN</div>
           <div class="q-tag">THE KINGDOM GREW SILENT...</div>
-          <button class="q-play" id="qRetry" style="margin-top:26px;">↻ TRY AGAIN</button>
+          <div class="q-fscore" id="qOverScore" style="margin-top:16px;"></div>
+          <div class="q-ctrls" style="margin-top:8px;line-height:1.7;">
+            <span class="hint">TIP: <b>jump on beasts</b> to stomp them, or press <b>J</b> to blast.<br>time hits to the beat ✦ for double damage on the king's crown.</span>
+          </div>
+          <button class="q-play" id="qRetry" style="margin-top:22px;">↻ TRY AGAIN</button>
         </div>
 
         <!-- WIN -->

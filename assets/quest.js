@@ -196,7 +196,8 @@
     queue('slime', 'SLIME BY', 'Who took it?');
     queue('elder', 'VILLAGE ELDER', 'The Red Serpent King. He locked Vena in Static Castle.');
     queue('vena', 'PRINCESS VENA', 'Slime... they need you.');
-    queue('quest', 'QUEST', 'CLEAR THE PIT · FIND THE SLIME KEY · SAVE THE BEAT');
+    queue('quest', 'HOW TO FIGHT', 'JUMP on beasts to STOMP them — or fire the MIC BLAST.');
+    queue('quest', 'QUEST', 'DEFEAT 5 BEASTS · FIND THE SLIME KEY · DETHRONE THE KING');
   }
   function spawn(type, x, y) {
     const e = { x, y, type, dead: false, fade: 0, t: Math.random() * 6, hp: 1, kb: 0 };
@@ -250,7 +251,7 @@
     }
     K.rageEdge = false;
 
-    const spd = rageOn ? 2.9 : 2.1;
+    const spd = rageOn ? 3.5 : 2.7;
     if (K.l) { p.vx = -spd; p.dir = -1; } else if (K.r) { p.vx = spd; p.dir = 1; } else p.vx *= 0.72;
 
     // dash
@@ -260,17 +261,20 @@
     if (p.dashT > 0) { p.dashT--; p.vx = p.dir * (rageOn ? 6.6 : 5.6); if (p.dashT % 2 === 0) p.trail.push({ x: p.x, y: p.y, dir: p.dir, life: 10 }); }
 
     // jump w/ coyote + buffer + BEAT JUMP (real-music timed)
-    if (p.onGround) p.coyote = 7; else if (p.coyote > 0) p.coyote--;
-    if (K.jumpEdge) p.jumpBuf = 7; else if (p.jumpBuf > 0) p.jumpBuf--;
+    // forgiving windows (coyote/buffer 9f) + a strong base arc so every gap in the
+    // level is comfortably clearable — the pits are 80-90px wide, this jump carries
+    // ~110px, with the beat jump reaching further still.
+    if (p.onGround) p.coyote = 9; else if (p.coyote > 0) p.coyote--;
+    if (K.jumpEdge) p.jumpBuf = 9; else if (p.jumpBuf > 0) p.jumpBuf--;
     K.jumpEdge = false;
     if (p.jumpBuf > 0 && p.coyote > 0) {
-      const boost = QA.onBeat() ? 1.22 : 1; p.vy = -6.2 * boost;
+      const boost = QA.onBeat() ? 1.2 : 1; p.vy = -7.4 * boost;
       p.onGround = false; p.coyote = 0; p.jumpBuf = 0; p.squash = 0.7;
       if (boost > 1) { burst(p.x + p.w / 2, p.y + p.h, C.toxic, 16, 3, { glow: 1, shape: 'goo' }); ring(p.x + p.w / 2, p.y + p.h, C.toxic, 16); flash = 2; floatText(p.x + p.w / 2, p.y - 6, 'BEAT JUMP', C.toxic); }
       else burst(p.x + p.w / 2, p.y + p.h, C.slimeDeep, 6, 1.5, { shape: 'goo' });
     }
-    if (!K.jump && p.vy < -2) p.vy *= 0.84;
-    p.vy += 0.36; if (p.vy > 10) p.vy = 10;
+    if (!K.jump && p.vy < -2) p.vy *= 0.86;
+    p.vy += 0.35; if (p.vy > 10.5) p.vy = 10.5;
 
     // mic blast
     if (p.atkCD > 0) p.atkCD--;
@@ -348,7 +352,22 @@
           b.life = Math.min(b.life, 4); if (e.hp <= 0) kill(e, ex, ey);
         }
       }
-      if (p.inv <= 0 && hit(p, eb)) { if (p.dashT > 0) kill(e, ex, ey); else damage(1); }
+      if (p.inv <= 0 && hit(p, eb)) {
+        // STOMP — coming down onto an enemy from above defeats it (Mario-style) and
+        // bounces you off. This is the intuitive "jump on it" kill players expect, so
+        // enemies never feel unkillable even before they discover the mic blast.
+        const feetWasAbove = (p.y + p.h - p.vy) <= ey + 7;
+        const stomping = p.vy > 0.6 && feetWasAbove;
+        if (p.dashT > 0) { kill(e, ex, ey); }
+        else if (stomping) {
+          e.hp--; p.vy = K.jump ? -8 : -6; p.jumpBuf = 0; p.coyote = 0; p.squash = 1.35; p.inv = Math.max(p.inv, 6);
+          shake = Math.max(shake, 3); hitStop = Math.max(hitStop, 1);
+          burst(ex + e.w / 2, ey, C.toxic, 9, 2.4, { glow: 1, shape: 'goo' });
+          if (e.hp <= 0) kill(e, ex, ey);
+          else { e.kb = (p.x < ex ? 1 : -1) * 3; floatText(ex + e.w / 2, ey - 6, 'STOMP!', C.toxic); }
+        }
+        else damage(1);
+      }
     }
     enemies = enemies.filter(e => !e.dead || e.fade > 0);
 
@@ -893,9 +912,32 @@
     ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.textAlign = 'left'; ctx.restore();
   }
   function drawPausedOverlay() {
-    ctx.fillStyle = 'rgba(3,8,4,.6)'; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = C.slime; ctx.shadowColor = C.slime; ctx.shadowBlur = 12; ctx.font = 'bold 22px "Courier New",monospace'; ctx.textAlign = 'center';
-    ctx.fillText('PAUSED', W / 2, H / 2); ctx.font = '9px "Courier New",monospace'; ctx.fillStyle = '#8fc680'; ctx.shadowBlur = 0; ctx.fillText('press P to resume', W / 2, H / 2 + 16); ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(3,8,4,.78)'; ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = C.slime; ctx.shadowColor = C.slime; ctx.shadowBlur = 12; ctx.font = 'bold 22px "Courier New",monospace';
+    ctx.fillText('PAUSED', W / 2, 64); ctx.shadowBlur = 0;
+    // an at-a-glance controls card so help is always one keypress away mid-run
+    ctx.fillStyle = C.toxic; ctx.font = 'bold 9px "Courier New",monospace';
+    ctx.fillText('— HOW TO PLAY —', W / 2, 92);
+    const rows = [
+      ['MOVE', 'A / D  ·  ← →'],
+      ['JUMP', 'W / SPACE  (hold = higher)'],
+      ['STOMP', 'jump onto a beast'],
+      ['MIC BLAST', 'J'],
+      ['SLIME DASH', 'K'],
+      ['RAGE MODE', 'R  (when meter is full)'],
+    ];
+    ctx.font = '10px "Courier New",monospace';
+    let y = 116;
+    for (const [k, v] of rows) {
+      ctx.textAlign = 'right'; ctx.fillStyle = C.slime; ctx.fillText(k, W / 2 - 8, y);
+      ctx.textAlign = 'left'; ctx.fillStyle = '#cfe7bd'; ctx.fillText(v, W / 2 + 8, y);
+      y += 17;
+    }
+    ctx.textAlign = 'center'; ctx.fillStyle = '#8fc680'; ctx.font = '9px "Courier New",monospace';
+    ctx.fillText('jump ON the beat ✦ for a higher BEAT JUMP', W / 2, y + 6);
+    ctx.fillStyle = C.gold; ctx.fillText('press P  or  MENU  to resume', W / 2, y + 22);
+    ctx.textAlign = 'left';
   }
 
   /* ===================== HUD ===================== */
@@ -906,7 +948,20 @@
     buildHearts();
   }
   function buildHearts() { if (!el.hearts) return; el.hearts.innerHTML = ''; for (let i = 0; i < maxHp; i++) { const d = document.createElement('div'); d.className = 'q-heart'; el.hearts.appendChild(d); } }
+  /* a live objective line under the zone name so a new player always knows the
+     next step — defeat beasts → grab the key → reach the castle → fell the king. */
+  function updateObjective() {
+    if (!el.sub) return;
+    let txt;
+    if (state === 'win') txt = 'THE BEAT IS RESTORED ★';
+    else if (boss) txt = '▶ STRIKE THE CROWN ON BEAT';
+    else if (keysGot >= 1) txt = '▶ TO STATIC CASTLE →';
+    else if (keyUp) txt = '▶ GRAB THE SLIME KEY';
+    else txt = 'DEFEAT THE BEASTS · ' + Math.min(kills, 5) + '/5';
+    if (el.sub.textContent !== txt) el.sub.textContent = txt;
+  }
   function updateHUD(bs) {
+    updateObjective();
     if (el.hearts) { const hs = el.hearts.children; for (let i = 0; i < hs.length; i++) hs[i].className = 'q-heart' + (i < hp ? '' : ' empty'); }
     if (el.coins) el.coins.textContent = score;
     if (el.keys) el.keys.textContent = keysGot;
@@ -945,7 +1000,12 @@
     setPlayingChrome(true);
     buildHud(); updateHUD(0);
   }
-  function gameOver() { state = 'over'; rageOn = false; setPlayingChrome(false); el.cabinet && el.cabinet.classList.remove('playing'); el.over && el.over.classList.remove('hidden'); }
+  function gameOver() {
+    state = 'over'; rageOn = false; setPlayingChrome(false);
+    el.cabinet && el.cabinet.classList.remove('playing');
+    if (el.overscore) el.overscore.textContent = 'SLIME COINS: ' + score + '  ·  BEASTS FELLED: ' + kills + '  ·  BEST COMBO: x' + Math.max(bestCombo, combo);
+    el.over && el.over.classList.remove('hidden');
+  }
   function winGame() {
     if (state === 'win') return; state = 'win'; win = true; rageOn = false; setPlayingChrome(false); el.cabinet && el.cabinet.classList.remove('playing');
     shake = 14; flash = 12; burst(boss.x + boss.w / 2, boss.y, C.slime, 48, 5, { glow: 1 });
@@ -977,9 +1037,10 @@
     el = {
       cabinet: q('qCabinet'),
       hearts: q('qHearts'), viz: q('qViz'), coins: q('qCoins'), keys: q('qKeys'),
+      lvlname: q('qLvlname'), sub: r.querySelector('.q-sub'),
       ragefill: q('qRagefill'), ragebl: r.querySelector('.q-hud-bl'),
       combo: q('qCombo'), dlg: q('qDlg'), dlgwho: q('qDlgwho'), dlgtxt: q('qDlgtxt'),
-      title: q('qTitle'), over: q('qOver'), win: q('qWin'), fscore: q('qFscore'),
+      title: q('qTitle'), over: q('qOver'), win: q('qWin'), fscore: q('qFscore'), overscore: q('qOverScore'),
       startbtn: q('qStart'), retrybtn: q('qRetry'), replaybtn: q('qReplay'), pausebtn: q('qPause'),
     };
     // reveal the touch control deck on coarse pointers (CSS keys off this class)
