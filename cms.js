@@ -506,6 +506,10 @@ window.sbAdmin = sbAdmin;
 /* capture a sign-up in the `subscribers` table (anon insert is allowed by RLS).
    Returns true on success; callers should keep their local fallback regardless. */
 async function sbSubscribe(email, phone) {
+  // Normalize the address so it matches the unique(email) index the upsert conflicts on
+  // (see migration 20260608120000). Without normalization "A@x.com" and "a@x.com" would
+  // both slip past the case-insensitive dedupe we promise.
+  email = email ? String(email).trim().toLowerCase() : null;
   try {
     const r = await fetch(SB_CFG.url + '/rest/v1/subscribers?on_conflict=email', {
       method: 'POST',
@@ -517,6 +521,9 @@ async function sbSubscribe(email, phone) {
       },
       body: JSON.stringify({ email: email || null, phone: phone || null }),
     });
+    // A non-2xx here means the row didn't land — surface it so a broken funnel (e.g. a
+    // missing conflict target) is visible instead of silently queueing offline forever.
+    if (!r.ok) { try { console.warn('[sb] subscribe failed', r.status, await r.text()); } catch (_) {} }
     return r.ok;
   } catch (_) {
     return false;

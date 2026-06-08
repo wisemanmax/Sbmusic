@@ -133,9 +133,11 @@ try {
     await page.waitForTimeout(700);
     const rm = await page.evaluate(() => {
       audio.pause();
-      const before = window.embers ? embers.length : 0;
+      // `embers` is a top-level binding (not on window) — read it directly so this
+      // actually asserts emit() was suppressed instead of comparing 0 to 0.
+      const before = embers.length;
       for (let i=0;i<50;i++) emit(100,100,1);
-      return { flag: sbReduceMotion, added: (window.embers?embers.length:0) - before };
+      return { flag: sbReduceMotion, added: embers.length - before };
     });
     check('prefers-reduced-motion detected', rm.flag === true);
     check('reduced-motion: passive cursor embers suppressed', rm.added === 0);
@@ -175,6 +177,64 @@ try {
       return { title: document.querySelector('#musicbar .stitle').textContent, disc: document.getElementById('disc').style.backgroundImage };
     });
     check('bar title + cover follow CMS', r.title === 'NEW TRACK' && /slime-by\.jpg/.test(r.disc));
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------
+  group('shows: ticket links sanitized');
+  {
+    const page = await browser.newPage();
+    let xss = false;
+    page.on('dialog', d => { xss = true; d.dismiss().catch(()=>{}); });
+    await page.exposeFunction('__xss', () => { xss = true; });
+    await page.goto(base + '/shows.html', { waitUntil: 'load' });
+    await page.waitForTimeout(800);
+    const r = await page.evaluate(() => {
+      renderShows([
+        { date:'JUL 4', venue:'Bad', city:'X', url:'javascript:__xss()' },
+        { date:'JUL 5', venue:'Good', city:'Y', url:'https://tickets.com/sb' },
+      ]);
+      const as = [...document.querySelectorAll('#showlist a.tix')];
+      return { hrefs: as.map(a => a.getAttribute('href') || '') };
+    });
+    await page.waitForTimeout(150);
+    check('shows: javascript: ticket URL dropped (renders no link)', !r.hrefs.some(h => /javascript:/i.test(h)));
+    check('shows: safe ticket URL kept', r.hrefs.includes('https://tickets.com/sb'));
+    check('shows: malicious ticket link never executes', xss === false);
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------
+  group('background radio: skip controls');
+  {
+    const page = await browser.newPage();
+    const errs = []; page.on('pageerror', e => errs.push(e.message));
+    // keep the test deterministic + offline: never actually fetch the YouTube API
+    await page.route('https://www.youtube.com/iframe_api', route => route.abort());
+    await page.goto(base + '/music.html', { waitUntil: 'load' });
+    await page.waitForTimeout(1200);
+    const has = await page.evaluate(() => ({
+      prev: !!document.getElementById('prevbtn'), next: !!document.getElementById('nextbtn'),
+      playlist: typeof BG_PLAYLIST === 'string' && BG_PLAYLIST.length > 0,
+    }));
+    check('radio: skip buttons present in the music bar', has.prev && has.next);
+    check('radio: background playlist configured', has.playlist);
+    const r = await page.evaluate(async () => {
+      if (audio.paused) startAudio();
+      await new Promise(s => setTimeout(s, 200));
+      audio.currentTime = 5;
+      bgPrev();   // on the local signature track, prev should restart it
+      await new Promise(s => setTimeout(s, 200));
+      return { mode: bgMode, t: audio.currentTime };
+    });
+    check('radio: prev on local restarts the signature track', r.mode === 'local' && r.t < 1, 't='+r.t);
+    const loaded = await page.evaluate(async () => {
+      bgNext();   // first skip lazy-loads the YouTube IFrame API
+      await new Promise(s => setTimeout(s, 200));
+      return !!document.querySelector('script[src*="iframe_api"]');
+    });
+    check('radio: next lazy-loads the YouTube API', loaded);
+    check('radio: skip controls raise no JS errors', errs.length === 0, errs.join(' | '));
     await page.close();
   }
 } finally {
