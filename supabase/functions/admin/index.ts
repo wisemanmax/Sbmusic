@@ -226,6 +226,17 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, subs: data ?? [] }, 200, cors);
     }
 
+    if (action === "analytics") {
+      // First-party site analytics. Raw events are RLS-private (anon may only INSERT);
+      // the aggregation runs in analytics_summary() and is granted to the service role
+      // only, so this is the single read path — same boundary as list_subs above.
+      const raw = Number((payload ?? {}).days ?? 30);
+      const days = Math.min(Math.max(Number.isFinite(raw) ? Math.trunc(raw) : 30, 1), 365);
+      const { data, error } = await admin.rpc("analytics_summary", { p_days: days });
+      if (error) return json({ error: error.message }, 400, cors);
+      return json({ ok: true, summary: data ?? {} }, 200, cors);
+    }
+
     if (action === "set_password") {
       const next = String((payload ?? {}).newPassword ?? "");
       if (next.length < 6) return json({ error: "password too short" }, 400, cors);

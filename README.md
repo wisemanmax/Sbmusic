@@ -68,8 +68,8 @@ admin at `admin.html`.
 
 - **Open** `https://<your-site>/admin.html` and enter the password.
 - **Sidebar navigation** — one pane per section (Hero, Drop, Music, About, SB World, Vault,
-  Videos, Merch, Shows, Contact, Footer), plus **Page Add-ons**, **Custom Pages**, **Audience**
-  and **Settings**.
+  Videos, Merch, Shows, Contact, Footer), plus **Page Add-ons**, **Custom Pages**, **Analytics**,
+  **Audience** and **Settings**.
 - **Page Add-ons** — drop extra content blocks (kicker / heading / text / image / button /
   YouTube embed, in centered / left / card / full-bleed layouts) onto the bottom of *any*
   existing page, no code. Add, remove, duplicate and reorder them like any other list.
@@ -92,6 +92,10 @@ admin at `admin.html`.
   badges) support **add, remove, duplicate, and reorder** (move up / down).
 - **Safety rails** — unsaved-change tracking with a status pill, a browser "leave?" guard, and
   an automatic local **draft** that offers to restore your work if you close the tab.
+- **Analytics** — a built-in, Google-Analytics-style dashboard: pageviews, unique visitors,
+  sessions and clicks over a 7 / 30 / 90-day or yearly window, a daily pageviews chart, plus
+  **top pages**, **what people click**, **where they leave off** (exit pages) and **referrers**.
+  Anonymous and first-party — no cookies, no personal data, no third-party tags.
 - **Audience** — everyone who joined the slime list from the site, with totals and **CSV export**.
 - **Settings** — change the admin password, **export / import** your whole content model as JSON,
   and reset to the built-in defaults.
@@ -103,10 +107,15 @@ admin at `admin.html`.
 - The public site reads content with the publishable key (RLS allows read of `site_content` only).
 - Writes go through a Supabase **Edge Function** (`admin`) that checks the password
   **server-side** (stored in a locked-down `admin_config` table, never shipped to the browser).
-  Actions: `login`, `save`, `upload` (→ public `media` bucket), `list_subs`, `set_password`.
+  Actions: `login`, `save`, `upload` (→ public `media` bucket), `list_subs`, `analytics`, `set_password`.
 - **Sign-ups** (`join the slime`) are written to a `subscribers` table via the publishable key —
   RLS allows anonymous **insert only** (no public read), and the admin reads the list through the
   edge function with the service-role key. localStorage stays as an offline fallback.
+- **Analytics** are written to an `analytics_events` table via the publishable key — like sign-ups,
+  RLS allows anonymous **insert only** (no public read). The admin reads *aggregates* (never raw
+  rows) through the edge function's `analytics` action, backed by a service-role-only
+  `analytics_summary()` function. Tracking lives in `assets/analytics.js` (auto-loaded by `app.js`);
+  it skips the admin page and the editor preview.
 - To change the password: use **Settings → Change password** (or update `admin_config` directly).
 - Note: Supabase's free tier pauses a project after ~1 week of inactivity; if that happens
   the site still renders (from `cms.js` defaults) but published edits won't show until the

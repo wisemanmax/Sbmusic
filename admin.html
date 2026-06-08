@@ -164,6 +164,9 @@ table.tbl td.muted{color:var(--muted)}
 .statcard{flex:1;min-width:120px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:14px 16px}
 .statcard .big{font-family:"Arial Black",Impact;font-size:28px;color:var(--slime)}
 .statcard .lbl{color:var(--muted);font-size:11.5px;letter-spacing:.5px;text-transform:uppercase;margin-top:2px}
+.achart{display:flex;align-items:flex-end;gap:3px;height:120px;padding:12px;background:var(--panel);border:1px solid var(--line);border-radius:11px;margin:6px 0 16px;overflow:hidden}
+.achart>i{flex:1 1 0;min-width:2px;background:linear-gradient(var(--slime2),var(--slime));border-radius:2px 2px 0 0;opacity:.78;transition:opacity .12s}
+.achart>i:hover{opacity:1}
 .empty{color:var(--muted);text-align:center;padding:40px 20px;font-size:13px}
 
 .danger{border:1px solid rgba(255,31,46,.3);border-radius:11px;padding:16px 18px;margin-top:18px}
@@ -416,7 +419,7 @@ function buildSidebar(){
     s.appendChild(it);
   });
   s.appendChild(elt('div','sidegrp','Manage'));
-  [['__audience','✉','Audience'],['__settings','⚙','Settings']].forEach(([k,ic,lbl])=>{
+  [['__analytics','📊','Analytics'],['__audience','✉','Audience'],['__settings','⚙','Settings']].forEach(([k,ic,lbl])=>{
     const it=elt('div','navitem'); it.dataset.key=k;
     it.appendChild(elt('span','ic',ic)); it.appendChild(elt('span','lbl2',lbl));
     it.onclick=()=>selectView(k);
@@ -429,6 +432,7 @@ function selectView(key,keep){
   document.querySelectorAll('.navitem').forEach(n=>n.classList.toggle('active',n.dataset.key===key));
   document.body.classList.remove('show-nav');
   const ed=$('editor'); const top=keep?ed.scrollTop:0;
+  if(key==='__analytics'){ ed.scrollTop=0; renderAnalytics(ed); return; }
   if(key==='__audience'){ ed.scrollTop=0; renderAudience(ed); return; }
   if(key==='__settings'){ ed.scrollTop=0; renderSettings(ed); return; }
   if(!ensurePreviewPage(key)) pushPreview();   // reload preview only when the page changes
@@ -730,6 +734,79 @@ async function renderAudience(root){
 }
 function escA(s){return s==null?'':String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function fmtDate(s){ if(!s)return''; const d=new Date(s); return isNaN(d)?s:d.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}); }
+
+/* ---------- ANALYTICS ----------
+   Reads aggregates from the password-checked edge function (raw events are never
+   readable with the public key). Renders GA-style stat cards, a daily pageviews
+   chart, plus top pages / what people click / where they leave off / referrers. */
+async function renderAnalytics(root){
+  root.innerHTML='';
+  const head=elt('div','ehead'); head.appendChild(elt('h2',null,'Analytics'));
+  head.appendChild(elt('p',null,'What visitors view, what they click, and where they drop off. Anonymous & first-party — no cookies, no personal data.'));
+  root.appendChild(head);
+
+  const bar=elt('div'); bar.style.cssText='display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap';
+  const sel=document.createElement('select'); sel.className='inp';
+  sel.style.cssText='width:auto;padding:7px 10px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:6px;font:inherit';
+  [[7,'last 7 days'],[30,'last 30 days'],[90,'last 90 days'],[365,'last year']].forEach(([v,l])=>{const o=document.createElement('option');o.value=String(v);o.textContent=l;sel.appendChild(o);});
+  sel.value='30';
+  const refresh=elt('button','btn neutral sm','↻ refresh');
+  bar.append(sel,refresh); root.appendChild(bar);
+  const host=elt('div'); root.appendChild(host);
+
+  function statRow(t){
+    const sg=elt('div','statgrid');
+    const cards=[[t.pageviews||0,'pageviews'],[t.visitors||0,'visitors'],[t.sessions||0,'sessions'],[t.clicks||0,'clicks']];
+    if(t.avg_seconds!=null) cards.push([fmtDur(t.avg_seconds),'avg time on page']);
+    if(t.avg_scroll!=null) cards.push([(t.avg_scroll||0)+'%','avg scroll depth']);
+    cards.forEach(([n,l])=>{ const c=elt('div','statcard'); c.appendChild(elt('div','big',String(n))); c.appendChild(elt('div','lbl',l)); sg.appendChild(c); });
+    return sg;
+  }
+  function chart(daily){
+    if(!daily||!daily.length) return null;
+    const wrap=elt('div');
+    wrap.appendChild(Object.assign(elt('div','fhint'),{textContent:'daily pageviews'}));
+    const max=Math.max(1,...daily.map(d=>+d.views||0));
+    const c=elt('div','achart');
+    daily.forEach(d=>{ const b=document.createElement('i'); b.style.height=Math.max(2,Math.round((+d.views||0)/max*100))+'%'; b.title=(d.date||'')+' · '+(+d.views||0)+' views · '+(+d.visitors||0)+' visitors'; c.appendChild(b); });
+    wrap.appendChild(c); return wrap;
+  }
+  function tableCard(title,rows,barKey,headers,cells){
+    const card=elt('div','card');
+    card.appendChild(Object.assign(elt('div','cardhead'),{innerHTML:'<h3>'+escA(title)+'</h3>'}));
+    if(!rows||!rows.length){ card.appendChild(Object.assign(elt('div','empty'),{textContent:'no data yet'})); return card; }
+    const max=Math.max(1,...rows.map(r=>+r[barKey]||0));
+    const body=rows.map(r=>{
+      const pct=Math.round((+r[barKey]||0)/max*100);
+      const tds=cells.map((fn,i)=>{
+        const v=fn(r);
+        if(i===0) return '<td style="position:relative"><span style="position:absolute;inset:0;width:'+pct+'%;background:rgba(141,255,43,.13)"></span><span style="position:relative">'+v+'</span></td>';
+        return '<td class="muted">'+v+'</td>';
+      }).join('');
+      return '<tr>'+tds+'</tr>';
+    }).join('');
+    const tw=elt('div','tablewrap');
+    tw.innerHTML='<table class="tbl"><thead><tr>'+headers.map(h=>'<th>'+escA(h)+'</th>').join('')+'</tr></thead><tbody>'+body+'</tbody></table>';
+    card.appendChild(tw); return card;
+  }
+  function draw(s){
+    s=s||{}; host.innerHTML='';
+    host.appendChild(statRow(s.totals||{}));
+    const ch=chart(s.daily); if(ch) host.appendChild(ch);
+    host.appendChild(tableCard('Top pages',s.top_pages,'views',['Page','Views','Visitors'],[r=>escA(r.page),r=>(+r.views||0),r=>(+r.visitors||0)]));
+    host.appendChild(tableCard('What people click',s.top_clicks,'clicks',['Element','Clicks'],[r=>escA(r.target),r=>(+r.clicks||0)]));
+    host.appendChild(tableCard('Where they leave off',s.exit_pages,'exits',['Exit page','Exits'],[r=>escA(r.page),r=>(+r.exits||0)]));
+    host.appendChild(tableCard('Referrers',s.referrers,'count',['Source','Visits'],[r=>escA(r.referrer),r=>(+r.count||0)]));
+  }
+  async function load(){
+    host.innerHTML='<div class="empty">loading…</div>';
+    try{ const r=await sbAdmin(authCred(),'analytics',{days:+sel.value}); draw((r&&r.summary)||{}); }
+    catch(e){ host.innerHTML='<div class="empty">✗ '+escA(e.message||e)+'</div>'; }
+  }
+  sel.onchange=load; refresh.onclick=load;
+  load();
+}
+function fmtDur(sec){ sec=Math.round(+sec||0); if(sec<60)return sec+'s'; const m=Math.floor(sec/60),s=sec%60; return m+'m '+(s<10?'0':'')+s+'s'; }
 
 /* ---------- SETTINGS ---------- */
 function renderSettings(root){

@@ -77,6 +77,13 @@ function buildChrome(){
 }
 buildChrome();
 
+/* ANALYTICS — load the first-party tracker once per page (skips the editor preview;
+   the admin page never loads app.js so it's never tracked). Kept in its own file so it
+   caches across pages and is easy to audit. */
+(function(){ if(/[?&]preview\b/.test(location.search))return; if(document.getElementById('sb-analytics'))return;
+  var s=document.createElement('script'); s.id='sb-analytics'; s.src='assets/analytics.js'; s.defer=true;
+  (document.head||document.documentElement).appendChild(s); })();
+
 /* cross-page: route visitors to the join-the-list form (connect page) */
 function gotoConnectJoin(msg){
   const g=document.getElementById('gemail');
