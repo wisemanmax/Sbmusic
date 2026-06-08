@@ -203,10 +203,11 @@ try {
     await page.goto(base + '/world.html', { waitUntil: 'load' });
     await page.waitForTimeout(800);
     const r = await page.evaluate(() => {
-      applyContent({ music: { playerTitle: 'NEW TRACK', playerCover: 'assets/slime-by.jpg', releases: [] } });
-      return { title: document.querySelector('#musicbar .stitle').textContent, disc: document.getElementById('disc').style.backgroundImage };
+      applyContent({ music: { playerTitle: 'STALE OVERRIDE', playerCover: 'assets/slime-by.jpg', releases: [] } });
+      return { title: document.querySelector('#musicbar .stitle').textContent, disc: document.getElementById('disc').style.backgroundImage, track: curTrack().title };
     });
-    check('bar title + cover follow CMS', r.title === 'NEW TRACK' && /slime-by\.jpg/.test(r.disc));
+    // cover still follows CMS; the title is the LIVE track and a stale CMS playerTitle can't override it
+    check('bar cover follows CMS; title stays the live track', /slime-by\.jpg/.test(r.disc) && r.title === r.track && r.title !== 'STALE OVERRIDE', JSON.stringify(r));
     await page.close();
   }
 
@@ -258,12 +259,14 @@ try {
     });
     check('playlist: prev mid-track restarts the current song', r.mode === 'local' && r.t < 1.5 && r.idx === 0, 't='+r.t+' idx='+r.idx);
     const nx = await page.evaluate(async () => {
+      // simulate a stale published CMS title — it must NOT override the live track's name
+      window.SB = window.SB || {}; window.SB.music = Object.assign({}, window.SB.music, { playerTitle: 'Man Of My Word' });
       loadTrack(0, false);
       bgNext();   // advance to track 2
       await new Promise(s => setTimeout(s, 200));
       return { idx: trackIdx, title: document.querySelector('#musicbar .stitle').textContent, src: decodeURIComponent(audio.getAttribute('src')||'') };
     });
-    check('playlist: next advances to the following track + updates the title', nx.idx === 1 && nx.title === 'Turn This Up' && /Turn This Up/.test(nx.src), JSON.stringify(nx));
+    check('playlist: next advances + shows the track name (not a stale CMS title)', nx.idx === 1 && nx.title === 'Turn This Up' && /Turn This Up/.test(nx.src), JSON.stringify(nx));
     const wrap = await page.evaluate(() => {
       loadTrack(LOCAL_TRACKS.length, false);   // one past the end → wraps to the first
       const a = trackIdx;

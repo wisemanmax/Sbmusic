@@ -255,7 +255,9 @@ try{audio.removeAttribute('controls');audio.setAttribute('controlsList','nodownl
    is loaded lazily on the first skip so it never slows the initial page. */
 let bgMode='local',ytPlayer=null,ytReady=false,ytWantPlay=false,_ytApiLoading=false;
 const BG_PLAYLIST=(()=>{try{return(window.SB_DEFAULTS&&SB_DEFAULTS.music&&SB_DEFAULTS.music.bgPlaylist)||'';}catch(_){return'';}})();
-function localTitle(){try{return(window.SB&&SB.music&&SB.music.playerTitle)||curTrack().title;}catch(_){return curTrack().title;}}
+/* The now-playing label IS the live playlist track's own name. A stale CMS `playerTitle`
+   must not override it (otherwise every uploaded song would show one saved title). */
+function localTitle(){try{return curTrack().title;}catch(_){return'Man Of My Word';}}
 function ytIsPlaying(){try{return!!(ytPlayer&&ytReady&&ytPlayer.getPlayerState&&ytPlayer.getPlayerState()===1);}catch(_){return false;}}
 function bgIsPlaying(){return bgMode==='yt'?ytIsPlaying():!audio.paused;}
 function updateBgTitle(){const title=localTitle();document.querySelectorAll('#musicbar .stitle').forEach(el=>el.textContent=title);const pwt=document.querySelector('#music .pwtitle');if(pwt)pwt.textContent=title;const sr=document.getElementById('srTitle');if(sr)sr.textContent=title;/* the lab's "now bending" title */}
