@@ -658,7 +658,19 @@
     ctx.shadowBlur = 0; ctx.restore();
   }
 
-  /* ----- Slime By hero (upgraded, beat-reactive) ----- */
+  /* ----- Slime By hero (upgraded, beat-reactive) -----
+     Rendered to an offscreen buffer first so we can stamp a crisp dark toon outline
+     around him — the biggest readability win against the busy, glowing backdrop.
+     pcan = the sprite, scan = its silhouette used for the outline pass. */
+  const PCW = 76, PCH = 112, POX = 38, POY = 98;
+  let pcan = null, pctx = null, scan = null, sctx = null;
+  function ensurePbuf() {
+    if (pcan && pctx) return;
+    pcan = document.createElement('canvas'); pcan.width = PCW; pcan.height = PCH;
+    pctx = pcan.getContext('2d'); pctx.imageSmoothingEnabled = false;
+    scan = document.createElement('canvas'); scan.width = PCW; scan.height = PCH;
+    sctx = scan.getContext('2d'); sctx.imageSmoothingEnabled = false;
+  }
   function drawPlayer() {
     const p = player;
     // dash afterimages
@@ -666,21 +678,29 @@
       ctx.save(); ctx.globalAlpha = (tr.life / 10) * 0.4; ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = rageOn ? C.rage : C.slime; ctx.fillRect(tr.x + 4, tr.y + 6, 14, 34); ctx.restore();
     }
-    // ground shadow
-    ctx.save(); ctx.fillStyle = 'rgba(0,0,0,' + (p.onGround ? 0.35 : 0.18) + ')'; ctx.beginPath(); ctx.ellipse(p.x + p.w / 2, p.y + p.h - 1, 12, 4, 0, 0, 6.28); ctx.fill(); ctx.restore();
+    // ground shadow (tightens + lifts while airborne for a sense of height)
+    ctx.save(); ctx.fillStyle = 'rgba(0,0,0,' + (p.onGround ? 0.4 : 0.15) + ')';
+    ctx.beginPath(); ctx.ellipse(p.x + p.w / 2, p.y + p.h - 1, 12 * (p.onGround ? 1 : 0.78), 4 * (p.onGround ? 1 : 0.7), 0, 0, 6.28); ctx.fill(); ctx.restore();
 
-    ctx.save();
-    if (p.inv > 0 && Math.floor(p.inv / 4) % 2 === 0) ctx.globalAlpha = 0.45;
-    const baseX = p.x + p.w / 2, baseY = p.y + p.h, bob = Math.sin(p.bob) * 1.2;
-    ctx.translate(baseX, baseY + bob); ctx.scale(p.dir, 1);
-    const sq = p.squash, sxsc = 1 / Math.max(0.6, sq), sysc = sq; ctx.scale(sxsc, sysc);
+    const bob = Math.sin(p.bob) * 1.2;
+    const breath = 1 + Math.sin(p.bob * 0.5) * 0.014;             // gentle idle breathing
+    const lean = Math.max(-0.17, Math.min(0.17, p.vx * 0.023));   // lean into the run
+    const sq = p.squash, sxsc = 1 / Math.max(0.6, sq), sysc = sq * breath;
 
-    // beat aura behind the body
-    const aur = rageOn ? C.rage : C.slime, auraR = 16 + p.aura * 8;
+    // beat aura — drawn on the MAIN ctx, behind the sprite, so it never bloats the outline
+    const auraR = 16 + p.aura * 8, acx = p.x + p.w / 2, acy = p.y + p.h - 22;
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    const ag = ctx.createRadialGradient(0, -22, 2, 0, -22, auraR * 1.5);
-    ag.addColorStop(0, (rageOn ? 'rgba(255,40,55,' : 'rgba(141,255,43,') + (0.22 + p.aura * 0.16) + ')'); ag.addColorStop(1, 'transparent');
-    ctx.fillStyle = ag; ctx.beginPath(); ctx.arc(0, -22, auraR * 1.5, 0, 6.28); ctx.fill(); ctx.restore();
+    const ag = ctx.createRadialGradient(acx, acy, 2, acx, acy, auraR * 1.6);
+    ag.addColorStop(0, (rageOn ? 'rgba(255,40,55,' : 'rgba(141,255,43,') + (0.2 + p.aura * 0.18) + ')'); ag.addColorStop(1, 'transparent');
+    ctx.fillStyle = ag; ctx.beginPath(); ctx.arc(acx, acy, auraR * 1.6, 0, 6.28); ctx.fill(); ctx.restore();
+
+    // ---- render the character into the offscreen buffer ----
+    ensurePbuf();
+    const realCtx = ctx;
+    pctx.setTransform(1, 0, 0, 1, 0, 0); pctx.clearRect(0, 0, PCW, PCH);
+    ctx = pctx;                                                   // redirect rr()/drawing into the buffer
+    ctx.save();
+    ctx.translate(POX, POY + bob); ctx.scale(p.dir, 1); ctx.rotate(lean * p.dir); ctx.scale(sxsc, sysc);
 
     const stride = Math.sin(p.walk) * 4 * Math.min(1, Math.abs(p.vx) / 2);
     const air = !p.onGround;
@@ -698,6 +718,8 @@
     const tY = -44;
     rr(-8, tY, 16, 20, rageOn ? '#1c0409' : '#0e0e10'); rr(-8, tY, 16, 2, '#17171b');
     rr(7, tY + 2, 1, 18, '#050506'); rr(-8, tY + 2, 1, 18, '#1c1c20');
+    // tee sheen — a soft beat-reactive highlight down the left of the chest
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = (rageOn ? 'rgba(255,70,85,' : 'rgba(141,255,43,') + (0.05 + QA.beatStrength() * 0.13) + ')'; ctx.fillRect(-6, tY + 2, 3, 16); ctx.restore();
     // chain (sways with bob)
     const chSw = Math.sin(p.bob * 0.8) * 1.2;
     ctx.fillStyle = '#e4e4f0'; for (let i = -4; i <= 4; i += 2) ctx.fillRect(i + chSw * 0.2, tY + 1 + Math.abs(i) * 0.35, 1.5, 1.5);
@@ -724,7 +746,7 @@
     ctx.fillStyle = C.beard; rr(-6, hY + 10, 13, 7, C.beard); rr(-5, hY + 15, 11, 3, C.beard);
     rr(0, hY + 11, 4, 1, '#5a2f18');
     rr(2, hY + 5, 3, 1, '#120c08');
-    if (p.blink > 0) { rr(3, hY + 7, 2, 1, '#2a1a10'); } else { rr(3, hY + 6, 2, 3, '#fff'); rr(4, hY + 6, 1, 3, rageOn ? C.rage : '#2a1a10'); }
+    if (p.blink > 0) { rr(3, hY + 7, 2, 1, '#2a1a10'); } else { rr(2, hY + 6, 3, 3, '#fff'); rr(4, hY + 6, 1, 3, rageOn ? C.rage : '#241a3a'); rr(2, hY + 6, 1, 1, '#cfe'); }
     rr(6, hY + 8, 2, 2, C.skinSh); rr(-6, hY + 7, 2, 3, C.skinSh);
     // locs (sway)
     ctx.fillStyle = C.hair; const locSw = stride * 0.4 + Math.sin(p.bob) * 0.6;
@@ -735,11 +757,26 @@
     rr(-7, cY - 3, 15, 6, C.sbBlue); rr(-7, cY - 3, 15, 2, C.sbBlueLite); rr(-8, cY - 2, 1, 5, C.sbBlueDk);
     rr(-7, cY + 2, 16, 2, '#1a2f8a'); rr(2, cY + 1, 12, 3, C.sbBlue); rr(2, cY + 3, 12, 1, C.sbBlueDk);
     ctx.fillStyle = '#fff'; ctx.fillRect(-1, cY - 2, 3, 3); ctx.fillStyle = C.sbBlueLite; ctx.fillRect(0, cY - 1, 1, 1);
-    // rim light on the beat
-    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = (rageOn ? 'rgba(255,31,46,' : 'rgba(141,255,43,') + (0.12 + QA.beatStrength() * 0.28) + ')'; ctx.lineWidth = 1; ctx.strokeRect(-9, hY - 4, 19, 60); ctx.restore();
+    // rim light on the beat (thin, inside the body box so it stays out of the silhouette)
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = (rageOn ? 'rgba(255,31,46,' : 'rgba(141,255,43,') + (0.14 + QA.beatStrength() * 0.34) + ')'; ctx.lineWidth = 1; ctx.strokeRect(-9, hY - 4, 19, 60); ctx.restore();
+    ctx.restore();
+    ctx = realCtx;                                                // back to the main target
+
+    // ---- toon outline: build the silhouette, stamp it around the sprite, then the sprite ----
+    const ox = (p.x + p.w / 2) - POX, oy = (p.y + p.h) - POY;
+    sctx.setTransform(1, 0, 0, 1, 0, 0); sctx.clearRect(0, 0, PCW, PCH);
+    sctx.globalCompositeOperation = 'source-over'; sctx.drawImage(pcan, 0, 0);
+    sctx.globalCompositeOperation = 'source-in'; sctx.fillStyle = rageOn ? '#1c0206' : '#03100a'; sctx.fillRect(0, 0, PCW, PCH);
+    sctx.globalCompositeOperation = 'source-over';
+    ctx.save();
+    if (p.inv > 0 && Math.floor(p.inv / 4) % 2 === 0) ctx.globalAlpha = 0.4;
+    const o = 1.5, off = [[o, 0], [-o, 0], [0, o], [0, -o], [o, o], [-o, -o], [o, -o], [-o, o]];
+    for (const d of off) ctx.drawImage(scan, ox + d[0], oy + d[1]);
+    ctx.drawImage(pcan, ox, oy);
+    ctx.restore();
+
     // rage venom drips
     if (rageOn && Math.random() < 0.3) particles.push({ x: p.x + 4 + Math.random() * 14, y: p.y + 40, vx: 0, vy: 0.4, life: 22, max: 22, col: C.rage, size: 2, grav: 0.12, glow: 1, shape: 'goo' });
-    ctx.restore();
   }
   function drawShoe(x, y, swing) {
     ctx.save(); ctx.translate(x, y + (swing < 0 ? -Math.abs(swing) * 0.4 : 0));
