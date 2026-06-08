@@ -753,9 +753,12 @@ html.wipe-armed::before{content:"";position:fixed;inset:0;z-index:10850;pointer-
    can never collide with the DASH / RAGE / JUMP cluster. The footer is padded clear of
    both. Scoped to body.page-quest, so desktop and every other page are untouched. */
 @media(max-width:760px){
+  /* The quest engine publishes --q-deckh (the live control-deck height, safe-area included)
+     on :root, so the NOW-PLAYING bar docks as a slim strip RIGHT above the deck — flush, no
+     floating in a void — and the footer/toasts clear both. Falls back to 250px pre-mount. */
   body.page-quest .musicbar{
     left:50%; right:auto; top:auto;
-    bottom:calc(env(safe-area-inset-bottom,0px) + 272px);
+    bottom:calc(var(--q-deckh,250px) + 6px);
     transform:translateX(-50%);
     max-width:calc(100vw - 24px); z-index:1950;
     padding:6px 8px; background:rgba(8,12,8,.85);
@@ -766,6 +769,6 @@ html.wipe-armed::before{content:"";position:fixed;inset:0;z-index:10850;pointer-
   body.page-quest .totop,
   body.page-quest .helpbtn{ display:none; }
   /* keep the footer + toasts above the fixed console deck and the docked player */
-  body.page-quest footer{ padding-bottom:calc(300px + env(safe-area-inset-bottom,0px)); }
-  body.page-quest #toasts{ bottom:calc(300px + env(safe-area-inset-bottom,0px)); }
+  body.page-quest footer{ padding-bottom:calc(var(--q-deckh,250px) + 70px); }
+  body.page-quest #toasts{ bottom:calc(var(--q-deckh,250px) + 60px); }
 }

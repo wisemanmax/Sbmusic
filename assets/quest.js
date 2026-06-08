@@ -29,8 +29,14 @@
   };
 
   /* ===================== render target ===================== */
-  const W = 512, H = 288;            // internal 16:9 render res (level tuned to this)
+  const W = 512, H = 288;            // internal 16:9 render width + base height (level tuned to this)
   let cv = null, ctx = null;
+  /* Responsive view: W stays fixed (horizontal gameplay unchanged) but the canvas BUFFER
+     height (VH) tracks the cabinet's real aspect, so a tall mobile viewport shows MORE
+     vertical world instead of stretching or leaving a black void. VOFF pushes the world
+     down so the ground line sits ~64% of the way down; WB (= VH - VOFF) is the world-space
+     bottom that ground + pits fill to. On a 16:9 cabinet VH=H, VOFF=0 → identical to before. */
+  let VH = H, VOFF = 0, WB = H, ro = null, relayoutQueued = false;
 
   /* honour the OS "reduce motion" setting: tame screen-shake + thin out particles */
   const REDUCED = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; } })();
@@ -196,7 +202,8 @@
     queue('slime', 'SLIME BY', 'Who took it?');
     queue('elder', 'VILLAGE ELDER', 'The Red Serpent King. He locked Vena in Static Castle.');
     queue('vena', 'PRINCESS VENA', 'Slime... they need you.');
-    queue('quest', 'QUEST', 'CLEAR THE PIT · FIND THE SLIME KEY · SAVE THE BEAT');
+    queue('quest', 'HOW TO FIGHT', 'JUMP on beasts to STOMP them — or fire the MIC BLAST.');
+    queue('quest', 'QUEST', 'DEFEAT 5 BEASTS · FIND THE SLIME KEY · DETHRONE THE KING');
   }
   function spawn(type, x, y) {
     const e = { x, y, type, dead: false, fade: 0, t: Math.random() * 6, hp: 1, kb: 0 };
@@ -250,7 +257,7 @@
     }
     K.rageEdge = false;
 
-    const spd = rageOn ? 2.9 : 2.1;
+    const spd = rageOn ? 3.5 : 2.7;
     if (K.l) { p.vx = -spd; p.dir = -1; } else if (K.r) { p.vx = spd; p.dir = 1; } else p.vx *= 0.72;
 
     // dash
@@ -260,17 +267,20 @@
     if (p.dashT > 0) { p.dashT--; p.vx = p.dir * (rageOn ? 6.6 : 5.6); if (p.dashT % 2 === 0) p.trail.push({ x: p.x, y: p.y, dir: p.dir, life: 10 }); }
 
     // jump w/ coyote + buffer + BEAT JUMP (real-music timed)
-    if (p.onGround) p.coyote = 7; else if (p.coyote > 0) p.coyote--;
-    if (K.jumpEdge) p.jumpBuf = 7; else if (p.jumpBuf > 0) p.jumpBuf--;
+    // forgiving windows (coyote/buffer 9f) + a strong base arc so every gap in the
+    // level is comfortably clearable — the pits are 80-90px wide, this jump carries
+    // ~110px, with the beat jump reaching further still.
+    if (p.onGround) p.coyote = 9; else if (p.coyote > 0) p.coyote--;
+    if (K.jumpEdge) p.jumpBuf = 9; else if (p.jumpBuf > 0) p.jumpBuf--;
     K.jumpEdge = false;
     if (p.jumpBuf > 0 && p.coyote > 0) {
-      const boost = QA.onBeat() ? 1.22 : 1; p.vy = -6.2 * boost;
+      const boost = QA.onBeat() ? 1.2 : 1; p.vy = -7.4 * boost;
       p.onGround = false; p.coyote = 0; p.jumpBuf = 0; p.squash = 0.7;
       if (boost > 1) { burst(p.x + p.w / 2, p.y + p.h, C.toxic, 16, 3, { glow: 1, shape: 'goo' }); ring(p.x + p.w / 2, p.y + p.h, C.toxic, 16); flash = 2; floatText(p.x + p.w / 2, p.y - 6, 'BEAT JUMP', C.toxic); }
       else burst(p.x + p.w / 2, p.y + p.h, C.slimeDeep, 6, 1.5, { shape: 'goo' });
     }
-    if (!K.jump && p.vy < -2) p.vy *= 0.84;
-    p.vy += 0.36; if (p.vy > 10) p.vy = 10;
+    if (!K.jump && p.vy < -2) p.vy *= 0.86;
+    p.vy += 0.35; if (p.vy > 10.5) p.vy = 10.5;
 
     // mic blast
     if (p.atkCD > 0) p.atkCD--;
@@ -348,7 +358,22 @@
           b.life = Math.min(b.life, 4); if (e.hp <= 0) kill(e, ex, ey);
         }
       }
-      if (p.inv <= 0 && hit(p, eb)) { if (p.dashT > 0) kill(e, ex, ey); else damage(1); }
+      if (p.inv <= 0 && hit(p, eb)) {
+        // STOMP — coming down onto an enemy from above defeats it (Mario-style) and
+        // bounces you off. This is the intuitive "jump on it" kill players expect, so
+        // enemies never feel unkillable even before they discover the mic blast.
+        const feetWasAbove = (p.y + p.h - p.vy) <= ey + 7;
+        const stomping = p.vy > 0.6 && feetWasAbove;
+        if (p.dashT > 0) { kill(e, ex, ey); }
+        else if (stomping) {
+          e.hp--; p.vy = K.jump ? -8 : -6; p.jumpBuf = 0; p.coyote = 0; p.squash = 1.35; p.inv = Math.max(p.inv, 6);
+          shake = Math.max(shake, 3); hitStop = Math.max(hitStop, 1);
+          burst(ex + e.w / 2, ey, C.toxic, 9, 2.4, { glow: 1, shape: 'goo' });
+          if (e.hp <= 0) kill(e, ex, ey);
+          else { e.kb = (p.x < ex ? 1 : -1) * 3; floatText(ex + e.w / 2, ey - 6, 'STOMP!', C.toxic); }
+        }
+        else damage(1);
+      }
     }
     enemies = enemies.filter(e => !e.dead || e.fade > 0);
 
@@ -413,7 +438,7 @@
       const tgt = p.x + (p.x < b.x ? 150 : -150); b.x += (tgt - b.x) * 0.022; b.atkCD--;
       if (b.atkCD <= 0) {
         if (b.phase === 1 || b.phase === 3) { b.vx = (p.x < b.x ? -1 : 1) * (b.phase === 3 ? 5.5 : 3.8); b.lunge = 28; b.atkCD = b.phase === 3 ? 78 : 120; b.sx = 8; b.rear = 16; }
-        else { for (let i = 0; i < 6; i++) notes.push({ x: cam.x + 30 + Math.random() * (W - 60), y: -12, vy: 1.7 + Math.random() * 1.5, kind: 'red', t: 0 }); b.atkCD = 108; b.rear = 14; }
+        else { for (let i = 0; i < 6; i++) notes.push({ x: cam.x + 30 + Math.random() * (W - 60), y: -VOFF - 12, vy: 1.7 + Math.random() * 1.5, kind: 'red', t: 0 }); b.atkCD = 108; b.rear = 14; }
       }
     }
     b.y = GY - b.h; if (b.sx > 0) b.sx *= 0.85;
@@ -454,8 +479,9 @@
     ctx.save(); ctx.translate(sx, sy);
     const bs = QA.beatStrength(), cx = Math.floor(cam.x);
 
-    drawSky(bs); drawParallax(cx, bs);
-    ctx.save(); ctx.translate(-cx, 0);
+    drawSky(bs);
+    ctx.save(); ctx.translate(0, VOFF); drawParallax(cx, bs); ctx.restore();
+    ctx.save(); ctx.translate(-cx, VOFF);
     drawPits(bs); drawPlatforms(bs); drawDecals(); drawTorches(bs); drawCoins();
     if (theKey) drawKey();
     drawNotes();
@@ -466,24 +492,24 @@
     drawPlayer();
     drawParticles(); drawFloaters();
     ctx.restore();
-    drawFireflies(cx, bs);
+    ctx.save(); ctx.translate(0, VOFF); drawFireflies(cx, bs); ctx.restore();
     ctx.restore();
 
-    // post fx
-    if (beatFlash > 0.02 && state === 'play') { ctx.fillStyle = (rageOn ? 'rgba(255,31,46,' : 'rgba(141,255,43,') + (beatFlash * 0.06) + ')'; ctx.fillRect(0, 0, W, H); }
-    if (flash > 0) { ctx.fillStyle = 'rgba(255,255,255,' + (flash / 16) + ')'; ctx.fillRect(0, 0, W, H); }
-    if (rageOn) { ctx.fillStyle = 'rgba(255,31,46,0.07)'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = 'rgba(255,31,46,' + (0.05 + bs * 0.05) + ')'; ctx.fillRect(0, 0, W, 6); ctx.fillRect(0, H - 6, W, 6); }
+    // post fx (full canvas → VH so they cover the whole responsive viewport)
+    if (beatFlash > 0.02 && state === 'play') { ctx.fillStyle = (rageOn ? 'rgba(255,31,46,' : 'rgba(141,255,43,') + (beatFlash * 0.06) + ')'; ctx.fillRect(0, 0, W, VH); }
+    if (flash > 0) { ctx.fillStyle = 'rgba(255,255,255,' + (flash / 16) + ')'; ctx.fillRect(0, 0, W, VH); }
+    if (rageOn) { ctx.fillStyle = 'rgba(255,31,46,0.07)'; ctx.fillRect(0, 0, W, VH); ctx.fillStyle = 'rgba(255,31,46,' + (0.05 + bs * 0.05) + ')'; ctx.fillRect(0, 0, W, 6); ctx.fillRect(0, VH - 6, W, 6); }
     drawBossBar();
     if (state === 'paused') drawPausedOverlay();
   }
 
   function drawSky(bs) {
-    const g = ctx.createLinearGradient(0, 0, 0, H);
+    const g = ctx.createLinearGradient(0, 0, 0, VH);
     if (rageOn) { g.addColorStop(0, '#2a0410'); g.addColorStop(.5, '#1a0208'); g.addColorStop(1, '#070103'); }
     else { g.addColorStop(0, '#0c2e16'); g.addColorStop(.45, '#0a2110'); g.addColorStop(1, '#05150b'); }
-    ctx.fillStyle = g; ctx.fillRect(-30, -30, W + 60, H + 60);
+    ctx.fillStyle = g; ctx.fillRect(-30, -30, W + 60, VH + 60);
     // 808 EMERALD moon — pulses with the live track
-    const mx = W * 0.80, my = H * 0.24, mr = 24 + bs * 7;
+    const mx = W * 0.80, my = VH * 0.2, mr = 24 + bs * 7;
     const mg = ctx.createRadialGradient(mx, my, 2, mx, my, mr * 2.6);
     if (rageOn) { mg.addColorStop(0, 'rgba(255,90,100,.95)'); mg.addColorStop(.4, 'rgba(255,31,46,.4)'); mg.addColorStop(1, 'transparent'); }
     else { mg.addColorStop(0, 'rgba(190,255,150,.9)'); mg.addColorStop(.4, 'rgba(141,255,43,' + (0.3 + bs * 0.25) + ')'); mg.addColorStop(1, 'transparent'); }
@@ -498,7 +524,7 @@
     ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fillRect(-mr * 0.5, -mr * 0.55, 3, 3);
     ctx.restore();
     // stars
-    for (let i = 0; i < 44; i++) { const sxp = (i * 137) % W, syp = (i * 71) % (H * 0.6); ctx.fillStyle = 'rgba(200,255,190,' + (0.2 + 0.5 * ((Math.sin(timeNow * 0.002 + i) + 1) / 2)) + ')'; ctx.fillRect(sxp, syp, 1, 1); }
+    for (let i = 0; i < 44; i++) { const sxp = (i * 137) % W, syp = (i * 71) % (VH * 0.62); ctx.fillStyle = 'rgba(200,255,190,' + (0.2 + 0.5 * ((Math.sin(timeNow * 0.002 + i) + 1) / 2)) + ')'; ctx.fillRect(sxp, syp, 1, 1); }
   }
   function drawParallax(cx, bs) {
     const layers = [{ s: 0.2, col: rageOn ? '#240310' : '#08200f', h: 92, amp: 30 },
@@ -543,20 +569,20 @@
   }
   function drawPits(bs) {
     for (const pit of pits) {
-      const grad = ctx.createLinearGradient(0, H - 40, 0, H);
+      const grad = ctx.createLinearGradient(0, WB - 40, 0, WB);
       if (rageOn) { grad.addColorStop(0, 'rgba(255,31,46,.6)'); grad.addColorStop(1, 'rgba(120,0,15,.9)'); }
       else { grad.addColorStop(0, 'rgba(141,255,43,.55)'); grad.addColorStop(1, 'rgba(8,50,15,.95)'); }
       ctx.fillStyle = grad;
-      for (let x = 0; x < pit[1]; x += 4) { const wv = Math.sin((x + timeNow * 0.005) * 0.25) * 2.5 + Math.sin((x + timeNow * 0.009) * 0.6) * 1.5; ctx.fillRect(pit[0] + x, H - 34 + wv, 4, 40); }
-      for (let i = 0; i < 5; i++) { const bx = pit[0] + 10 + ((i * 23 + timeNow * 0.03) % (pit[1] - 20)); const by = H - 10 - ((timeNow * 0.05 + i * 40) % 30); ctx.fillStyle = rageOn ? 'rgba(255,120,130,.6)' : 'rgba(160,255,122,.6)'; ctx.beginPath(); ctx.arc(bx, by, 1.5, 0, 6.28); ctx.fill(); }
+      for (let x = 0; x < pit[1]; x += 4) { const wv = Math.sin((x + timeNow * 0.005) * 0.25) * 2.5 + Math.sin((x + timeNow * 0.009) * 0.6) * 1.5; ctx.fillRect(pit[0] + x, GY + 2 + wv, 4, WB - GY); }
+      for (let i = 0; i < 5; i++) { const bx = pit[0] + 10 + ((i * 23 + timeNow * 0.03) % (pit[1] - 20)); const by = WB - 10 - ((timeNow * 0.05 + i * 40) % 30); ctx.fillStyle = rageOn ? 'rgba(255,120,130,.6)' : 'rgba(160,255,122,.6)'; ctx.beginPath(); ctx.arc(bx, by, 1.5, 0, 6.28); ctx.fill(); }
     }
   }
   function drawPlatforms(bs) {
     for (const pl of plats) {
       const tall = pl.y === GY;
-      const g = ctx.createLinearGradient(0, pl.y, 0, tall ? H : pl.y + 16);
+      const g = ctx.createLinearGradient(0, pl.y, 0, tall ? WB : pl.y + 16);
       g.addColorStop(0, rageOn ? '#3a1018' : '#15401c'); g.addColorStop(1, rageOn ? '#1a050a' : '#082611');
-      ctx.fillStyle = g; ctx.fillRect(pl.x, pl.y, pl.w, tall ? H - pl.y : 16);
+      ctx.fillStyle = g; ctx.fillRect(pl.x, pl.y, pl.w, tall ? WB - pl.y : 16);
       ctx.fillStyle = rageOn ? '#52131f' : '#1d5226';
       for (let x = pl.x + 4; x < pl.x + pl.w; x += 12) { const yy = pl.y + 8 + ((x * 7) % (tall ? 40 : 8)); ctx.fillRect(x, yy, 2, 2); }
       ctx.fillStyle = rageOn ? '#7a1228' : C.slimeDeep; ctx.fillRect(pl.x, pl.y, pl.w, 5);
@@ -639,7 +665,19 @@
     ctx.shadowBlur = 0; ctx.restore();
   }
 
-  /* ----- Slime By hero (upgraded, beat-reactive) ----- */
+  /* ----- Slime By hero (upgraded, beat-reactive) -----
+     Rendered to an offscreen buffer first so we can stamp a crisp dark toon outline
+     around him — the biggest readability win against the busy, glowing backdrop.
+     pcan = the sprite, scan = its silhouette used for the outline pass. */
+  const PCW = 76, PCH = 112, POX = 38, POY = 98;
+  let pcan = null, pctx = null, scan = null, sctx = null;
+  function ensurePbuf() {
+    if (pcan && pctx) return;
+    pcan = document.createElement('canvas'); pcan.width = PCW; pcan.height = PCH;
+    pctx = pcan.getContext('2d'); pctx.imageSmoothingEnabled = false;
+    scan = document.createElement('canvas'); scan.width = PCW; scan.height = PCH;
+    sctx = scan.getContext('2d'); sctx.imageSmoothingEnabled = false;
+  }
   function drawPlayer() {
     const p = player;
     // dash afterimages
@@ -647,21 +685,29 @@
       ctx.save(); ctx.globalAlpha = (tr.life / 10) * 0.4; ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = rageOn ? C.rage : C.slime; ctx.fillRect(tr.x + 4, tr.y + 6, 14, 34); ctx.restore();
     }
-    // ground shadow
-    ctx.save(); ctx.fillStyle = 'rgba(0,0,0,' + (p.onGround ? 0.35 : 0.18) + ')'; ctx.beginPath(); ctx.ellipse(p.x + p.w / 2, p.y + p.h - 1, 12, 4, 0, 0, 6.28); ctx.fill(); ctx.restore();
+    // ground shadow (tightens + lifts while airborne for a sense of height)
+    ctx.save(); ctx.fillStyle = 'rgba(0,0,0,' + (p.onGround ? 0.4 : 0.15) + ')';
+    ctx.beginPath(); ctx.ellipse(p.x + p.w / 2, p.y + p.h - 1, 12 * (p.onGround ? 1 : 0.78), 4 * (p.onGround ? 1 : 0.7), 0, 0, 6.28); ctx.fill(); ctx.restore();
 
-    ctx.save();
-    if (p.inv > 0 && Math.floor(p.inv / 4) % 2 === 0) ctx.globalAlpha = 0.45;
-    const baseX = p.x + p.w / 2, baseY = p.y + p.h, bob = Math.sin(p.bob) * 1.2;
-    ctx.translate(baseX, baseY + bob); ctx.scale(p.dir, 1);
-    const sq = p.squash, sxsc = 1 / Math.max(0.6, sq), sysc = sq; ctx.scale(sxsc, sysc);
+    const bob = Math.sin(p.bob) * 1.2;
+    const breath = 1 + Math.sin(p.bob * 0.5) * 0.014;             // gentle idle breathing
+    const lean = Math.max(-0.17, Math.min(0.17, p.vx * 0.023));   // lean into the run
+    const sq = p.squash, sxsc = 1 / Math.max(0.6, sq), sysc = sq * breath;
 
-    // beat aura behind the body
-    const aur = rageOn ? C.rage : C.slime, auraR = 16 + p.aura * 8;
+    // beat aura — drawn on the MAIN ctx, behind the sprite, so it never bloats the outline
+    const auraR = 16 + p.aura * 8, acx = p.x + p.w / 2, acy = p.y + p.h - 22;
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    const ag = ctx.createRadialGradient(0, -22, 2, 0, -22, auraR * 1.5);
-    ag.addColorStop(0, (rageOn ? 'rgba(255,40,55,' : 'rgba(141,255,43,') + (0.22 + p.aura * 0.16) + ')'); ag.addColorStop(1, 'transparent');
-    ctx.fillStyle = ag; ctx.beginPath(); ctx.arc(0, -22, auraR * 1.5, 0, 6.28); ctx.fill(); ctx.restore();
+    const ag = ctx.createRadialGradient(acx, acy, 2, acx, acy, auraR * 1.6);
+    ag.addColorStop(0, (rageOn ? 'rgba(255,40,55,' : 'rgba(141,255,43,') + (0.2 + p.aura * 0.18) + ')'); ag.addColorStop(1, 'transparent');
+    ctx.fillStyle = ag; ctx.beginPath(); ctx.arc(acx, acy, auraR * 1.6, 0, 6.28); ctx.fill(); ctx.restore();
+
+    // ---- render the character into the offscreen buffer ----
+    ensurePbuf();
+    const realCtx = ctx;
+    pctx.setTransform(1, 0, 0, 1, 0, 0); pctx.clearRect(0, 0, PCW, PCH);
+    ctx = pctx;                                                   // redirect rr()/drawing into the buffer
+    ctx.save();
+    ctx.translate(POX, POY + bob); ctx.scale(p.dir, 1); ctx.rotate(lean * p.dir); ctx.scale(sxsc, sysc);
 
     const stride = Math.sin(p.walk) * 4 * Math.min(1, Math.abs(p.vx) / 2);
     const air = !p.onGround;
@@ -679,6 +725,8 @@
     const tY = -44;
     rr(-8, tY, 16, 20, rageOn ? '#1c0409' : '#0e0e10'); rr(-8, tY, 16, 2, '#17171b');
     rr(7, tY + 2, 1, 18, '#050506'); rr(-8, tY + 2, 1, 18, '#1c1c20');
+    // tee sheen — a soft beat-reactive highlight down the left of the chest
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = (rageOn ? 'rgba(255,70,85,' : 'rgba(141,255,43,') + (0.05 + QA.beatStrength() * 0.13) + ')'; ctx.fillRect(-6, tY + 2, 3, 16); ctx.restore();
     // chain (sways with bob)
     const chSw = Math.sin(p.bob * 0.8) * 1.2;
     ctx.fillStyle = '#e4e4f0'; for (let i = -4; i <= 4; i += 2) ctx.fillRect(i + chSw * 0.2, tY + 1 + Math.abs(i) * 0.35, 1.5, 1.5);
@@ -705,7 +753,7 @@
     ctx.fillStyle = C.beard; rr(-6, hY + 10, 13, 7, C.beard); rr(-5, hY + 15, 11, 3, C.beard);
     rr(0, hY + 11, 4, 1, '#5a2f18');
     rr(2, hY + 5, 3, 1, '#120c08');
-    if (p.blink > 0) { rr(3, hY + 7, 2, 1, '#2a1a10'); } else { rr(3, hY + 6, 2, 3, '#fff'); rr(4, hY + 6, 1, 3, rageOn ? C.rage : '#2a1a10'); }
+    if (p.blink > 0) { rr(3, hY + 7, 2, 1, '#2a1a10'); } else { rr(2, hY + 6, 3, 3, '#fff'); rr(4, hY + 6, 1, 3, rageOn ? C.rage : '#241a3a'); rr(2, hY + 6, 1, 1, '#cfe'); }
     rr(6, hY + 8, 2, 2, C.skinSh); rr(-6, hY + 7, 2, 3, C.skinSh);
     // locs (sway)
     ctx.fillStyle = C.hair; const locSw = stride * 0.4 + Math.sin(p.bob) * 0.6;
@@ -716,11 +764,26 @@
     rr(-7, cY - 3, 15, 6, C.sbBlue); rr(-7, cY - 3, 15, 2, C.sbBlueLite); rr(-8, cY - 2, 1, 5, C.sbBlueDk);
     rr(-7, cY + 2, 16, 2, '#1a2f8a'); rr(2, cY + 1, 12, 3, C.sbBlue); rr(2, cY + 3, 12, 1, C.sbBlueDk);
     ctx.fillStyle = '#fff'; ctx.fillRect(-1, cY - 2, 3, 3); ctx.fillStyle = C.sbBlueLite; ctx.fillRect(0, cY - 1, 1, 1);
-    // rim light on the beat
-    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = (rageOn ? 'rgba(255,31,46,' : 'rgba(141,255,43,') + (0.12 + QA.beatStrength() * 0.28) + ')'; ctx.lineWidth = 1; ctx.strokeRect(-9, hY - 4, 19, 60); ctx.restore();
+    // rim light on the beat (thin, inside the body box so it stays out of the silhouette)
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = (rageOn ? 'rgba(255,31,46,' : 'rgba(141,255,43,') + (0.14 + QA.beatStrength() * 0.34) + ')'; ctx.lineWidth = 1; ctx.strokeRect(-9, hY - 4, 19, 60); ctx.restore();
+    ctx.restore();
+    ctx = realCtx;                                                // back to the main target
+
+    // ---- toon outline: build the silhouette, stamp it around the sprite, then the sprite ----
+    const ox = (p.x + p.w / 2) - POX, oy = (p.y + p.h) - POY;
+    sctx.setTransform(1, 0, 0, 1, 0, 0); sctx.clearRect(0, 0, PCW, PCH);
+    sctx.globalCompositeOperation = 'source-over'; sctx.drawImage(pcan, 0, 0);
+    sctx.globalCompositeOperation = 'source-in'; sctx.fillStyle = rageOn ? '#1c0206' : '#03100a'; sctx.fillRect(0, 0, PCW, PCH);
+    sctx.globalCompositeOperation = 'source-over';
+    ctx.save();
+    if (p.inv > 0 && Math.floor(p.inv / 4) % 2 === 0) ctx.globalAlpha = 0.4;
+    const o = 1.5, off = [[o, 0], [-o, 0], [0, o], [0, -o], [o, o], [-o, -o], [o, -o], [-o, o]];
+    for (const d of off) ctx.drawImage(scan, ox + d[0], oy + d[1]);
+    ctx.drawImage(pcan, ox, oy);
+    ctx.restore();
+
     // rage venom drips
     if (rageOn && Math.random() < 0.3) particles.push({ x: p.x + 4 + Math.random() * 14, y: p.y + 40, vx: 0, vy: 0.4, life: 22, max: 22, col: C.rage, size: 2, grav: 0.12, glow: 1, shape: 'goo' });
-    ctx.restore();
   }
   function drawShoe(x, y, swing) {
     ctx.save(); ctx.translate(x, y + (swing < 0 ? -Math.abs(swing) * 0.4 : 0));
@@ -893,9 +956,33 @@
     ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.textAlign = 'left'; ctx.restore();
   }
   function drawPausedOverlay() {
-    ctx.fillStyle = 'rgba(3,8,4,.6)'; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = C.slime; ctx.shadowColor = C.slime; ctx.shadowBlur = 12; ctx.font = 'bold 22px "Courier New",monospace'; ctx.textAlign = 'center';
-    ctx.fillText('PAUSED', W / 2, H / 2); ctx.font = '9px "Courier New",monospace'; ctx.fillStyle = '#8fc680'; ctx.shadowBlur = 0; ctx.fillText('press P to resume', W / 2, H / 2 + 16); ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(3,8,4,.8)'; ctx.fillRect(0, 0, W, VH);
+    ctx.textAlign = 'center';
+    const py = Math.max(0, (VH - H) * 0.5);   // keep the help card centered as the view grows
+    ctx.fillStyle = C.slime; ctx.shadowColor = C.slime; ctx.shadowBlur = 12; ctx.font = 'bold 22px "Courier New",monospace';
+    ctx.fillText('PAUSED', W / 2, py + 64); ctx.shadowBlur = 0;
+    // an at-a-glance controls card so help is always one keypress away mid-run
+    ctx.fillStyle = C.toxic; ctx.font = 'bold 9px "Courier New",monospace';
+    ctx.fillText('— HOW TO PLAY —', W / 2, py + 92);
+    const rows = [
+      ['MOVE', 'A / D  ·  ← →'],
+      ['JUMP', 'W / SPACE  (hold = higher)'],
+      ['STOMP', 'jump onto a beast'],
+      ['MIC BLAST', 'J'],
+      ['SLIME DASH', 'K'],
+      ['RAGE MODE', 'R  (when meter is full)'],
+    ];
+    ctx.font = '10px "Courier New",monospace';
+    let y = py + 116;
+    for (const [k, v] of rows) {
+      ctx.textAlign = 'right'; ctx.fillStyle = C.slime; ctx.fillText(k, W / 2 - 8, y);
+      ctx.textAlign = 'left'; ctx.fillStyle = '#cfe7bd'; ctx.fillText(v, W / 2 + 8, y);
+      y += 17;
+    }
+    ctx.textAlign = 'center'; ctx.fillStyle = '#8fc680'; ctx.font = '9px "Courier New",monospace';
+    ctx.fillText('jump ON the beat ✦ for a higher BEAT JUMP', W / 2, y + 6);
+    ctx.fillStyle = C.gold; ctx.fillText('press P  or  MENU  to resume', W / 2, y + 22);
+    ctx.textAlign = 'left';
   }
 
   /* ===================== HUD ===================== */
@@ -906,7 +993,20 @@
     buildHearts();
   }
   function buildHearts() { if (!el.hearts) return; el.hearts.innerHTML = ''; for (let i = 0; i < maxHp; i++) { const d = document.createElement('div'); d.className = 'q-heart'; el.hearts.appendChild(d); } }
+  /* a live objective line under the zone name so a new player always knows the
+     next step — defeat beasts → grab the key → reach the castle → fell the king. */
+  function updateObjective() {
+    if (!el.sub) return;
+    let txt;
+    if (state === 'win') txt = 'THE BEAT IS RESTORED ★';
+    else if (boss) txt = '▶ STRIKE THE CROWN ON BEAT';
+    else if (keysGot >= 1) txt = '▶ TO STATIC CASTLE →';
+    else if (keyUp) txt = '▶ GRAB THE SLIME KEY';
+    else txt = 'DEFEAT THE BEASTS · ' + Math.min(kills, 5) + '/5';
+    if (el.sub.textContent !== txt) el.sub.textContent = txt;
+  }
   function updateHUD(bs) {
+    updateObjective();
     if (el.hearts) { const hs = el.hearts.children; for (let i = 0; i < hs.length; i++) hs[i].className = 'q-heart' + (i < hp ? '' : ' empty'); }
     if (el.coins) el.coins.textContent = score;
     if (el.keys) el.keys.textContent = keysGot;
@@ -920,13 +1020,38 @@
   }
   function drawBossBar() {
     if (!boss || state !== 'play') return;
-    const bw = 220, bx = (W - bw) / 2, by = H - 22;
+    const bw = 220, bx = (W - bw) / 2, by = VH - 22;
     ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(bx - 3, by - 3, bw + 6, 12);
     ctx.fillStyle = '#2a0008'; ctx.fillRect(bx, by, bw, 7);
     ctx.fillStyle = C.rage; ctx.shadowColor = C.rage; ctx.shadowBlur = 8; ctx.fillRect(bx, by, bw * (boss.hp / boss.maxHp), 7); ctx.shadowBlur = 0;
     ctx.fillStyle = C.toxic; ctx.font = '8px "Courier New",monospace'; ctx.textAlign = 'center';
     ctx.fillText('RED SERPENT KING — PHASE ' + boss.phase, W / 2, by - 5); ctx.textAlign = 'left';
   }
+
+  /* ===================== responsive layout ===================== */
+  /* Match the canvas buffer to the cabinet's real on-screen aspect (square pixels, no
+     stretch) and re-anchor the world so the ground sits ~64% down. Also publishes the
+     live control-deck height as --q-deckh so the CSS can dock the music bar + reserve the
+     exact bottom space, leaving no black void anywhere on mobile. */
+  function fitCanvas() {
+    if (!cv || !ctx) return;
+    const r = cv.getBoundingClientRect();
+    let vh = H;
+    if (r.width > 4 && r.height > 4) vh = Math.round(W * r.height / r.width);
+    if (Math.abs(vh - H) <= 6) vh = H;                 // snap near-16:9 (desktop) to the exact base
+    vh = Math.max(H, Math.min(vh, 900));               // never below 16:9; capped for sanity
+    VOFF = Math.max(0, Math.round(vh * 0.64 - GY));    // place the ground line ~64% down
+    WB = vh - VOFF;                                    // world-space bottom (ground + pits fill to here)
+    if (cv.height !== vh) { cv.height = vh; cv.width = W; }
+    VH = vh; ctx.imageSmoothingEnabled = false;
+  }
+  function relayout() {
+    relayoutQueued = false;
+    if (!root || !cv) return;
+    if (el.deck) { const dh = Math.round(el.deck.getBoundingClientRect().height); document.documentElement.style.setProperty('--q-deckh', (dh || 0) + 'px'); }
+    fitCanvas();
+  }
+  function scheduleRelayout() { if (relayoutQueued) return; relayoutQueued = true; requestAnimationFrame(relayout); }
 
   /* ===================== loop / state ===================== */
   let running = false, rafId = 0, lastFrame = 0;
@@ -945,7 +1070,12 @@
     setPlayingChrome(true);
     buildHud(); updateHUD(0);
   }
-  function gameOver() { state = 'over'; rageOn = false; setPlayingChrome(false); el.cabinet && el.cabinet.classList.remove('playing'); el.over && el.over.classList.remove('hidden'); }
+  function gameOver() {
+    state = 'over'; rageOn = false; setPlayingChrome(false);
+    el.cabinet && el.cabinet.classList.remove('playing');
+    if (el.overscore) el.overscore.textContent = 'SLIME COINS: ' + score + '  ·  BEASTS FELLED: ' + kills + '  ·  BEST COMBO: x' + Math.max(bestCombo, combo);
+    el.over && el.over.classList.remove('hidden');
+  }
   function winGame() {
     if (state === 'win') return; state = 'win'; win = true; rageOn = false; setPlayingChrome(false); el.cabinet && el.cabinet.classList.remove('playing');
     shake = 14; flash = 12; burst(boss.x + boss.w / 2, boss.y, C.slime, 48, 5, { glow: 1 });
@@ -974,12 +1104,14 @@
     root = r;
     cv = q('qGame'); if (!cv) return;
     ctx = cv.getContext('2d'); cv.width = W; cv.height = H; ctx.imageSmoothingEnabled = false;
+    VH = H; VOFF = 0; WB = H;
     el = {
-      cabinet: q('qCabinet'),
+      cabinet: q('qCabinet'), deck: q('qDeck'),
       hearts: q('qHearts'), viz: q('qViz'), coins: q('qCoins'), keys: q('qKeys'),
+      lvlname: q('qLvlname'), sub: r.querySelector('.q-sub'),
       ragefill: q('qRagefill'), ragebl: r.querySelector('.q-hud-bl'),
       combo: q('qCombo'), dlg: q('qDlg'), dlgwho: q('qDlgwho'), dlgtxt: q('qDlgtxt'),
-      title: q('qTitle'), over: q('qOver'), win: q('qWin'), fscore: q('qFscore'),
+      title: q('qTitle'), over: q('qOver'), win: q('qWin'), fscore: q('qFscore'), overscore: q('qOverScore'),
       startbtn: q('qStart'), retrybtn: q('qRetry'), replaybtn: q('qReplay'), pausebtn: q('qPause'),
     };
     // reveal the touch control deck on coarse pointers (CSS keys off this class)
@@ -996,6 +1128,14 @@
     const sysBtn = () => { if (state === 'play' || state === 'paused') togglePause(); else startGame(); };
     ['qtStart', 'qtMenu'].forEach(id => { const b = q(id); if (b) b.onclick = sysBtn; });
     wireScreens();
+    // size the canvas to the cabinet + keep it synced as the layout/orientation changes
+    if (typeof ResizeObserver === 'function') {
+      ro = new ResizeObserver(scheduleRelayout);
+      ro.observe(el.cabinet); if (el.deck) ro.observe(el.deck);
+    }
+    addEventListener('resize', scheduleRelayout, { signal: inputAC.signal });
+    addEventListener('orientationchange', scheduleRelayout, { signal: inputAC.signal });
+    relayout();
     // (re)start at the title screen
     state = 'title'; win = false;
     el.cabinet && el.cabinet.classList.remove('playing');
@@ -1009,6 +1149,8 @@
   function unmount() {
     running = false; if (rafId) cancelAnimationFrame(rafId); rafId = 0;
     setPlayingChrome(false);
+    if (ro) { try { ro.disconnect(); } catch (_) { } ro = null; }
+    try { document.documentElement.style.removeProperty('--q-deckh'); } catch (_) { }
     if (inputAC) { try { inputAC.abort(); } catch (_) { } inputAC = null; }
     held = {}; for (const k in K) if (typeof K[k] === 'boolean') K[k] = false;
     window.SBQuest._mounted = false;

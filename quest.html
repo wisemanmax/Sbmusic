@@ -72,9 +72,12 @@
         #qRoot .q-heart::after{ left:8px; transform:rotate(-45deg); transform-origin:100% 100%; }
         #qRoot .q-heart.empty{ filter:none; opacity:.85; }
         #qRoot .q-heart.empty::before,#qRoot .q-heart.empty::after{ background:#1d241c; }
-        #qRoot .q-hud-tc{ position:absolute; top:11px; left:50%; transform:translateX(-50%); text-align:center; }
-        #qRoot .q-lvl{ font-size:13px; letter-spacing:3px; color:var(--q-toxic); font-weight:900; text-shadow:0 0 10px var(--q-toxic),0 1px 2px #000; }
-        #qRoot .q-sub{ font-size:9px; letter-spacing:3px; color:#8fbf80; margin-top:2px; text-shadow:0 1px 2px #000; }
+        /* centered title block — capped width + clear gap from the corner HUD so it never
+           collides with the hearts (left) or coin/key counters (right) on narrow phones */
+        #qRoot .q-hud-tc{ position:absolute; top:9px; left:50%; transform:translateX(-50%); text-align:center; max-width:min(58%,260px); }
+        #qRoot .q-lvl{ font-size:13px; letter-spacing:3px; color:var(--q-toxic); font-weight:900; text-shadow:0 0 10px var(--q-toxic),0 1px 2px #000; white-space:nowrap; }
+        #qRoot .q-sub{ font-size:9px; letter-spacing:2px; color:#8fbf80; margin-top:3px; text-shadow:0 1px 2px #000; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        @media (max-width:430px){ #qRoot .q-lvl{ font-size:11px; letter-spacing:2px; } #qRoot .q-sub{ font-size:8px; letter-spacing:1px; } }
         #qRoot .q-hud-tr{ position:absolute; top:10px; right:13px; text-align:right; font-size:15px; font-weight:900; display:flex; gap:7px; }
         #qRoot .q-hud-tr .c,#qRoot .q-hud-tr .k{ padding:2px 7px; border-radius:7px; background:rgba(0,0,0,.4); }
         #qRoot .q-hud-tr .c{ color:var(--q-gold); text-shadow:0 0 8px var(--q-gold); }
@@ -187,10 +190,11 @@
           box-shadow:0 2px 0 rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.08),0 0 14px rgba(255,31,46,.16); }
         #qRoot .q-rage.pressed{ background:linear-gradient(180deg,rgba(255,31,46,.4),rgba(255,31,46,.16)); box-shadow:0 0 24px rgba(255,31,46,.55),inset 0 0 14px rgba(255,31,46,.3); }
 
-        /* title-screen control tips swap with the input method */
+        /* title-screen control tips swap with the input method (kept as flex so the
+           q-how card stays centered on both keyboard and touch) */
         #qRoot .q-tip-touch{ display:none; }
         #qRoot.q-has-touch .q-tip-key{ display:none; }
-        #qRoot.q-has-touch .q-tip-touch{ display:block; }
+        #qRoot.q-has-touch .q-tip-touch{ display:flex; }
 
         /* ===== MOBILE: immersive handheld =====
            Phone-first console: the page chrome steps back, the 16:9 screen sits up top
@@ -200,18 +204,27 @@
           #quest{ padding:0; }
           .pagehead{ display:none; }  /* the screen + controller own the viewport */
 
-          /* #qRoot fills the screen and goes black → the gap under the cabinet reads as
-             the console's bezel, exactly like the reference handheld */
-          #qRoot{ gap:0; padding:0; min-height:100dvh; justify-content:flex-start;
-            background:linear-gradient(180deg,#04080a,#02060a 60%,#04080a); }
-          #qRoot.q-has-touch .q-cabinet{ width:100vw; max-width:100vw; border-radius:0; border-left:0; border-right:0;
-            margin-top:calc(env(safe-area-inset-top,0px) + 52px); }
+          /* The game owns the whole viewport as a FLEX COLUMN that fills 100dvh:
+               cabinet (flex:1 → absorbs all spare height)  →  [docked NOW-PLAYING bar]  →  control deck.
+             The engine renders the canvas at the cabinet's true aspect (more vertical world,
+             no stretch) so the playfield fills the glass edge-to-edge, and it publishes the
+             live deck height as --q-deckh so we reserve exactly the right bottom space — no
+             black void is ever left between the screen, the player and the controls. */
+          #qRoot{ gap:0; padding:0; height:100dvh; min-height:100dvh; justify-content:flex-start;
+            background:#08080d; }
+          #qRoot.q-has-touch{ display:flex; flex-direction:column;
+            /* reserve the bottom thumb-zone: control deck (live height) + the docked player bar */
+            padding-bottom:calc(var(--q-deckh,250px) + 66px); }
+          #qRoot.q-has-touch .q-cabinet{ flex:1 1 auto; min-height:0; aspect-ratio:auto;
+            width:100vw; max-width:100vw; border-radius:0; border-left:0; border-right:0;
+            margin-top:calc(env(safe-area-inset-top,0px) + 52px); }  /* clear the fixed site nav */
 
-          /* control deck → fixed console body filling the lower viewport */
+          /* control deck → pinned flush to the very bottom, safe-area padded so nothing
+             hides behind the iOS Safari bar */
           #qRoot.q-has-touch .q-deck{
             position:fixed; left:0; right:0; bottom:0; width:100%; z-index:1900;
-            flex:0 0 auto; margin:0; gap:clamp(12px,3.2vw,18px);
-            padding:16px clamp(14px,5vw,26px) calc(18px + env(safe-area-inset-bottom,0px));
+            margin:0; gap:clamp(10px,3vw,16px);
+            padding:12px clamp(14px,5vw,26px) calc(14px + env(safe-area-inset-bottom,0px));
             background:
               radial-gradient(130% 100% at 50% -12%,rgba(141,255,43,.12),transparent 55%),
               linear-gradient(180deg,#0c160b,#07100a 60%,#050a06);
@@ -219,6 +232,8 @@
             border-top:1px solid rgba(141,255,43,.28);
             box-shadow:inset 0 1px 0 rgba(141,255,43,.18),0 -12px 34px rgba(0,0,0,.6);
           }
+          /* on-screen pause pill is redundant on touch (MENU/START pause) — hide it */
+          #qRoot.q-has-touch .q-cabinet.playing .q-pausebtn{ display:none; }
           #qRoot .q-legend{ display:none; }
         }
         @media (max-width:360px){ /* squeeze the deck onto the narrowest phones (e.g. iPhone SE) */
@@ -236,6 +251,21 @@
         #qRoot .q-ctrls{ margin-top:18px; font-size:11px; color:#8fc680; line-height:2; letter-spacing:1px; }
         #qRoot .q-ctrls b{ color:var(--q-slime); }
         #qRoot .q-ctrls .hint{ color:#5f8a52; }
+
+        /* title-screen "how to play" card — a clean key/action grid so a first-time
+           player understands movement AND combat (stomp + blast) before pressing start */
+        #qRoot .q-how{ margin-top:15px; display:flex; flex-direction:column; align-items:center; gap:10px; }
+        #qRoot .q-how-grid{ display:grid; grid-template-columns:auto auto; gap:6px 16px; align-items:center;
+          font-size:11px; letter-spacing:.5px; text-align:left; max-width:380px; }
+        #qRoot .q-how-grid .key{ justify-self:end; color:#e9ffd6; white-space:nowrap; }
+        #qRoot .q-how-grid .key b{ display:inline-block; color:var(--q-slime); font-weight:900;
+          background:rgba(141,255,43,.10); border:1px solid rgba(141,255,43,.35); border-radius:5px;
+          padding:1px 6px; margin:0 1px; box-shadow:0 0 8px rgba(141,255,43,.12); }
+        #qRoot .q-how-grid .act{ color:#9fd089; }
+        #qRoot .q-how-grid .act.hot{ color:var(--q-toxic); text-shadow:0 0 8px rgba(214,255,56,.4); }
+        #qRoot .q-how .hint{ font-size:10px; letter-spacing:1px; color:#6f9a64; }
+        #qRoot .q-how .hint b{ color:var(--q-gold); }
+        @media (max-width:620px){ #qRoot .q-how-grid{ font-size:10px; gap:5px 12px; } }
         #qRoot .q-play{ margin-top:22px; font-family:inherit; font-weight:900; font-size:15px; letter-spacing:3px; color:#031400; background:linear-gradient(180deg,var(--q-slime),#2a7a00); border:none; padding:14px 34px; cursor:pointer;
           box-shadow:0 0 26px var(--q-slime),inset 0 2px 0 rgba(255,255,255,.4); clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%); transition:transform .1s; }
         #qRoot .q-play:active{ transform:scale(.96); }
@@ -248,7 +278,9 @@
         #qRoot .q-wbtn.g{ color:var(--q-gold); border-color:var(--q-gold); box-shadow:0 0 14px rgba(255,209,102,.32); }
         #qRoot .q-wbtn.g:hover{ background:var(--q-gold); color:#241a00; }
         #qRoot .q-fscore{ margin-top:14px; font-size:11px; letter-spacing:2px; color:#5f8a52; }
-        #qRoot .q-pausebtn{ position:absolute; top:10px; right:50%; transform:translateX(50%); z-index:36; pointer-events:auto; font-family:'Courier New',monospace; font-size:9px; letter-spacing:2px; color:#6f9a64; background:rgba(0,0,0,.35); border:1px solid rgba(141,255,43,.3); padding:3px 8px; cursor:pointer; display:none; }
+        /* pause pill lives in the bottom-right corner so it never collides with the centered
+           level title / subtitle up top */
+        #qRoot .q-pausebtn{ position:absolute; bottom:11px; right:12px; top:auto; left:auto; transform:none; z-index:36; pointer-events:auto; font-family:'Courier New',monospace; font-size:9px; letter-spacing:2px; color:#6f9a64; background:rgba(0,0,0,.35); border:1px solid rgba(141,255,43,.3); border-radius:5px; padding:3px 8px; cursor:pointer; display:none; }
         #qRoot .q-cabinet.playing .q-pausebtn{ display:block; }
 
         #qRoot .q-legend{ font-family:var(--mono); font-size:11px; letter-spacing:1px; color:#7fae72; text-align:center; max-width:680px; line-height:1.7; }
@@ -279,24 +311,40 @@
         <div class="q-screen" id="qTitle">
           <div class="q-logo">SLIME,<span class="r">THEY NEED YOU!</span></div>
           <div class="q-tag">RESTORE THE 808 EMERALD · SAVE PRINCESS VENA</div>
-          <div class="q-ctrls q-tip-key">
-            <b>A / D</b> · <b>← →</b> MOVE &nbsp;&nbsp; <b>W / SPACE</b> JUMP<br>
-            <b>J</b> MIC BLAST &nbsp; <b>K</b> SLIME DASH &nbsp; <b>R</b> RAGE MODE<br>
-            <span class="hint">jump ON the beat of the SB track for a higher BEAT JUMP ✦</span>
+          <div class="q-how q-tip-key">
+            <div class="q-how-grid">
+              <span class="key"><b>A</b> <b>D</b> / <b>←</b> <b>→</b></span><span class="act">move</span>
+              <span class="key"><b>W</b> / <b>SPACE</b></span><span class="act">jump &nbsp;(hold for higher)</span>
+              <span class="key"><b>land on a foe</b></span><span class="act hot">STOMP to defeat it</span>
+              <span class="key"><b>J</b></span><span class="act hot">mic blast &nbsp;(ranged hit)</span>
+              <span class="key"><b>K</b></span><span class="act">slime dash &nbsp;(dash through foes)</span>
+              <span class="key"><b>R</b></span><span class="act">rage mode &nbsp;(when meter is full)</span>
+            </div>
+            <span class="hint">jump <b>ON the beat</b> for a higher BEAT JUMP ✦ &nbsp;·&nbsp; press <b>P</b> to pause / view help</span>
           </div>
-          <div class="q-ctrls q-tip-touch">
-            <b>◄ ►</b> MOVE &nbsp; <b>JUMP</b> &nbsp; <b>BLAST</b> &nbsp; <b>DASH</b> &nbsp; <b>RAGE</b><br>
-            <span class="hint">tap JUMP on the beat for a higher BEAT JUMP ✦</span>
+          <div class="q-how q-tip-touch">
+            <div class="q-how-grid">
+              <span class="key"><b>◄</b> <b>►</b></span><span class="act">move</span>
+              <span class="key"><b>A</b> / <b>▲</b></span><span class="act">jump · land on a foe to <span class="hot">STOMP</span></span>
+              <span class="key"><b>B</b></span><span class="act hot">mic blast</span>
+              <span class="key"><b>L</b></span><span class="act">slime dash</span>
+              <span class="key"><b>RAGE</b></span><span class="act">rage mode &nbsp;(meter full)</span>
+            </div>
+            <span class="hint">tap JUMP <b>on the beat</b> for a higher BEAT JUMP ✦</span>
           </div>
           <button class="q-play" id="qStart">▶ START QUEST</button>
-          <div class="q-tag q-blink" style="margin-top:24px;">PRESS START — the music becomes your soundtrack</div>
+          <div class="q-tag q-blink" style="margin-top:18px;">PRESS START — the music becomes your soundtrack</div>
         </div>
 
         <!-- GAME OVER -->
         <div class="q-screen hidden" id="qOver">
           <div class="q-logo r" style="transform:rotate(-1deg)">SLIME DOWN</div>
           <div class="q-tag">THE KINGDOM GREW SILENT...</div>
-          <button class="q-play" id="qRetry" style="margin-top:26px;">↻ TRY AGAIN</button>
+          <div class="q-fscore" id="qOverScore" style="margin-top:16px;"></div>
+          <div class="q-ctrls" style="margin-top:8px;line-height:1.7;">
+            <span class="hint">TIP: <b>jump on beasts</b> to stomp them, or press <b>J</b> to blast.<br>time hits to the beat ✦ for double damage on the king's crown.</span>
+          </div>
+          <button class="q-play" id="qRetry" style="margin-top:22px;">↻ TRY AGAIN</button>
         </div>
 
         <!-- WIN -->
