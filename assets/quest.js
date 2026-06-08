@@ -32,6 +32,13 @@
   const W = 512, H = 288;            // internal 16:9 render res (level tuned to this)
   let cv = null, ctx = null;
 
+  /* honour the OS "reduce motion" setting: tame screen-shake + thin out particles */
+  const REDUCED = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; } })();
+  const canVibe = (() => { try { return typeof navigator.vibrate === 'function'; } catch (_) { return false; } })();
+  function vibe(ms) { if (canVibe) try { navigator.vibrate(ms); } catch (_) { } }
+  // dock the site music bar into a compact, out-of-the-way mode while a run is live
+  function setPlayingChrome(on) { try { document.body.classList.toggle('q-playing', !!on); } catch (_) { } }
+
   /* ===================== world / level (tuning preserved) ===================== */
   const LW = 3400, GY = 232;
   const plats = [
@@ -132,19 +139,28 @@
     }, { capture: true, signal: sig });
     addEventListener('keyup', e => { held[e.code] = false; onKey(e, false); }, { capture: true, signal: sig });
     addEventListener('blur', () => { for (const k in K) if (typeof K[k] === 'boolean') K[k] = false; held = {}; }, { signal: sig });
+    // auto-pause a live run when the tab is hidden (rAF already halts; this stops deaths-while-away)
+    document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') togglePause(); }, { signal: sig });
   }
   function onKeySwallow(e) {
     const c = e.code;
     if (c === 'ArrowLeft' || c === 'ArrowRight' || c === 'ArrowUp' || c === 'ArrowDown' || c === 'Space' ||
       c === 'KeyA' || c === 'KeyD' || c === 'KeyW' || c === 'KeyJ' || c === 'KeyK' || c === 'KeyR') { e.preventDefault(); e.stopPropagation(); }
   }
+  /* Pointer-event based control button. One unified path covers touch, pen and
+     mouse, and because each deck button is its own element multi-touch "just works"
+     (two thumbs = two independent pointerdowns). A .pressed class drives the glow /
+     pulse feedback and a short haptic tick fires on press where supported. */
   function bindTouch(el, dn, up) {
     if (!el) return; const sig = inputAC.signal;
-    const a = e => { e.preventDefault(); dn(); }, b = e => { e.preventDefault(); up && up(); };
-    el.addEventListener('touchstart', a, { passive: false, signal: sig });
-    el.addEventListener('touchend', b, { passive: false, signal: sig });
-    el.addEventListener('touchcancel', b, { passive: false, signal: sig });
-    el.addEventListener('mousedown', a, { signal: sig }); el.addEventListener('mouseup', b, { signal: sig }); el.addEventListener('mouseleave', b, { signal: sig });
+    let active = false;
+    const press = e => { if (active) return; active = true; el.classList.add('pressed'); try { e.preventDefault(); } catch (_) { } vibe(8); dn(); };
+    const release = e => { if (!active) return; active = false; el.classList.remove('pressed'); try { e && e.preventDefault(); } catch (_) { } up && up(); };
+    el.addEventListener('pointerdown', press, { signal: sig });
+    el.addEventListener('pointerup', release, { signal: sig });
+    el.addEventListener('pointercancel', release, { signal: sig });
+    el.addEventListener('pointerleave', release, { signal: sig });   // finger slid off a held button → don't stick
+    el.addEventListener('contextmenu', e => e.preventDefault(), { signal: sig }); // kill the long-press menu
   }
 
   /* ===================== element refs (re-queried each mount) ===================== */
@@ -201,6 +217,7 @@
   const hit = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
   function burst(x, y, col, n, spd, opt) {
     opt = opt || {};
+    if (REDUCED) n = Math.ceil(n * 0.5);   // lighter particle load when motion is reduced
     for (let i = 0; i < n; i++) {
       const a = Math.random() * 6.28, s = Math.random() * spd + 0.4;
       particles.push({
@@ -350,7 +367,13 @@
     if (!keyUp && kills >= 5) { keyUp = true; theKey = { x: 1680, y: 184, t: 0 }; notes.push({ x: 1680, y: 130, t: 0, kind: 'guide' }); queue('vena', 'PRINCESS VENA', 'A Slime Key surfaced. Grab it to open the gate.'); }
     if (theKey) {
       theKey.t += 0.09;
-      if (hit(p, { x: theKey.x - 12, y: theKey.y - 12, w: 24, h: 24 })) { theKey = null; keysGot = 1; shake = 7; burst(p.x, p.y + 10, C.slime, 20, 3.5, { glow: 1 }); queue('vena', 'PRINCESS VENA', 'The gate yields. The bass is returning!'); }
+      if (hit(p, { x: theKey.x - 12, y: theKey.y - 12, w: 24, h: 24 })) {
+        theKey = null; keysGot = 1; shake = 7; vibe([12, 30, 12]);
+        burst(p.x, p.y + 10, C.slime, 20, 3.5, { glow: 1 }); ring(p.x + p.w / 2, p.y + 10, C.slime, 22);
+        floatText(p.x + p.w / 2, p.y - 8, 'SLIME KEY!', C.slime);
+        if (el.keys && el.keys.parentElement) { const k = el.keys.parentElement; k.classList.add('got'); setTimeout(() => k.classList.remove('got'), 520); }
+        queue('vena', 'PRINCESS VENA', 'The gate yields. The bass is returning!');
+      }
     }
 
     // boss
@@ -426,7 +449,7 @@
   /* ===================== RENDER ===================== */
   function rr(x, y, w, h, col) { ctx.fillStyle = col; ctx.fillRect(x | 0, y | 0, Math.ceil(w), Math.ceil(h)); }
   function draw() {
-    const sh = shake || 0;
+    const sh = REDUCED ? 0 : (shake || 0);
     const sx = (Math.random() - .5) * sh, sy = (Math.random() - .5) * sh;
     ctx.save(); ctx.translate(sx, sy);
     const bs = QA.beatStrength(), cx = Math.floor(cam.x);
@@ -919,11 +942,12 @@
     reset(); state = 'play';
     ['title', 'over', 'win'].forEach(id => el[id] && el[id].classList.add('hidden'));
     el.cabinet && el.cabinet.classList.add('playing');
+    setPlayingChrome(true);
     buildHud(); updateHUD(0);
   }
-  function gameOver() { state = 'over'; rageOn = false; el.cabinet && el.cabinet.classList.remove('playing'); el.over && el.over.classList.remove('hidden'); }
+  function gameOver() { state = 'over'; rageOn = false; setPlayingChrome(false); el.cabinet && el.cabinet.classList.remove('playing'); el.over && el.over.classList.remove('hidden'); }
   function winGame() {
-    if (state === 'win') return; state = 'win'; win = true; rageOn = false; el.cabinet && el.cabinet.classList.remove('playing');
+    if (state === 'win') return; state = 'win'; win = true; rageOn = false; setPlayingChrome(false); el.cabinet && el.cabinet.classList.remove('playing');
     shake = 14; flash = 12; burst(boss.x + boss.w / 2, boss.y, C.slime, 48, 5, { glow: 1 });
     if (el.fscore) el.fscore.textContent = 'SLIME COINS: ' + score + '  ·  BEST COMBO: x' + Math.max(bestCombo, combo) + '  ·  KINGDOM RESTORED';
     setTimeout(() => { el.win && el.win.classList.remove('hidden'); }, 950);
@@ -958,8 +982,8 @@
       title: q('qTitle'), over: q('qOver'), win: q('qWin'), fscore: q('qFscore'),
       startbtn: q('qStart'), retrybtn: q('qRetry'), replaybtn: q('qReplay'), pausebtn: q('qPause'),
     };
-    // touch controls visible on coarse pointers
-    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) { const t = q('qTouch'); if (t) t.style.display = 'block'; }
+    // reveal the touch control deck on coarse pointers (CSS keys off this class)
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) root.classList.add('q-has-touch');
     bindInputs();
     bindTouch(q('qtL'), () => K.l = true, () => K.l = false);
     bindTouch(q('qtR'), () => K.r = true, () => K.r = false);
@@ -980,6 +1004,7 @@
   }
   function unmount() {
     running = false; if (rafId) cancelAnimationFrame(rafId); rafId = 0;
+    setPlayingChrome(false);
     if (inputAC) { try { inputAC.abort(); } catch (_) { } inputAC = null; }
     held = {}; for (const k in K) if (typeof K[k] === 'boolean') K[k] = false;
     window.SBQuest._mounted = false;

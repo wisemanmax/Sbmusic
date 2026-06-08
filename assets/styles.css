@@ -745,3 +745,22 @@ html.wipe-armed::before{content:"";position:fixed;inset:0;z-index:10850;pointer-
 .pt-social .sl-btn-go{display:none}
 .pt-join{margin-top:30px}
 @media(max-width:600px){.pt-social .sl-btn{flex-basis:120px}}
+
+/* ===== SLIME THE GAME — chrome while a run is live =====
+   quest.js adds body.q-playing during play. On phones we dock the music bar into a
+   compact top-centre pill (clear of both thumb zones) and tuck away the floating
+   help/back-to-top buttons so they never sit on the JUMP/BLAST cluster. Desktop and
+   every other page are untouched. */
+@media(max-width:760px){
+  body.q-playing .musicbar{
+    left:50%; right:auto; bottom:auto;
+    top:calc(env(safe-area-inset-top,0px) + 58px);
+    transform:translateX(-50%);
+    padding:5px 6px; background:rgba(8,12,8,.78);
+  }
+  body.q-playing .musicbar .minfo,
+  body.q-playing .musicbar #prevbtn,
+  body.q-playing .musicbar #nextbtn{ display:none; } /* compact: just the disc + play/pause */
+  body.q-playing .totop,
+  body.q-playing .helpbtn{ display:none; }
+}
