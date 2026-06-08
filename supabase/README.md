@@ -18,6 +18,7 @@ supabase/
 | `site_content` | `SELECT` (USING true) | single row; writes via edge function only |
 | `admin_config` | none (RLS on, no policy) | only the service role can read the password |
 | `subscribers` | `INSERT` only | **no SELECT** → list not publicly readable |
+| `analytics_events` | `INSERT` only | **no SELECT** → raw events not publicly readable; admin reads aggregates via `analytics_summary()` (service role) |
 | storage `media` | public read by URL | object **listing disabled** (see hardening migration) |
 
 ## Apply

@@ -2,11 +2,24 @@
 
 The admin UI (`admin.html`) calls this single password-checked Edge Function via
 `sbAdmin(auth, action, payload)` in `cms.js`. Actions: `login` · `save` · `upload` ·
-`list_subs` · `set_password`. It runs with the **service role** and is the only writer
-to `site_content` / `admin_config` and the only reader of the `subscribers` list — the
-real security boundary for the CMS.
+`list_subs` · `analytics` · `set_password`. It runs with the **service role** and is the
+only writer to `site_content` / `admin_config`, the only reader of the `subscribers` list,
+and the only reader of site `analytics_events` (via the `analytics_summary()` aggregate) —
+the real security boundary for the CMS.
 
-Source: [`index.ts`](index.ts) (deployed; `verify_jwt = false` — it does its own auth).
+- **`analytics`** — returns aggregated, anonymous site analytics for the last `payload.days`
+  days (pageviews, visitors, sessions, top pages, top clicks, exit pages, referrers). Raw
+  events are RLS-private (anon may only INSERT); the aggregation runs in
+  `public.analytics_summary()`, which is granted to the **service role only**.
+
+Source: [`index.ts`](index.ts) (`verify_jwt = false` — it does its own auth).
+
+> **Deploy state (this change):** the *live* function is the existing base version **plus the
+> `analytics` action only** — login / password / CORS behavior is unchanged. The hardened
+> version in this file (PBKDF2 hashing, CORS allow-list, `session_version` token revocation)
+> is **staged but not yet deployed**. To go live with it, first apply the `session_version`
+> migration (`supabase db push`), then `supabase functions deploy admin --no-verify-jwt` —
+> otherwise login breaks, because the hardened code reads `admin_config.session_version`.
 
 ## Session token (implemented — review #4)
 
