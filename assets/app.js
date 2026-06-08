@@ -57,7 +57,7 @@ function buildChrome(){
 </div>
 <button class="totop" id="totop" aria-label="back to top">↑</button>
 <button class="helpbtn" id="helpbtn" aria-label="keyboard shortcuts" title="keyboard shortcuts">?</button>
-<audio id="audio" loop preload="auto" src="assets/man-of-my-word.mp3" crossorigin="anonymous"></audio>
+<audio id="audio" preload="auto" crossorigin="anonymous"></audio>
 <div id="ytbg" aria-hidden="true"></div>
 <div id="toasts" aria-live="polite"></div>
 <div class="modal" id="modal" role="dialog" aria-modal="true" aria-hidden="true">
@@ -144,6 +144,28 @@ function sizeTrail(){tcv.width=innerWidth;tcv.height=innerHeight;}sizeTrail();
 
 /* AUDIO GRAPH */
 const audio=document.getElementById('audio');audio.volume=.55;
+/* ── LOCAL PLAYLIST ──
+   The player spins Slime By's own catalog: the "My Time" tracks in order, then the signature
+   "Man Of My Word", then it loops. Prev/next cycle these; a track that fails to load (e.g. a
+   bad upload) is skipped so it never stalls the queue. Titles come from the filenames so the
+   bar shows the real song name. Reverb / the lab / the visualizer all run off this one
+   <audio> element, so they keep working on whatever is playing. */
+const LOCAL_TRACKS=[
+  {src:'assets/mp3 my time/1) My Time.mp3',                  title:'My Time'},
+  {src:'assets/mp3 my time/2) Turn This Up.mp3',             title:'Turn This Up'},
+  {src:'assets/mp3 my time/3) Blowing Up ft SmokesAlot.mp3', title:'Blowing Up (ft. SmokesAlot)'},
+  {src:'assets/mp3 my time/3) NightTime.mp3',                title:'NightTime'},
+  {src:'assets/mp3 my time/5) Money like this .mp3',         title:'Money Like This'},
+  {src:'assets/mp3 my time/5)Flip .mp3',                     title:'Flip'},
+  {src:'assets/mp3 my time/7) High As It Gets .mp3',         title:'High As It Gets'},
+  {src:'assets/mp3 my time/8)Blitz FT junad.mp3',            title:'Blitz (ft. Junad)'},
+  {src:'assets/mp3 my time/9) BlackOut .mp3',                title:'BlackOut'},
+  {src:'assets/mp3 my time/10) Loosing Me .mp3',             title:'Loosing Me'},
+  {src:'assets/man-of-my-word.mp3',                          title:'Man Of My Word'},
+];
+let trackIdx=0;
+function curTrack(){return LOCAL_TRACKS[trackIdx]||LOCAL_TRACKS[0];}
+function trackUrl(t){return encodeURI(t.src);}   // paths contain spaces → encode for the <audio src>
 const pbtn=document.getElementById('pbtn'),disc=document.getElementById('disc'),musicbar=document.getElementById('musicbar');
 let pwplay=null;   // music.html transport button — re-queried on every (client-side) page change
 let actx,analyser,srcNode,mix,shaper,dry,conv,wet,freq,graphReady=false,playing=false,noiseBuf;
@@ -158,9 +180,11 @@ let labRate=0.80,labRev=0.30,labRoom=0.55;
    destroyed and playback simply continues across pages. We still persist transport
    (position / volume / play state) so a hard reload picks up where it left off. */
 const SB_AUDIO_KEY='sb_audio',SB_LAB_KEY='sb_lab';let _seekTo=null,_resumeWanted=false,_hadAudioState=false;
-try{const s=JSON.parse(sessionStorage.getItem(SB_AUDIO_KEY)||'null');if(s){_hadAudioState=true;if(typeof s.vol==='number')audio.volume=s.vol;if(typeof s.t==='number'&&isFinite(s.t))_seekTo=s.t;_resumeWanted=!!s.playing;}}catch(_){}
+try{const s=JSON.parse(sessionStorage.getItem(SB_AUDIO_KEY)||'null');if(s){_hadAudioState=true;if(typeof s.vol==='number')audio.volume=s.vol;if(typeof s.t==='number'&&isFinite(s.t))_seekTo=s.t;_resumeWanted=!!s.playing;if(typeof s.idx==='number')trackIdx=s.idx;}}catch(_){}
+trackIdx=Math.max(0,Math.min(trackIdx|0,LOCAL_TRACKS.length-1));   // keep a restored index in range
+try{audio.src=trackUrl(curTrack());}catch(_){}                      // engage the current track (markup has no src now)
 try{const l=JSON.parse(sessionStorage.getItem(SB_LAB_KEY)||'null');if(l){if(typeof l.rate==='number')labRate=l.rate;if(typeof l.rev==='number')labRev=l.rev;if(typeof l.room==='number')labRoom=l.room;}}catch(_){}
-function saveAudioState(){try{sessionStorage.setItem(SB_AUDIO_KEY,JSON.stringify({t:audio.currentTime||0,vol:audio.volume,playing:!audio.paused}));}catch(_){}}
+function saveAudioState(){try{sessionStorage.setItem(SB_AUDIO_KEY,JSON.stringify({t:audio.currentTime||0,vol:audio.volume,playing:!audio.paused,idx:trackIdx}));}catch(_){}}
 function saveLabState(){try{sessionStorage.setItem(SB_LAB_KEY,JSON.stringify({rate:labRate,rev:labRev,room:labRoom}));}catch(_){}}
 addEventListener('pagehide',saveAudioState);addEventListener('beforeunload',saveAudioState);
 try{audio.preservesPitch=false;audio.mozPreservesPitch=false;audio.webkitPreservesPitch=false;}catch(_){}
@@ -201,6 +225,13 @@ function setUI(on){playing=on;const ic=on?'❚❚':'▶';if(pbtn)pbtn.textConten
 function toggle(){if(bgMode==='yt'){if(ytIsPlaying())ytPause();else ytPlay();return;}if(audio.paused)startAudio();else{audio.pause();setUI(false);}}
 if(pbtn)pbtn.onclick=toggle;if(disc)disc.onclick=toggle;
 audio.addEventListener('play',()=>{if(bgMode==='local')setUI(true);});audio.addEventListener('pause',()=>{if(bgMode==='local')setUI(false);});
+/* the <audio> is no longer loop-attributed: advance the playlist when a track finishes. */
+audio.addEventListener('ended',()=>{if(bgMode==='local')bgNext();});
+/* a track that won't load (e.g. a corrupt/empty upload) is skipped so it never stalls the
+   queue — guarded so an all-bad list can't spin forever; the guard resets on a good load. */
+let _skipGuard=0;
+audio.addEventListener('error',()=>{if(bgMode!=='local')return;if(_skipGuard++>=LOCAL_TRACKS.length)return;loadTrack(trackIdx+1,playing||_resumeWanted);});
+audio.addEventListener('canplay',()=>{_skipGuard=0;});
 
 /* ===================== CONTENT PROTECTION =====================
    The catalog streams from the site but shouldn't be casually downloadable. There's no
@@ -224,17 +255,28 @@ try{audio.removeAttribute('controls');audio.setAttribute('controlsList','nodownl
    is loaded lazily on the first skip so it never slows the initial page. */
 let bgMode='local',ytPlayer=null,ytReady=false,ytWantPlay=false,_ytApiLoading=false;
 const BG_PLAYLIST=(()=>{try{return(window.SB_DEFAULTS&&SB_DEFAULTS.music&&SB_DEFAULTS.music.bgPlaylist)||'';}catch(_){return'';}})();
-function localTitle(){try{return(window.SB&&SB.music&&SB.music.playerTitle)||'Man Of My Word';}catch(_){return'Man Of My Word';}}
+function localTitle(){try{return(window.SB&&SB.music&&SB.music.playerTitle)||curTrack().title;}catch(_){return curTrack().title;}}
 function ytIsPlaying(){try{return!!(ytPlayer&&ytReady&&ytPlayer.getPlayerState&&ytPlayer.getPlayerState()===1);}catch(_){return false;}}
 function bgIsPlaying(){return bgMode==='yt'?ytIsPlaying():!audio.paused;}
-function updateBgTitle(){let title=localTitle();if(bgMode==='yt'&&ytPlayer&&ytPlayer.getVideoData){try{const d=ytPlayer.getVideoData();if(d&&d.title)title=d.title;}catch(_){}}document.querySelectorAll('#musicbar .stitle').forEach(el=>el.textContent=title);const pwt=document.querySelector('#music .pwtitle');if(pwt)pwt.textContent=title;}
+function updateBgTitle(){const title=localTitle();document.querySelectorAll('#musicbar .stitle').forEach(el=>el.textContent=title);const pwt=document.querySelector('#music .pwtitle');if(pwt)pwt.textContent=title;const sr=document.getElementById('srTitle');if(sr)sr.textContent=title;/* the lab's "now bending" title */}
 function loadYTApi(){if(window.YT&&window.YT.Player){initYT();return;}if(_ytApiLoading)return;_ytApiLoading=true;const prev=window.onYouTubeIframeAPIReady;window.onYouTubeIframeAPIReady=function(){try{if(prev)prev();}catch(_){}initYT();};const s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';document.head.appendChild(s);}
 function initYT(){if(ytPlayer||!BG_PLAYLIST||!document.getElementById('ytbg'))return;try{ytPlayer=new YT.Player('ytbg',{width:'200',height:'120',host:'https://www.youtube-nocookie.com',playerVars:{listType:'playlist',list:BG_PLAYLIST,autoplay:0,controls:0,disablekb:1,fs:0,modestbranding:1,playsinline:1,rel:0,loop:1},events:{onReady:()=>{ytReady=true;try{ytPlayer.setVolume(Math.round(audio.volume*100));}catch(_){}if(ytWantPlay){ytWantPlay=false;ytPlay();}},onStateChange:onYTState}});}catch(_){}}
 function onYTState(e){const Y=window.YT&&YT.PlayerState;if(!Y)return;if(e.data===Y.PLAYING){if(bgMode!=='yt'){bgMode='yt';try{audio.pause();}catch(_){}}setUI(true);updateBgTitle();}else if(e.data===Y.PAUSED){if(bgMode==='yt')setUI(false);}}
 function ytPlay(){if(!BG_PLAYLIST)return;if(!ytPlayer){ytWantPlay=true;loadYTApi();return;}if(!ytReady){ytWantPlay=true;return;}try{audio.pause();}catch(_){}bgMode='yt';try{ytPlayer.setVolume(Math.round(audio.volume*100));ytPlayer.playVideo();}catch(_){}setUI(true);updateBgTitle();}
 function ytPause(){if(ytPlayer&&ytReady){try{ytPlayer.pauseVideo();}catch(_){}}setUI(false);}
-function bgNext(){if(!BG_PLAYLIST){startAudio();return;}if(bgMode==='local'){ytPlay();return;}if(ytPlayer&&ytReady){let idx=0,len=0;try{idx=ytPlayer.getPlaylistIndex();len=(ytPlayer.getPlaylist()||[]).length;}catch(_){}if(len&&idx>=len-1)startAudio();else{try{ytPlayer.nextVideo();}catch(_){}}}}
-function bgPrev(){if(bgMode==='yt'&&ytPlayer&&ytReady){let idx=0;try{idx=ytPlayer.getPlaylistIndex();}catch(_){}if(idx<=0)startAudio();else{try{ytPlayer.previousVideo();}catch(_){}}return;}try{audio.currentTime=0;}catch(_){}if(audio.paused)startAudio();}
+/* Move through the LOCAL playlist (wraps both ends). The signature track + the "My Time"
+   catalog ARE the radio now — the prev/next buttons cycle the songs the artist uploaded. */
+function loadTrack(i,autoplay){
+  const n=LOCAL_TRACKS.length;trackIdx=((i%n)+n)%n;
+  const wantPlay=(autoplay==null)?(playing||!audio.paused):autoplay;
+  try{audio.src=trackUrl(curTrack());audio.load();}catch(_){}
+  updateBgTitle();saveAudioState();
+  if(wantPlay)startAudio();else setUI(false);
+}
+function bgNext(){loadTrack(trackIdx+1,true);}
+/* prev restarts the current song if you're more than 3s in (the usual transport feel),
+   otherwise it steps back a track. */
+function bgPrev(){if(audio.currentTime>3){try{audio.currentTime=0;}catch(_){}return;}loadTrack(trackIdx-1,true);}
 {const pv=document.getElementById('prevbtn'),nx=document.getElementById('nextbtn');if(pv)pv.onclick=bgPrev;if(nx)nx.onclick=bgNext;}
 function listenNow(){startAudio();const v=document.getElementById('visualizer');if(v)v.scrollIntoView({behavior:'smooth'});}
 /* Always arm a first-interaction fallback: the very first tap / scroll / key resumes the
@@ -1017,7 +1059,7 @@ addEventListener('keydown',e=>{if(e.key==='?'&&!isTyping()&&!modal.classList.con
 function wireShare(){const _shareBtn=document.getElementById('shareBtn');if(_shareBtn)_shareBtn.onclick=async()=>{const data={title:'SLIME BY — official',text:'Delaware rap — green pressure, venom, motion.',url:location.href};try{if(navigator.share){await navigator.share(data);}else{await navigator.clipboard.writeText(location.href);toast('link copied to clipboard ☑');}}catch(_){}};}
 
 /* ===================== FEATURED DROP ===================== */
-function previewFeatured(){startAudio();toast('▶ now spinning — Man Of My Word');}
+function previewFeatured(){startAudio();toast('▶ now spinning — '+localTitle());}
 function notifyDrop(){gotoConnectJoin('☠ drop your email — first to know');}
 /* drop date is set from CMS content (drop.dropDate); counts down, then reads OUT NOW.
    Use an explicit offset so every visitor counts down to the same instant (else a
@@ -1308,13 +1350,13 @@ function applyContent(c){
     href('#presaveBtn',c.drop.presaveUrl);
     if(c.drop.dropDate){const d=new Date(c.drop.dropDate);if(!isNaN(d.getTime()))dropDate=d;tickCountdown();}}
 
-  if(c.music){bg('#music .pwart',c.music.playerCover);txt('#music .pwtitle',c.music.playerTitle);
-    /* keep the persistent bottom player bar (shown on every page) in sync with the
-       CMS track title + cover so it never disagrees with the music page. */
-    bg('#disc',c.music.playerCover);txt('#musicbar .stitle',c.music.playerTitle);
+  if(c.music){bg('#music .pwart',c.music.playerCover);
+    /* keep the persistent bottom player bar (shown on every page) in sync with the CMS
+       cover; the title comes from the live playlist track (or a CMS playerTitle override). */
+    bg('#disc',c.music.playerCover);
     const emb=q('#music .embedwrap iframe');if(emb&&c.music.spotifyArtistId)emb.src=`https://open.spotify.com/embed/artist/${encodeURIComponent(c.music.spotifyArtistId)}?utm_source=generator&theme=0`;
     renderReleases(c.music.releases);
-    if(typeof updateBgTitle==='function'&&bgMode==='yt')updateBgTitle();}  /* don't let a CMS refresh stomp the live YouTube title */
+    if(typeof updateBgTitle==='function')updateBgTitle();}  /* reflect the current track title (or a CMS override) */
 
   if(c.about){setHtml('#about .lead',c.about.lead);txt('#about .about p',c.about.text);src('#about .pic img',c.about.portrait);txt('#about .badge',c.about.badge);
     const sw=q('#about .stats');if(sw&&c.about.stats)sw.innerHTML=c.about.stats.map(s=>`<div class="stat"><div class="n">${esc(s.n)}</div><div class="l">${esc(s.l)}</div></div>`).join('');}

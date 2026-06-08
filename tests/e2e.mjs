@@ -235,48 +235,66 @@ try {
   }
 
   // ---------------------------------------------------------------
-  group('background radio: skip controls');
+  group('local playlist: the uploaded catalog cycles + loops');
   {
     const page = await browser.newPage();
     const errs = []; page.on('pageerror', e => errs.push(e.message));
-    // keep the test deterministic + offline: never actually fetch the YouTube API
-    await page.route('https://www.youtube.com/iframe_api', route => route.abort());
     await page.goto(base + '/music.html', { waitUntil: 'load' });
     await page.waitForTimeout(1200);
     const has = await page.evaluate(() => ({
       prev: !!document.getElementById('prevbtn'), next: !!document.getElementById('nextbtn'),
-      playlist: typeof BG_PLAYLIST === 'string' && BG_PLAYLIST.length > 0,
+      count: Array.isArray(LOCAL_TRACKS) ? LOCAL_TRACKS.length : 0,
+      first: (LOCAL_TRACKS[0]||{}).title, last: (LOCAL_TRACKS[LOCAL_TRACKS.length-1]||{}).title,
     }));
-    check('radio: skip buttons present in the music bar', has.prev && has.next);
-    check('radio: background playlist configured', has.playlist);
+    check('playlist: skip buttons present in the music bar', has.prev && has.next);
+    check('playlist: My Time catalog + Man Of My Word loaded in order', has.count === 11 && has.first === 'My Time' && has.last === 'Man Of My Word', 'count='+has.count);
     const r = await page.evaluate(async () => {
-      if (audio.paused) startAudio();
-      await new Promise(s => setTimeout(s, 200));
+      loadTrack(0, true);
+      await new Promise(s => setTimeout(s, 250));
       audio.currentTime = 5;
-      bgPrev();   // on the local signature track, prev should restart it
-      await new Promise(s => setTimeout(s, 200));
-      return { mode: bgMode, t: audio.currentTime };
+      bgPrev();   // >3s in → restart the current song, don't change track
+      await new Promise(s => setTimeout(s, 150));
+      return { mode: bgMode, t: audio.currentTime, idx: trackIdx };
     });
-    check('radio: prev on local restarts the signature track', r.mode === 'local' && r.t < 1, 't='+r.t);
-    const loaded = await page.evaluate(async () => {
-      bgNext();   // first skip lazy-loads the YouTube IFrame API
+    check('playlist: prev mid-track restarts the current song', r.mode === 'local' && r.t < 1.5 && r.idx === 0, 't='+r.t+' idx='+r.idx);
+    const nx = await page.evaluate(async () => {
+      loadTrack(0, false);
+      bgNext();   // advance to track 2
       await new Promise(s => setTimeout(s, 200));
-      return !!document.querySelector('script[src*="iframe_api"]');
+      return { idx: trackIdx, title: document.querySelector('#musicbar .stitle').textContent, src: decodeURIComponent(audio.getAttribute('src')||'') };
     });
-    check('radio: next lazy-loads the YouTube API', loaded);
+    check('playlist: next advances to the following track + updates the title', nx.idx === 1 && nx.title === 'Turn This Up' && /Turn This Up/.test(nx.src), JSON.stringify(nx));
+    const wrap = await page.evaluate(() => {
+      loadTrack(LOCAL_TRACKS.length, false);   // one past the end → wraps to the first
+      const a = trackIdx;
+      loadTrack(-1, false);                     // before the first → wraps to the last
+      const b = trackIdx;
+      loadTrack(0, false);
+      return { a, b, last: LOCAL_TRACKS.length - 1 };
+    });
+    check('playlist: index wraps around both ends', wrap.a === 0 && wrap.b === wrap.last, JSON.stringify(wrap));
+    const skip = await page.evaluate(async () => {
+      _skipGuard = 0;
+      loadTrack(3, true);   // NightTime — an empty/corrupt upload that can't decode
+      await new Promise(s => setTimeout(s, 1000));
+      const landed = trackIdx;
+      loadTrack(0, false);  // reset for the next sub-test
+      return landed;
+    });
+    check('playlist: a broken track is auto-skipped, not stuck', skip !== 3, 'idx='+skip);
     const duck = await page.evaluate(async () => {
-      if (audio.paused) startAudio();
-      await new Promise(s => setTimeout(s, 200));
+      loadTrack(0, true);
+      await new Promise(s => setTimeout(s, 250));
       const wasPlaying = !audio.paused;
       openModal('<div class="mbody"><h3>Clip</h3><div class="vembed"><iframe src="about:blank" title="x"></iframe></div></div>');
       await new Promise(s => setTimeout(s, 150));
       const duckedPaused = audio.paused;
       closeModal();
-      await new Promise(s => setTimeout(s, 250));
+      await new Promise(s => setTimeout(s, 300));
       return { wasPlaying, duckedPaused, resumed: !audio.paused };
     });
-    check('radio: ducks for an embedded video, resumes on close', duck.wasPlaying && duck.duckedPaused && duck.resumed);
-    check('radio: skip controls raise no JS errors', errs.length === 0, errs.join(' | '));
+    check('playlist: ducks for an embedded video, resumes on close', duck.wasPlaying && duck.duckedPaused && duck.resumed);
+    check('playlist: skip controls raise no JS errors', errs.length === 0, errs.join(' | '));
     await page.close();
   }
 } finally {
