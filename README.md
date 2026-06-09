@@ -95,7 +95,8 @@ admin at `admin.html`.
 - **Analytics** — a built-in, Google-Analytics-style dashboard: pageviews, unique visitors,
   sessions and clicks over a 7 / 30 / 90-day or yearly window, a daily pageviews chart, plus
   **top pages**, **what people click**, **where they leave off** (exit pages), **referrers**, and
-  **device / browser / OS** breakdowns of the audience.
+  audience breakdowns by **device / browser / OS**, **language**, **region (timezone)**,
+  **screen size** and **connection**.
   First-party and **consent-gated**: a banner asks on first visit and **nothing is tracked until
   the visitor accepts** (decline → no identifier, no events). On accept it collects the usage
   signals above plus device type, browser, OS, a coarse screen bucket, language and timezone —

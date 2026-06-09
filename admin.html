@@ -825,6 +825,10 @@ async function renderAnalytics(root){
     if(s.devices&&s.devices.length) grid.appendChild(tableCard('Devices',s.devices,'count',['Device','Views'],[r=>escA(r.device),r=>fmtNum(r.count)]));
     if(s.browsers&&s.browsers.length) grid.appendChild(tableCard('Browsers',s.browsers,'count',['Browser','Views'],[r=>escA(r.browser),r=>fmtNum(r.count)]));
     if(s.os&&s.os.length) grid.appendChild(tableCard('Operating systems',s.os,'count',['OS','Views'],[r=>escA(r.os),r=>fmtNum(r.count)]));
+    if(s.languages&&s.languages.length) grid.appendChild(tableCard('Languages',s.languages,'count',['Language','Views'],[r=>escA(r.language),r=>fmtNum(r.count)]));
+    if(s.regions&&s.regions.length) grid.appendChild(tableCard('Regions (timezone)',s.regions,'count',['Timezone','Views'],[r=>escA(r.region),r=>fmtNum(r.count)]));
+    if(s.screens&&s.screens.length) grid.appendChild(tableCard('Screen sizes',s.screens,'count',['Width (px)','Views'],[r=>escA(r.screen),r=>fmtNum(r.count)]));
+    if(s.connections&&s.connections.length) grid.appendChild(tableCard('Connection',s.connections,'count',['Network','Views'],[r=>escA(r.connection),r=>fmtNum(r.count)]));
     host.appendChild(grid);
   }
   async function load(){
