@@ -1,0 +1,17 @@
+{
+  "name": "SLIME BY — official",
+  "short_name": "SLIME BY",
+  "description": "Slime By — Delaware rap. Green pressure, venom, motion. Music, drops, shows and the SB world.",
+  "id": "/",
+  "start_url": "/?utm_source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#060403",
+  "theme_color": "#8dff2b",
+  "categories": ["music", "entertainment"],
+  "icons": [
+    { "src": "/assets/icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" },
+    { "src": "/assets/icon-maskable.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "maskable" }
+  ]
+}

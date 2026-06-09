@@ -8,7 +8,7 @@
 # frame-src allows the YouTube + Spotify players. 'unsafe-inline' is still required
 # until admin.html's inline app is externalized (tracked as code-quality work).
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' blob:; connect-src 'self' https://rccwnyghfiinpoexvtwp.supabase.co; frame-src https://open.spotify.com https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; media-src 'self' blob:; connect-src 'self' https://rccwnyghfiinpoexvtwp.supabase.co; frame-src https://open.spotify.com https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests
   X-Content-Type-Options: nosniff
   X-Frame-Options: SAMEORIGIN
   Referrer-Policy: strict-origin-when-cross-origin
@@ -25,4 +25,8 @@
 /assets/mp3%20my%20time/*
   Content-Disposition: inline
   X-Robots-Tag: noindex, nofollow
+  Cache-Control: public, max-age=31536000, immutable
+
+# Self-hosted fonts never change in place (renamed if updated) — cache hard.
+/assets/fonts/*
   Cache-Control: public, max-age=31536000, immutable

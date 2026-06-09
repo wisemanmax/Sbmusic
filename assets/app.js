@@ -75,6 +75,11 @@ function buildChrome(){
   document.body.insertBefore(frag(top),document.body.firstChild);
   if(main&&main.parentNode===document.body) main.after(frag(bottom));
   else document.body.appendChild(frag(bottom));
+  /* the injected skip-link uses href="#main"; on 404.html (which sets <base href="/">)
+     a bare "#main" resolves to /#main and bounces to the home page — wire an explicit
+     focus handler so "skip to content" works regardless of <base>. */
+  const _skip=document.querySelector('a.skip');
+  if(_skip)_skip.addEventListener('click',e=>{const m=document.getElementById('main');if(m){e.preventDefault();m.setAttribute('tabindex','-1');m.focus();try{m.scrollIntoView();}catch(_){}}});
 }
 buildChrome();
 
@@ -84,6 +89,20 @@ buildChrome();
 (function(){ if(/[?&]preview\b/.test(location.search))return; if(document.getElementById('sb-analytics'))return;
   var s=document.createElement('script'); s.id='sb-analytics'; s.src='assets/analytics.js'; s.defer=true;
   (document.head||document.documentElement).appendChild(s); })();
+
+/* fire a semantic analytics event (play, skip, join, …). No-op until the visitor grants
+   consent (analytics.js only defines window.sbTrack then), so it always respects opt-out. */
+function track(name,meta){try{if(typeof sbTrack==='function')sbTrack(name,meta);}catch(_){}}
+
+/* SERVICE WORKER — cache the app shell for fast repeat loads + offline. Progressive
+   enhancement: skipped in the admin, the editor preview, and on localhost/CI so it never
+   interferes with dev or the test server. */
+if('serviceWorker' in navigator
+   && !/admin\.html$/i.test(location.pathname)
+   && !/[?&]preview\b/.test(location.search)
+   && !/^(localhost|127\.0\.0\.1|\[?::1\]?)$/.test(location.hostname)){
+  addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js').catch(()=>{});});
+}
 
 /* cross-page: route visitors to the join-the-list form (connect page) */
 function gotoConnectJoin(msg){
@@ -301,9 +320,14 @@ function applyAudioFx(){if(!actx)return;const t=actx.currentTime;
 function applyNormalFx(){userRate=1.0;revAmt=0;try{audio.playbackRate=1.0;}catch(_){}applyAudioFx();}
 function applyLabFx(){userRate=labRate;revAmt=labRev;roomP=labRoom;try{audio.playbackRate=userRate;}catch(_){}if(actx)rebuildImpulse();applyAudioFx();}
 function connectMedia(){if(graphReady)return;ensureCtx();try{srcNode=actx.createMediaElementSource(audio);srcNode.connect(mix);graphReady=true;}catch(e){}}
-function startAudio(){if(bgMode==='yt'&&ytPlayer&&ytReady){try{ytPlayer.pauseVideo();}catch(_){}}bgMode='local';connectMedia();ensureCtx();applyAudioFx();armKick();audio.play().then(()=>setUI(true)).catch(()=>{});updateBgTitle();}
+function startAudio(){if(bgMode==='yt'&&ytPlayer&&ytReady){try{ytPlayer.pauseVideo();}catch(_){}}bgMode='local';connectMedia();ensureCtx();applyAudioFx();armKick();audio.play().then(()=>setUI(true)).catch(()=>{});updateBgTitle();
+  /* analytics: count a play; dedupe rapid re-entries (button double-fire / kick race) */
+  {const _n=Date.now();if(_n-_lastPlayTrk>1200){_lastPlayTrk=_n;track('play',{track:localTitle()});}}}
+let _lastPlayTrk=0;
 function setUI(on){playing=on;const ic=on?'❚❚':'▶';if(pbtn)pbtn.textContent=ic;if(pwplay)pwplay.textContent=ic;if(disc)disc.classList.toggle('spin',on);if(musicbar)musicbar.classList.toggle('open',on);const sp=document.getElementById('srPlay');if(sp)sp.textContent=on?'❚❚ pause':'▶ play';const sa=document.getElementById('srArt');if(sa)sa.classList.toggle('spin',on);const pw=document.querySelector('.playerwin');if(pw)pw.classList.toggle('live',on);updateNowPlaying();}
-function toggle(){if(bgMode==='yt'){if(ytIsPlaying())ytPause();else ytPlay();return;}if(audio.paused)startAudio();else{audio.pause();setUI(false);}}
+/* any manual play/pause means the user has taken control — don't let a later modal
+   close auto-resume against that choice (clears the video-duck resume intent). */
+function toggle(){_duckedRadio=false;if(bgMode==='yt'){if(ytIsPlaying())ytPause();else ytPlay();return;}if(audio.paused)startAudio();else{audio.pause();setUI(false);}}
 if(pbtn)pbtn.onclick=toggle;if(disc)disc.onclick=toggle;
 audio.addEventListener('play',()=>{if(bgMode==='local')setUI(true);});audio.addEventListener('pause',()=>{if(bgMode==='local')setUI(false);});
 /* the <audio> is no longer loop-attributed: advance the playlist when a track finishes. */
@@ -312,7 +336,9 @@ audio.addEventListener('ended',()=>{if(bgMode==='local')bgNext();});
    queue — guarded so an all-bad list can't spin forever; the guard resets on a good load. */
 let _skipGuard=0;
 audio.addEventListener('error',()=>{if(bgMode!=='local')return;if(_skipGuard++>=LOCAL_TRACKS.length)return;loadTrack(trackIdx+1,playing||_resumeWanted);});
-audio.addEventListener('canplay',()=>{_skipGuard=0;});
+/* only clear the bad-track guard once a track has genuinely played past ~1s. Resetting on
+   `canplay` let a flapping source (canplay → error → canplay → error) reset the cap forever. */
+audio.addEventListener('timeupdate',()=>{if(bgMode==='local'&&audio.currentTime>1)_skipGuard=0;});
 
 /* ===================== CONTENT PROTECTION =====================
    The catalog streams from the site but shouldn't be casually downloadable. There's no
@@ -376,10 +402,10 @@ function loadTrack(i,autoplay){
   updateBgTitle();saveAudioState();
   if(wantPlay)startAudio();else setUI(false);
 }
-function bgNext(){loadTrack(trackIdx+1,true);}
+function bgNext(){track('skip',{dir:'next'});loadTrack(trackIdx+1,true);}
 /* prev restarts the current song if you're more than 3s in (the usual transport feel),
    otherwise it steps back a track. */
-function bgPrev(){if(audio.currentTime>3){try{audio.currentTime=0;}catch(_){}return;}loadTrack(trackIdx-1,true);}
+function bgPrev(){if(audio.currentTime>3){try{audio.currentTime=0;}catch(_){}return;}track('skip',{dir:'prev'});loadTrack(trackIdx-1,true);}
 {const pv=document.getElementById('prevbtn'),nx=document.getElementById('nextbtn');if(pv)pv.onclick=bgPrev;if(nx)nx.onclick=bgNext;}
 /* ── TRACK LISTS ──
    The live playlist renders as a selectable list (music.html tracklist + the lab's "load a
@@ -1091,6 +1117,7 @@ function drawBolts(){
 let rageOn=false,rageTimer=null;
 function enterRage(){
   rageOn=!rageOn;document.body.classList.toggle('rage',rageOn);applyRageClasses();ensureCtx();
+  track('rage',{on:rageOn});
   if(rageOn){
     startAudio();applyAudioFx();
     const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
@@ -1135,22 +1162,26 @@ function storeLocal(key,val){try{const a=JSON.parse(localStorage.getItem(key)||'
 function pendingGet(){try{return JSON.parse(localStorage.getItem('sb_pending')||'[]');}catch(_){return[];}}
 function pendingSet(a){try{if(a.length)localStorage.setItem('sb_pending',JSON.stringify(a.slice(-50)));else localStorage.removeItem('sb_pending');}catch(_){}}
 async function flushPending(){if(typeof sbSubscribe!=='function')return;const a=pendingGet();if(!a.length)return;const keep=[];for(const x of a){let ok=false;try{ok=await sbSubscribe(x.email,x.phone||'');}catch(_){ok=false;}if(!ok)keep.push(x);}pendingSet(keep);}
-async function signbook(){
-  const e=document.getElementById('gemail'),p=document.getElementById('gphone'),note=document.getElementById('joinnote'),consent=document.getElementById('gconsent');
-  if(!e||!p||!note)return;
-  const ev=e.value.trim(),pv=p.value.trim(),digits=pv.replace(/[^\d]/g,'');
+async function signbook(ids){
+  /* ids lets a second form (e.g. the inline homepage capture) reuse this exact flow with
+     its own field ids; defaults are the connect-page form. phone is optional. */
+  ids=ids||{};
+  const e=document.getElementById(ids.email||'gemail'),p=document.getElementById(ids.phone||'gphone'),note=document.getElementById(ids.note||'joinnote'),consent=document.getElementById(ids.consent||'gconsent');
+  if(!e||!note)return;
+  const ev=e.value.trim(),pv=p?p.value.trim():'',digits=pv.replace(/[^\d]/g,'');
   const emailOk=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ev);
   const phoneOk=pv===''||digits.length>=10;
   if(!emailOk){note.textContent='✗ enter a valid email';note.classList.add('bad');e.focus();return;}
-  if(!phoneOk){note.textContent='✗ enter a valid phone, or leave it blank';note.classList.add('bad');p.focus();return;}
+  if(!phoneOk){note.textContent='✗ enter a valid phone, or leave it blank';note.classList.add('bad');if(p)p.focus();return;}
   if(consent&&!consent.checked){note.textContent='✗ tick the box to opt in first';note.classList.add('bad');consent.focus();return;}
   const gotPhone=digits.length>=10;
   note.classList.remove('bad');note.textContent='… adding you to the slime';
   /* report the REAL outcome instead of always claiming success */
   let ok=false;
   try{ if(typeof sbSubscribe==='function') ok=await sbSubscribe(ev,gotPhone?digits:''); }catch(_){ ok=false; }
-  e.value='';p.value='';if(consent)consent.checked=false;
+  e.value='';if(p)p.value='';if(consent)consent.checked=false;
   if(ok){
+    track('join',{sms:gotPhone});
     note.textContent=gotPhone?'✓ you in — email + SMS. welcome to the slime ☠':'✓ you in — welcome to the slime ☠';
     toast('☠ welcome to the slime');flushPending();
   }else{
@@ -1305,7 +1336,7 @@ function renderLanding(L){
 function wireMerchAlert(){const merchAlertBtn=document.getElementById('merchAlertBtn');if(merchAlertBtn)merchAlertBtn.onclick=()=>{burst(innerWidth/2,innerHeight*.6,16,'#8dff2b');gotoConnectJoin('☠ drop your email — first access to the slime shop');};}
 
 /* VAULT — lightbox (static markup; the CMS rebuild rebinds its own cards) */
-function wireVault(){document.querySelectorAll('#vault .vcard').forEach(card=>card.addEventListener('click',e=>{if(e.metaKey||e.ctrlKey||e.shiftKey)return;e.preventDefault();const img=card.querySelector('img').src,title=card.querySelector('.vt').textContent,sub=card.querySelector('.vs').textContent,href=card.getAttribute('href');openModal(`<div class="mhead wide" style="background-image:url('${img}')"></div><div class="mbody"><span class="kicker">${sub}</span><h3>${title}</h3><p>The full visual lives in the SB vault on YouTube. Tap in for the complete drop.</p><div class="mcta"><a class="bigbtn bSlime" href="${href}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);}));}
+function wireVault(){document.querySelectorAll('#vault .vcard').forEach(card=>card.addEventListener('click',e=>{if(e.metaKey||e.ctrlKey||e.shiftKey)return;e.preventDefault();const img=card.querySelector('img').src,title=card.querySelector('.vt').textContent,sub=card.querySelector('.vs').textContent,href=safeUrl(card.getAttribute('href'));track('vault_open',{title});openModal(`<div class="mhead wide" style="background-image:${cssUrl(img)}"></div><div class="mbody"><span class="kicker">${esc(sub)}</span><h3>${esc(title)}</h3><p>The full visual lives in the SB vault on YouTube. Tap in for the complete drop.</p><div class="mcta">${href?`<a class="bigbtn bSlime" href="${esc(href)}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a>`:''}</div></div>`);}));}
 
 /* SHOWS — content-driven (edit in the admin page) */
 function renderShows(SHOWS){SHOWS=SHOWS||[];const list=document.getElementById('showlist'),empty=document.getElementById('showsEmpty');if(!list||!empty)return;if(!SHOWS.length){list.style.display='none';empty.style.display='';return;}empty.style.display='none';list.style.display='';list.innerHTML=SHOWS.map(s=>{const u=safeUrl(s.url);/* sanitize CMS ticket links — escaping alone still allows javascript: schemes */return `<div class="showrow"><div class="date">${esc(s.date)}</div><div class="venue"><div class="v1">${esc(s.venue)}</div><div class="v2">${esc(s.city)}</div></div>${u?`<a class="tix" href="${esc(u)}" target="_blank" rel="noopener noreferrer">tickets</a>`:'<span class="tix" style="opacity:.5">soon</span>'}</div>`;}).join('');}
@@ -1628,7 +1659,7 @@ function applyContent(c){
 
   if(c.vault){href('#vault .shead .link',c.vault.youtube);const vg=q('#vault .vgrid');
     if(vg){vg.innerHTML=(c.vault.items||[]).map((v,i)=>`<a class="vcard reveal${i?' d'+Math.min(i,3):''}" href="${esc(safeUrl(v.href))}" target="_blank" rel="noopener noreferrer"><img loading="lazy" decoding="async" src="${esc(safeImg(v.img))}" alt=""><div class="pico">▶</div><div class="vinfo"><div class="vt">${esc(v.title)}</div><div class="vs">${esc(v.sub)}</div></div></a>`).join('');
-      vg.querySelectorAll('.vcard').forEach(card=>{io.observe(card);card.addEventListener('click',e=>{if(e.metaKey||e.ctrlKey||e.shiftKey)return;e.preventDefault();const img=card.querySelector('img').src,title=card.querySelector('.vt').textContent,sub=card.querySelector('.vs').textContent,h=card.getAttribute('href');openModal(`<div class="mhead wide" style="background-image:url('${img}')"></div><div class="mbody"><span class="kicker">${sub}</span><h3>${title}</h3><p>The full visual lives in the SB vault on YouTube. Tap in for the complete drop.</p><div class="mcta"><a class="bigbtn bSlime" href="${h}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);});});}}
+      vg.querySelectorAll('.vcard').forEach(card=>{io.observe(card);card.addEventListener('click',e=>{if(e.metaKey||e.ctrlKey||e.shiftKey)return;e.preventDefault();const img=card.querySelector('img').src,title=card.querySelector('.vt').textContent,sub=card.querySelector('.vs').textContent,h=safeUrl(card.getAttribute('href'));track('vault_open',{title});openModal(`<div class="mhead wide" style="background-image:${cssUrl(img)}"></div><div class="mbody"><span class="kicker">${esc(sub)}</span><h3>${esc(title)}</h3><p>The full visual lives in the SB vault on YouTube. Tap in for the complete drop.</p><div class="mcta">${h?`<a class="bigbtn bSlime" href="${esc(h)}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a>`:''}</div></div>`);});});}}
 
   renderVideos(c.videos);
 
@@ -1688,9 +1719,12 @@ function setActiveNav(){const here=currentPage(),slug=currentSlug();
   document.querySelectorAll('#nav .navlinks a').forEach(a=>{const h=a.getAttribute('href')||'';let on=pageFromUrl(h)===here;
     if(on&&pageFromUrl(h)==='page.html'){const q=new URLSearchParams(h.split('#')[0].split('?')[1]||'');on=(q.get('p')||'')===slug;}
     a.classList.toggle('active',on);});}
-let _navBusy=false,_curKey=navKey(location.href);
+let _navBusy=false,_pendingNav=null,_curKey=navKey(location.href);
 async function sbNavigate(url,push){
-  if(_navBusy)return; _navBusy=true;
+  /* a navigation requested mid-flight (e.g. back/forward during the wipe, or a fast
+     second click) is remembered and run when the current one finishes — latest wins —
+     so the URL and the rendered page can't drift apart. */
+  if(_navBusy){_pendingNav={url,push};return;} _navBusy=true;
   let html;
   try{const r=await fetch(url,{credentials:'same-origin'});if(!r.ok)throw 0;html=await r.text();}
   catch(_){location.href=url;return;}
@@ -1699,19 +1733,28 @@ async function sbNavigate(url,push){
   const curMain=document.getElementById('main')||document.querySelector('main');
   if(!newMain||!curMain){location.href=url;return;}
   const swap=()=>{
-    try{document.adoptNode(newMain);}catch(_){}
-    curMain.replaceWith(newMain);
-    if(!document.getElementById('sbBlocks')){const bc=document.createElement('div');bc.id='sbBlocks';newMain.appendChild(bc);}
-    if(doc.title)document.title=doc.title;
-    if(push){try{history.pushState({sb:1},'',url);}catch(_){}}
-    _curKey=navKey(location.href);
-    document.body.className=document.body.className.replace(/\bpage-\S+/g,'').trim();
-    document.body.classList.add('page-'+currentPage().replace(/\.html$/,''));
-    setActiveNav();
-    try{scrollTo(0,0);}catch(_){}
-    sbInitPage();
-    _navBusy=false;
-    pjaxReveal();
+    /* always release the router (finally) — if any per-page init throws, the lock must
+       still clear or every later in-app navigation would silently no-op for the session. */
+    try{
+      try{document.adoptNode(newMain);}catch(_){}
+      curMain.replaceWith(newMain);
+      if(!document.getElementById('sbBlocks')){const bc=document.createElement('div');bc.id='sbBlocks';newMain.appendChild(bc);}
+      if(doc.title)document.title=doc.title;
+      if(push){try{history.pushState({sb:1},'',url);}catch(_){}}
+      _curKey=navKey(location.href);
+      document.body.className=document.body.className.replace(/\bpage-\S+/g,'').trim();
+      document.body.classList.add('page-'+currentPage().replace(/\.html$/,''));
+      setActiveNav();
+      try{scrollTo(0,0);}catch(_){}
+      sbInitPage();
+      /* SPA pageview: the analytics tracker only logs one pageview at full load, so re-log
+         (and reset per-page scroll/time) on every in-app navigation. No-op until consent. */
+      try{if(typeof sbPageview==='function')sbPageview();}catch(_){}
+    } finally {
+      _navBusy=false;
+      pjaxReveal();
+      if(_pendingNav){const n=_pendingNav;_pendingNav=null;sbNavigate(n.url,n.push);}
+    }
   };
   if(reducedMotion)swap(); else playWipeOut(swap);
 }
