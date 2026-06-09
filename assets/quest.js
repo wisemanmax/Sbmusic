@@ -45,22 +45,49 @@
   // dock the site music bar into a compact, out-of-the-way mode while a run is live
   function setPlayingChrome(on) { try { document.body.classList.toggle('q-playing', !!on); } catch (_) { } }
 
-  /* ===================== world / level (tuning preserved) ===================== */
-  const LW = 3400, GY = 232;
+  /* ===================== world / level =====================
+     One continuous 3-zone strip. Gates wall off each zone until its objective is
+     done, so the run reads: clear the PIT → fell DJ STATIC in the SWAMP (drops the
+     key) → open STATIC CASTLE → dethrone the king and free Vena. */
+  const LW = 5400, GY = 232;
   const plats = [
-    { x: 0, y: GY, w: 600 }, { x: 690, y: GY, w: 430 }, { x: 1210, y: GY, w: 540 }, { x: 1830, y: GY, w: 1570 },
+    // ZONE 1 — THE SLIME PIT (0–1830)
+    { x: 0, y: GY, w: 600 }, { x: 690, y: GY, w: 430 }, { x: 1210, y: GY, w: 540 },
     { x: 330, y: 176, w: 96 }, { x: 760, y: 160, w: 92 }, { x: 960, y: 128, w: 84 },
     { x: 1320, y: 168, w: 92 }, { x: 1520, y: 128, w: 84 },
+    // ZONE 2 — NEON SWAMP (1830–3560)
+    { x: 1830, y: GY, w: 770 }, { x: 2690, y: GY, w: 870 },
     { x: 2010, y: 162, w: 100 }, { x: 2270, y: 128, w: 92 }, { x: 2560, y: 170, w: 96 },
+    { x: 2860, y: 164, w: 96 }, { x: 3060, y: 128, w: 88 },
+    // ZONE 3 — STATIC CASTLE (3560–5400)
+    { x: 3560, y: GY, w: 940 }, { x: 4580, y: GY, w: 820 },
+    { x: 3760, y: 166, w: 96 }, { x: 3980, y: 130, w: 88 }, { x: 4220, y: 166, w: 96 },
+    { x: 4800, y: 158, w: 92 }, { x: 5060, y: 124, w: 88 },
   ];
-  const pits = [[600, 90], [1120, 90], [1750, 80]];
+  const pits = [[600, 90], [1120, 90], [1750, 80], [2600, 90], [4500, 80]];
+  /* zone bands drive the HUD label + sky/parallax palette (lerped by camera x) */
+  const ZONES = [
+    { x0: 0, x1: 1830, name: 'THE SLIME PIT' },
+    { x0: 1830, x1: 3560, name: 'NEON SWAMP' },
+    { x0: 3560, x1: LW, name: 'STATIC CASTLE' },
+  ];
+  function zoneAt(x) { return x < ZONES[1].x0 ? 0 : x < ZONES[2].x0 ? 1 : 2; }
 
   /* ===================== state ===================== */
   let state = 'title';
-  let player, cam, enemies, coins, particles, blasts, notes, boss, theKey, princess, torches, fireflies, decals, floaters;
+  let player, cam, enemies, coins, particles, blasts, notes, boss, mb, theKey, princess, torches, fireflies, decals, floaters, pickups, gates;
   let hp, maxHp = 4, score, keysGot, rage, rageOn, rageT, shake, flash, win, timeNow = 0, hitStop = 0;
-  let dlgQ = [], dlgT = 0, kills = 0, bossUp = false, keyUp = false, combo = 0, comboT = 0, bestCombo = 0;
-  let beatFlash = 0;
+  let dlgQ = [], dlgT = 0, kills = 0, bossUp = false, mbUp = false, mbDead = false, combo = 0, comboT = 0, bestCombo = 0;
+  let beatFlash = 0, zone = 0, checkpoint = 0, tripleT = 0, shieldOn = false, slowMo = 0;
+  /* persisted bests (best score / best combo across runs) */
+  function loadBest() { try { return JSON.parse(localStorage.getItem('sb_quest_best')) || {}; } catch (_) { return {}; } }
+  function saveBest() {
+    try {
+      const b = loadBest();
+      const nb = { score: Math.max(b.score || 0, score), combo: Math.max(b.combo || 0, bestCombo, combo), won: !!(b.won || win) };
+      localStorage.setItem('sb_quest_best', JSON.stringify(nb));
+    } catch (_) { }
+  }
 
   /* ===================== AUDIO BRIDGE → site player ===================== */
   /* Reads the site's live AnalyserNode (window.SBPlayer) and derives an energy
@@ -129,7 +156,7 @@
       case 'KeyK': if (down) { K.dash = true; K.dashEdge = true; } else K.dash = false; break;
       case 'KeyR': if (down) { K.rage = true; K.rageEdge = true; } else K.rage = false; break;
       case 'KeyP': if (down) togglePause(); break;
-      case 'Enter': case 'NumpadEnter': if (down && state !== 'play' && state !== 'paused') startGame(); game = false; break;
+      case 'Enter': case 'NumpadEnter': if (down && state !== 'play' && state !== 'paused') { if (state === 'over') continueGame(); else startGame(); } game = false; break;
       default: game = false;
     }
     if (game) { e.preventDefault(); e.stopPropagation(); } // keep the site's space=pause etc. out of the cabinet
@@ -175,35 +202,54 @@
   let root = null;
 
   /* ===================== reset / spawn ===================== */
-  function reset() {
+  /* checkpoint respawn points (set as you pass each gate / arena threshold) */
+  const CHECKPOINTS = [70, 1900, 3620, 4660];
+  function reset(fromCheckpoint) {
+    if (!fromCheckpoint) { checkpoint = 0; score = 0; kills = 0; keysGot = 0; mbDead = false; bestCombo = 0; }
     player = {
-      x: 70, y: GY - 44, w: 22, h: 44, vx: 0, vy: 0, onGround: false, dir: 1,
-      dashCD: 0, dashT: 0, atkCD: 0, atkT: 0, inv: 0, bob: 0, walk: 0, squash: 1, land: 0, coyote: 0, jumpBuf: 0,
-      blink: 0, trail: [], aura: 0,
+      x: CHECKPOINTS[checkpoint], y: GY - 44, w: 22, h: 44, vx: 0, vy: 0, onGround: false, dir: 1,
+      dashCD: 0, dashT: 0, dashHit: false, atkCD: 0, atkT: 0, inv: 0, bob: 0, walk: 0, squash: 1, land: 0, coyote: 0, jumpBuf: 0,
+      airJumps: 1, blink: 0, trail: [], aura: 0,
     };
-    cam = { x: 0 };
-    enemies = []; coins = []; particles = []; blasts = []; notes = []; torches = []; fireflies = []; decals = []; floaters = [];
-    boss = null; theKey = null;
-    hp = maxHp; score = 0; keysGot = 0; rage = 0; rageOn = false; rageT = 0; shake = 0; flash = 0; win = false;
-    kills = 0; bossUp = false; keyUp = false; combo = 0; comboT = 0; bestCombo = 0; dlgQ = []; dlgT = 0; hitStop = 0;
-    princess = { x: 3240, y: 96, t: 0 };
-    [180, 520, 1000, 1500, 2050, 2600, 3050].forEach(x => torches.push({ x, y: GY - 2, t: Math.random() * 6 }));
-    for (let i = 0; i < 52; i++) fireflies.push({ x: Math.random() * LW, y: 36 + Math.random() * 170, t: Math.random() * 6, sp: 0.2 + Math.random() * 0.5, r: 1 + Math.random() * 1.6 });
-    for (let i = 0; i < 44; i++) { const x = Math.random() * LW; if (pits.some(p => x > p[0] - 20 && x < p[0] + p[1] + 20)) continue; decals.push({ x, y: GY, type: Math.random() < .42 ? 'mush' : 'rock', f: Math.random() * 6, s: 0.8 + Math.random() * 0.6 }); }
-    // enemies (mites/bats/serpents) + the new beat-synced amps
+    cam = { x: Math.max(0, player.x - W / 2) };
+    enemies = []; coins = []; particles = []; blasts = []; notes = []; torches = []; fireflies = []; decals = []; floaters = []; pickups = [];
+    boss = null; mb = null; theKey = null;
+    hp = maxHp; rage = 0; rageOn = false; rageT = 0; shake = 0; flash = 0; win = false;
+    bossUp = false; mbUp = false; combo = 0; comboT = 0; dlgQ = []; dlgT = 0; hitStop = 0;
+    tripleT = 0; shieldOn = false; slowMo = 0; zone = zoneAt(player.x);
+    /* gates: [0] slime barrier → opens at 5 beast kills · [1] castle gate → needs the key */
+    gates = [
+      { x: 1700, w: 14, open: checkpoint >= 1, kind: 'slime', t: 0, hinted: false },   // on solid ground BEFORE the zone-line pit
+      { x: 3520, w: 16, open: checkpoint >= 2, kind: 'castle', t: 0, hinted: false },
+    ];
+    if (checkpoint >= 1 && kills < 5) kills = 5;       // continuing past a gate keeps it satisfied
+    if (checkpoint >= 2) { mbDead = true; keysGot = Math.max(keysGot, 1); }
+    princess = { x: 5240, y: 96, t: 0 };
+    [180, 520, 1000, 1500, 2050, 2600, 3050, 3700, 4150, 4700, 5150].forEach(x => torches.push({ x, y: GY - 2, t: Math.random() * 6 }));
+    for (let i = 0; i < 70; i++) fireflies.push({ x: Math.random() * LW, y: 36 + Math.random() * 170, t: Math.random() * 6, sp: 0.2 + Math.random() * 0.5, r: 1 + Math.random() * 1.6 });
+    for (let i = 0; i < 64; i++) { const x = Math.random() * LW; if (pits.some(p => x > p[0] - 20 && x < p[0] + p[1] + 20)) continue; decals.push({ x, y: GY, type: Math.random() < .42 ? 'mush' : 'rock', f: Math.random() * 6, s: 0.8 + Math.random() * 0.6 }); }
+    // ZONE 1 — gentle intro
     spawn('mite', 440, GY); spawn('mite', 840, GY); spawn('bat', 1000, 96);
-    spawn('amp', 1180, GY); spawn('serpent', 1340, GY); spawn('bat', 1560, 86); spawn('mite', 1900, GY);
-    spawn('serpent', 2120, GY); spawn('bat', 2300, 100); spawn('amp', 2420, GY); spawn('mite', 2500, GY); spawn('serpent', 2700, GY);
+    spawn('amp', 1180, GY); spawn('serpent', 1340, GY); spawn('bat', 1560, 86); spawn('mite', 1640, GY);
+    // ZONE 2 — swamp pressure builds toward DJ STATIC
+    spawn('mite', 1980, GY); spawn('serpent', 2120, GY); spawn('bat', 2300, 100); spawn('amp', 2420, GY);
+    spawn('mite', 2520, GY); spawn('serpent', 2780, GY); spawn('bat', 2940, 92);
+    // ZONE 3 — castle gauntlet before the king
+    spawn('serpent', 3760, GY); spawn('amp', 3900, GY); spawn('bat', 4040, 96);
+    spawn('serpent', 4260, GY); spawn('mite', 4380, GY);
     const spots = [[220, 186], [345, 150], [380, 150], [760, 190], [800, 134], [980, 100], [1080, 190],
     [1340, 142], [1380, 142], [1540, 100], [1680, 190], [2030, 136], [2290, 100], [2440, 190],
-    [2580, 144], [2760, 170], [2900, 190], [3050, 160]];
+    [2580, 144], [2760, 170], [2890, 138], [3080, 100], [3260, 190], [3700, 190], [3790, 140],
+    [4000, 104], [4240, 140], [4400, 190], [4830, 132], [5080, 98], [5180, 190]];
     spots.forEach((s, i) => coins.push({ x: s[0], y: s[1], got: false, shard: i % 6 === 0, bob: Math.random() * 6 }));
-    queue('elder', 'VILLAGE ELDER', 'The 808 Emerald has gone silent...');
-    queue('slime', 'SLIME BY', 'Who took it?');
-    queue('elder', 'VILLAGE ELDER', 'The Red Serpent King. He locked Vena in Static Castle.');
-    queue('vena', 'PRINCESS VENA', 'Slime... they need you.');
-    queue('quest', 'HOW TO FIGHT', 'JUMP on beasts to STOMP them — or fire the MIC BLAST.');
-    queue('quest', 'QUEST', 'DEFEAT 5 BEASTS · FIND THE SLIME KEY · DETHRONE THE KING');
+    if (!fromCheckpoint) {
+      queue('elder', 'VILLAGE ELDER', 'The 808 Emerald has gone silent...');
+      queue('slime', 'SLIME BY', 'Who took it?');
+      queue('elder', 'VILLAGE ELDER', 'The Red Serpent King. He locked Vena in Static Castle.');
+      queue('vena', 'PRINCESS VENA', 'Slime... they need you.');
+      queue('quest', 'HOW TO FIGHT', 'STOMP beasts, fire the MIC BLAST [J], or DASH [K] through them.');
+      queue('quest', 'QUEST', 'CLEAR THE PIT · DEFEAT DJ STATIC · DETHRONE THE KING');
+    } else queue('quest', 'CHECKPOINT', 'Back on the beat — ' + ZONES[zone].name + '.');
   }
   function spawn(type, x, y) {
     const e = { x, y, type, dead: false, fade: 0, t: Math.random() * 6, hp: 1, kb: 0 };
@@ -212,7 +258,10 @@
     if (type === 'serpent') { e.w = 26; e.h = 14; e.hp = 2; e.vx = (Math.random() < .5 ? -1 : 1) * 0.8; e.rng = [x - 80, x + 80]; }
     if (type === 'amp') { e.w = 24; e.h = 22; e.hp = 3; e.y = GY - 22; e.fireCD = 60 + Math.random() * 40; e.glow = 0; e.cone = 0; }
     enemies.push(e);
+    return e;
   }
+  /* floating power-up drops: heart (+1 hp) · triple (spread blast) · shield (absorb 1 hit) */
+  function dropPickup(kind, x, y) { pickups.push({ kind, x, y, vy: -2.2, t: Math.random() * 6, life: 900 }); }
   function queue(c, who, txt) { dlgQ.push({ c, who, txt }); }
   function pumpDlg() {
     if (dlgT > 0 || !dlgQ.length || !el.dlg) return; const d = dlgQ.shift();
@@ -247,7 +296,9 @@
     QA.sample(dt);
     if (state !== 'play') return;
     if (hitStop > 0) { hitStop--; return; }     // micro freeze on big hits = punch
+    if (slowMo > 0 && (slowMo-- % 2 === 0)) return;   // boss-death slow-mo: half speed
     const p = player, bs = QA.beatStrength();
+    zone = zoneAt(p.x);
 
     if (rageOn) { rageT--; if (rageT <= 0) rageOn = false; }
     if (K.rageEdge && rage >= 100 && !rageOn) {
@@ -260,33 +311,45 @@
     const spd = rageOn ? 3.5 : 2.7;
     if (K.l) { p.vx = -spd; p.dir = -1; } else if (K.r) { p.vx = spd; p.dir = 1; } else p.vx *= 0.72;
 
-    // dash
+    // dash (each dash can damage one boss touch — dashHit gates it)
     if (p.dashCD > 0) p.dashCD--;
-    if (K.dashEdge && p.dashCD <= 0 && p.dashT <= 0) { p.dashT = 11; p.dashCD = 46; p.squash = 1.4; burst(p.x + p.w / 2, p.y + p.h - 4, C.slime, 10, 2.5, { glow: 1, shape: 'goo' }); }
+    if (K.dashEdge && p.dashCD <= 0 && p.dashT <= 0) { p.dashT = 11; p.dashCD = 46; p.dashHit = false; p.squash = 1.4; burst(p.x + p.w / 2, p.y + p.h - 4, C.slime, 10, 2.5, { glow: 1, shape: 'goo' }); }
     K.dashEdge = false;
     if (p.dashT > 0) { p.dashT--; p.vx = p.dir * (rageOn ? 6.6 : 5.6); if (p.dashT % 2 === 0) p.trail.push({ x: p.x, y: p.y, dir: p.dir, life: 10 }); }
 
-    // jump w/ coyote + buffer + BEAT JUMP (real-music timed)
+    // jump w/ coyote + buffer + DOUBLE JUMP + BEAT JUMP (real-music timed)
     // forgiving windows (coyote/buffer 9f) + a strong base arc so every gap in the
     // level is comfortably clearable — the pits are 80-90px wide, this jump carries
-    // ~110px, with the beat jump reaching further still.
-    if (p.onGround) p.coyote = 9; else if (p.coyote > 0) p.coyote--;
+    // ~110px, with the beat jump reaching further still. The air jump refreshes on
+    // landing or on a stomp, and is what makes the boss crowns reachable at will.
+    if (p.onGround) { p.coyote = 9; p.airJumps = 1; } else if (p.coyote > 0) p.coyote--;
     if (K.jumpEdge) p.jumpBuf = 9; else if (p.jumpBuf > 0) p.jumpBuf--;
-    K.jumpEdge = false;
     if (p.jumpBuf > 0 && p.coyote > 0) {
       const boost = QA.onBeat() ? 1.2 : 1; p.vy = -7.4 * boost;
       p.onGround = false; p.coyote = 0; p.jumpBuf = 0; p.squash = 0.7;
       if (boost > 1) { burst(p.x + p.w / 2, p.y + p.h, C.toxic, 16, 3, { glow: 1, shape: 'goo' }); ring(p.x + p.w / 2, p.y + p.h, C.toxic, 16); flash = 2; floatText(p.x + p.w / 2, p.y - 6, 'BEAT JUMP', C.toxic); }
       else burst(p.x + p.w / 2, p.y + p.h, C.slimeDeep, 6, 1.5, { shape: 'goo' });
+    } else if (K.jumpEdge && p.coyote <= 0 && p.airJumps > 0) {
+      // double jump — a fresh hop mid-air with a slime-flip ring
+      p.airJumps--; p.vy = -6.8; p.jumpBuf = 0; p.squash = 0.72;
+      ring(p.x + p.w / 2, p.y + p.h - 6, C.slimeBright, 14);
+      burst(p.x + p.w / 2, p.y + p.h - 4, C.slimeBright, 8, 2, { glow: 1, shape: 'goo', grav: 0.05 });
     }
+    K.jumpEdge = false;
     if (!K.jump && p.vy < -2) p.vy *= 0.86;
     p.vy += 0.35; if (p.vy > 10.5) p.vy = 10.5;
 
-    // mic blast
+    // mic blast — long range; TRIPLE pickup fans out a 3-way spread
     if (p.atkCD > 0) p.atkCD--;
+    if (tripleT > 0) tripleT--;
     if (K.atkEdge && p.atkCD <= 0) {
-      p.atkCD = 20; p.atkT = 10; p.squash = 1.18;
-      blasts.push({ x: p.x + (p.dir > 0 ? p.w - 4 : -26), y: p.y + 12, w: 30, h: 20, dir: p.dir, life: 15, big: rageOn, grew: 0 });
+      p.atkCD = 18; p.atkT = 10; p.squash = 1.18;
+      const bx = p.x + (p.dir > 0 ? p.w - 4 : -26), by = p.y + 10;
+      blasts.push({ x: bx, y: by, w: 30, h: 22, dir: p.dir, vy: 0, life: 34, big: rageOn, grew: 0 });
+      if (tripleT > 0) {
+        blasts.push({ x: bx, y: by, w: 26, h: 18, dir: p.dir, vy: -1.4, life: 30, big: rageOn, grew: 0 });
+        blasts.push({ x: bx, y: by, w: 26, h: 18, dir: p.dir, vy: 1.4, life: 30, big: rageOn, grew: 0 });
+      }
       burst(p.x + (p.dir > 0 ? p.w : 0), p.y + 16, C.slime, 7, 2, { glow: 1 });
     }
     K.atkEdge = false;
@@ -300,7 +363,24 @@
       }
     }
     if (p.x < 0) p.x = 0; if (p.x + p.w > LW) p.x = LW - p.w;
-    if (p.y > WB + 60) { damage(1, true); p.x = Math.max(40, p.x - 70); p.y = GY - 44; p.vy = 0; }
+    // gates wall the world until their objective clears (hint once on approach)
+    for (const g of gates) {
+      if (g.open) { g.t = Math.min(1, g.t + 0.04); continue; }
+      if (p.x + p.w > g.x && p.x < g.x + g.w + 10) {
+        p.x = p.x + p.w / 2 < g.x + g.w / 2 ? g.x - p.w : g.x + g.w + 10;
+        if (!g.hinted) {
+          g.hinted = true;
+          if (g.kind === 'slime') queue('quest', 'SLIME BARRIER', 'Defeat ' + Math.max(0, 5 - kills) + ' more beasts to melt this wall.');
+          else queue('quest', 'CASTLE GATE', 'Locked tight. DJ STATIC holds the Slime Key.');
+        }
+      }
+    }
+    if (p.y > WB + 60) {
+      damage(1, true);
+      const fell = pits.find(q => p.x + p.w / 2 > q[0] - 24 && p.x + p.w / 2 < q[0] + q[1] + 24);
+      p.x = fell ? Math.max(20, fell[0] - 50) : Math.max(40, p.x - 90);
+      p.y = GY - 44; p.vy = 0; p.vx = 0;
+    }
 
     if (p.inv > 0) p.inv--;
     p.bob += 0.16; if (Math.abs(p.vx) > 0.6) p.walk += Math.abs(p.vx) * 0.06; else p.walk *= 0.8;
@@ -318,7 +398,7 @@
 
     // blasts
     for (const b of blasts) {
-      b.x += b.dir * (b.big ? 7.5 : 6.2); b.life--; b.grew = Math.min(1, b.grew + 0.2);
+      b.x += b.dir * (b.big ? 7.5 : 6.2); b.y += (b.vy || 0); b.life--; b.grew = Math.min(1, b.grew + 0.2);
       if (b.big) { b.w = 40; b.h = 26; }
       if (Math.random() < .7) burst(b.x + b.w / 2, b.y + b.h / 2, b.big ? C.toxic : C.slimeBright, 1, 1, { grav: 0, life: 10, glow: 1 });
     }
@@ -366,7 +446,7 @@
         const stomping = p.vy > 0.6 && feetWasAbove;
         if (p.dashT > 0) { kill(e, ex, ey); }
         else if (stomping) {
-          e.hp--; p.vy = K.jump ? -8 : -6; p.jumpBuf = 0; p.coyote = 0; p.squash = 1.35; p.inv = Math.max(p.inv, 6);
+          e.hp--; p.vy = K.jump ? -8 : -6; p.jumpBuf = 0; p.coyote = 0; p.airJumps = 1; p.squash = 1.35; p.inv = Math.max(p.inv, 6);
           shake = Math.max(shake, 3); hitStop = Math.max(hitStop, 1);
           burst(ex + e.w / 2, ey, C.toxic, 9, 2.4, { glow: 1, shape: 'goo' });
           if (e.hp <= 0) kill(e, ex, ey);
@@ -388,8 +468,28 @@
       }
     }
 
-    // slime key
-    if (!keyUp && kills >= 5) { keyUp = true; theKey = { x: 1680, y: 184, t: 0 }; notes.push({ x: 1680, y: 130, t: 0, kind: 'guide' }); queue('vena', 'PRINCESS VENA', 'A Slime Key surfaced. Grab it to open the gate.'); }
+    // ---- progression: gates → midboss → key → castle → king ----
+    const g1 = gates[0], g2 = gates[1];
+    if (!g1.open && kills >= 5) {
+      g1.open = true; shake = 8; vibe([10, 20, 10]);
+      burst(g1.x + 7, GY - 40, C.slime, 30, 4, { glow: 1, shape: 'goo' }); ring(g1.x + 7, GY - 40, C.slime, 24);
+      queue('vena', 'PRINCESS VENA', 'The barrier melts! The Neon Swamp lies ahead.');
+    }
+    if (checkpoint < 1 && p.x > CHECKPOINTS[1]) { checkpoint = 1; floatText(p.x + p.w / 2, p.y - 10, 'CHECKPOINT', C.gold); }
+    if (checkpoint < 2 && p.x > CHECKPOINTS[2]) { checkpoint = 2; floatText(p.x + p.w / 2, p.y - 10, 'CHECKPOINT', C.gold); }
+    if (checkpoint < 3 && p.x > CHECKPOINTS[3]) { checkpoint = 3; floatText(p.x + p.w / 2, p.y - 10, 'CHECKPOINT', C.gold); }
+
+    // DJ STATIC — midboss guarding the Slime Key at the end of the swamp
+    if (!mbUp && !mbDead && p.x > 3020) {
+      mbUp = true;
+      mb = { x: 3320, y: GY - 52, w: 50, h: 52, hp: 16, maxHp: 16, t: 0, atkCD: 90, hopV: 0, onG: true, daze: 0, hurt: 0, slamT: 0, vol: 0 };
+      queue('king', 'DJ STATIC', 'This swamp bumps MY mix now. Get scratched!');
+      queue('vena', 'PRINCESS VENA', 'His woofer is the weak spot — stomp it or blast it!');
+    }
+    if (mb) updateMb();
+    // arena lock while DJ STATIC is live
+    if (mb && !mbDead) { if (p.x < 3040) p.x = 3040; if (p.x + p.w > 3490) p.x = 3490 - p.w; }
+
     if (theKey) {
       theKey.t += 0.09;
       if (hit(p, { x: theKey.x - 12, y: theKey.y - 12, w: 24, h: 24 })) {
@@ -398,24 +498,53 @@
         burst(p.x, p.y + 10, C.slime, 20, 3.5, { glow: 1 }); ring(p.x + p.w / 2, p.y + 10, C.slime, 22);
         floatText(p.x + p.w / 2, p.y - 8, 'SLIME KEY!', C.slime);
         if (el.keys && el.keys.parentElement) { const k = el.keys.parentElement; k.classList.add('got'); setTimeout(() => k.classList.remove('got'), 520); }
-        queue('vena', 'PRINCESS VENA', 'The gate yields. The bass is returning!');
+        queue('vena', 'PRINCESS VENA', 'The castle gate yields. The bass is returning!');
       }
     }
+    if (!g2.open && keysGot >= 1) {
+      g2.open = true; shake = 6;
+      burst(g2.x + 8, GY - 50, C.gold, 26, 3.6, { glow: 1 }); ring(g2.x + 8, GY - 50, C.gold, 22);
+    }
 
-    // boss
-    if (!bossUp && keysGot >= 1 && p.x > 2650) {
+    // power-up pickups
+    for (const pu of pickups) {
+      pu.t += 0.08; pu.life--;
+      pu.vy += 0.18; pu.y += pu.vy; if (pu.y > GY - 12) { pu.y = GY - 12; pu.vy = 0; }
+      if (hit(p, { x: pu.x - 9, y: pu.y - 9, w: 18, h: 18 })) {
+        pu.life = 0;
+        if (pu.kind === 'heart') { if (hp < maxHp) hp++; floatText(pu.x, pu.y - 8, '+♥', C.rageSoft); }
+        else if (pu.kind === 'triple') { tripleT = 720; floatText(pu.x, pu.y - 8, 'TRIPLE MIC!', C.toxic); }
+        else { shieldOn = true; floatText(pu.x, pu.y - 8, 'SLIME SHIELD', C.sbBlueLite); }
+        burst(pu.x, pu.y, pu.kind === 'heart' ? C.rageSoft : pu.kind === 'triple' ? C.toxic : C.sbBlueLite, 14, 2.8, { glow: 1 });
+        vibe(10);
+      }
+    }
+    pickups = pickups.filter(pu => pu.life > 0);
+
+    // RED SERPENT KING — throne room at the far end of Static Castle
+    if (!bossUp && keysGot >= 1 && p.x > 4700) {
       bossUp = true;
-      boss = { x: p.x + 260, y: GY - 64, w: 70, h: 64, hp: 12, maxHp: 12, phase: 1, t: 0, atkCD: 110, lunge: 0, vx: 0, hurt: 0, sx: 0, rear: 0 };
-      queue('king', 'RED SERPENT KING', 'You DARE enter Static Castle?!');
-      queue('vena', 'PRINCESS VENA', 'Strike his crown — TIME it with the beat!');
+      boss = { x: p.x + 260, y: GY - 64, w: 70, h: 64, hp: 30, maxHp: 30, phase: 1, t: 0, atkCD: 90, lunge: 0, vx: 0, hurt: 0, sx: 0, rear: 0, daze: 0, dazeShown: false, dying: 0, summonCD: 0 };
+      queue('king', 'RED SERPENT KING', 'You DARE enter my throne room?!');
+      queue('vena', 'PRINCESS VENA', 'Stomp him, blast him, dash through him — ON THE BEAT for double!');
     }
     if (boss) updateBoss();
+    // arena lock while the king is live
+    if (boss && boss.hp > 0 && bossUp) { if (p.x < 4660) p.x = 4660; if (p.x + p.w > 5340) p.x = 5340 - p.w; }
 
     for (const n of notes) {
       if (n.kind === 'guide') n.t += 0.05;
       if (n.kind === 'shock') { n.x += n.vx; n.vy += 0.04; n.y += n.vy; n.t += 0.2; for (const b of blasts) if (hit(b, { x: n.x - 6, y: n.y - 6, w: 12, h: 12 })) { n.hit = true; burst(n.x, n.y, C.toxic, 6, 2, { glow: 1 }); } if (p.inv <= 0 && hit(p, { x: n.x - 6, y: n.y - 6, w: 12, h: 12 })) { damage(1); n.hit = true; } }
+      if (n.kind === 'wave') {
+        // DJ STATIC's bass-drop ripple — hugs the ground, jump it
+        n.x += n.vx; n.life--; n.t = (n.t || 0) + 0.3;
+        if (Math.random() < .5) burst(n.x, GY - 2, C.rage, 1, 1, { grav: -0.02, life: 9, glow: 1 });
+        if (p.inv <= 0 && hit(p, { x: n.x - 8, y: GY - 14, w: 16, h: 14 })) { damage(1); n.hit = true; }
+      }
     }
-    notes = notes.filter(n => !(n.kind === 'shock' && (n.hit || n.x < cam.x - 30 || n.x > cam.x + W + 30 || n.y > WB + 20)) && !(n.kind === 'red' && (n.y > WB + 20 || n.hit)));
+    notes = notes.filter(n => !(n.kind === 'shock' && (n.hit || n.x < cam.x - 30 || n.x > cam.x + W + 30 || n.y > WB + 20)) &&
+      !(n.kind === 'red' && (n.y > WB + 20 || n.hit)) &&
+      !(n.kind === 'wave' && (n.hit || n.life <= 0)));
 
     // particles / floaters
     for (const pt of particles) { pt.x += pt.vx; pt.y += pt.vy; pt.vy += pt.grav; pt.life--; if (pt.shape === 'ring') pt.r += 1.6; }
@@ -431,32 +560,174 @@
     updateHUD(bs);
   }
 
+  /* shared boss-damage feedback: on-beat doubles, rage adds +1, crits flare gold.
+     Every move in the kit damages bosses — blast (1), crown/woofer crit (2),
+     stomp (2 + bounce), dash-through (1) — so the fights are never a stat wall. */
+  function bossHit(b, base, x, y, opts) {
+    opts = opts || {};
+    const onb = QA.onBeat();
+    let dmg = base * (onb ? 2 : 1) + (rageOn ? 1 : 0);
+    b.hp -= dmg; b.hurt = 14; shake = Math.max(shake, onb ? 10 : 6); hitStop = Math.max(hitStop, onb ? 3 : 1);
+    burst(x, y, onb ? C.gold : C.toxic, onb ? 18 : 10, 3.6, { glow: 1 }); if (onb) ring(x, y, C.gold, 20);
+    floatText(x, y - 12, (onb ? '✦ ON BEAT −' : '−') + dmg + (opts.crit ? ' CRIT!' : ''), onb || opts.crit ? C.gold : C.toxic);
+    combo++; comboT = 70; showCombo();
+    rage = Math.min(100, rage + (onb ? 7 : 4));
+    vibe(onb ? 14 : 8);
+    return dmg;
+  }
+
+  /* ---- DJ STATIC (midboss): a possessed speaker-stack. Heavy hops, beat-fired
+     shock notes, and a bass-drop slam that sends ground waves you must jump.
+     After every slam he's DAZED — woofer exposed, free crit window. ---- */
+  function updateMb() {
+    const p = player, b = mb;
+    b.t += 0.06; if (b.hurt > 0) b.hurt--;
+    if (b.dead) { b.fade = (b.fade || 1) - 0.03; if (b.fade <= 0) mb = null; return; }
+    b.vol += (QA.beatStrength() - b.vol) * 0.3;
+    if (b.daze > 0) {
+      b.daze--;
+      if (b.daze === 0) queue('king', 'DJ STATIC', 'Back on the decks!');
+    } else {
+      // heavy hop toward the player
+      if (b.onG) {
+        b.atkCD--;
+        if (b.atkCD <= 0) {
+          b.slamT++;
+          if (b.slamT % 3 === 0) {
+            // BASS DROP — slam: ground waves both ways, then a daze window
+            b.hopV = -7.5; b.onG = false; b.slam = true; b.atkCD = 120;
+            floatText(b.x + b.w / 2, b.y - 14, '! BASS DROP !', C.rage);
+          } else {
+            b.hopV = -5; b.onG = false; b.slam = false; b.atkCD = 86;
+            // beat-synced shock note at the player
+            const dir = p.x > b.x ? 1 : -1;
+            notes.push({ x: b.x + b.w / 2 + dir * 16, y: b.y + 14, vx: dir * 2.6, vy: -0.6, kind: 'shock', t: 0 });
+          }
+        }
+      } else {
+        b.hopV += 0.32; b.y += b.hopV;
+        b.x += (p.x > b.x ? 1 : -1) * (b.slam ? 1.6 : 1.1);
+        if (b.y >= GY - b.h) {
+          b.y = GY - b.h; b.onG = true; b.hopV = 0; shake = Math.max(shake, b.slam ? 9 : 4);
+          burst(b.x + b.w / 2, GY, b.slam ? C.rage : C.purple, b.slam ? 18 : 8, 3, { glow: 1 });
+          if (b.slam) {
+            notes.push({ x: b.x + b.w / 2, y: GY - 7, vx: 2.6, kind: 'wave', life: 110 });
+            notes.push({ x: b.x + b.w / 2, y: GY - 7, vx: -2.6, kind: 'wave', life: 110 });
+            b.daze = 90; b.slam = false;
+            floatText(b.x + b.w / 2, b.y - 10, 'WOOFER EXPOSED!', C.gold);
+          }
+        }
+      }
+    }
+    b.x = Math.max(3060, Math.min(3450 - b.w, b.x));
+    const bb = { x: b.x, y: b.y, w: b.w, h: b.h };
+    const woof = { x: b.x + b.w / 2 - 11, y: b.y + b.h * 0.45, w: 22, h: 20 };  // crit zone
+    for (const bl of blasts) {
+      if (hit(bl, bb)) {
+        const crit = hit(bl, woof) && b.daze > 0;
+        bossHit(b, crit ? 2 : 1, bl.x + bl.w / 2, bl.y + bl.h / 2, { crit });
+        bl.life = Math.min(bl.life, 2);
+        if (b.hp <= 0) return mbDie();
+      }
+    }
+    if (hit(p, bb)) {
+      const feetWasAbove = (p.y + p.h - p.vy) <= b.y + 10;
+      if (p.dashT > 0 && !p.dashHit) {
+        p.dashHit = true; bossHit(b, 1, p.x + p.w / 2, p.y + p.h / 2); p.inv = Math.max(p.inv, 14);
+        if (b.hp <= 0) return mbDie();
+      } else if (p.vy > 0.6 && feetWasAbove) {
+        bossHit(b, 2, b.x + b.w / 2, b.y, { crit: b.daze > 0 });
+        p.vy = K.jump ? -8.5 : -6.5; p.airJumps = 1; p.inv = Math.max(p.inv, 10); p.squash = 1.35;
+        if (b.hp <= 0) return mbDie();
+      } else if (p.inv <= 0 && b.daze <= 0) damage(1);
+    }
+  }
+  function mbDie() {
+    const b = mb; b.dead = true; b.fade = 1; mbDead = true; score += 25; rage = Math.min(100, rage + 30);
+    shake = 12; flash = 8; slowMo = 40;
+    burst(b.x + b.w / 2, b.y + b.h / 2, C.purple, 36, 4.5, { glow: 1 });
+    burst(b.x + b.w / 2, b.y + b.h / 2, C.toxic, 22, 3, { glow: 1, shape: 'goo' });
+    ring(b.x + b.w / 2, b.y + b.h / 2, C.toxic, 30);
+    theKey = { x: b.x + b.w / 2, y: GY - 46, t: 0 };
+    notes.push({ x: b.x + b.w / 2, y: GY - 96, t: 0, kind: 'guide' });
+    dropPickup('heart', b.x + 10, b.y - 20); dropPickup('triple', b.x + b.w - 10, b.y - 26);
+    queue('king', 'DJ STATIC', 'My mix... unplugged...');
+    queue('vena', 'PRINCESS VENA', 'The Slime Key! Take it to the castle gate!');
+  }
+
+  /* ---- RED SERPENT KING: 3 phases, telegraphed lunges, note rain, P3 summons.
+     Every lunge ends in a DAZE — crown sags low, crits wide open. ---- */
   function updateBoss() {
     const p = player, b = boss; b.t += 0.05; if (b.hurt > 0) b.hurt--; if (b.rear > 0) b.rear--;
-    b.phase = b.hp > 8 ? 1 : b.hp > 4 ? 2 : 3;
-    if (b.lunge > 0) { b.lunge--; b.x += b.vx; }
+    // death cinematic — serial bursts down the body, then the win
+    if (b.dying > 0) {
+      b.dying--;
+      if (b.dying % 9 === 0) {
+        const bx = b.x + Math.random() * b.w, by = b.y + Math.random() * b.h;
+        burst(bx, by, Math.random() < .5 ? C.gold : C.slime, 16, 3.8, { glow: 1 }); shake = Math.max(shake, 5);
+      }
+      if (b.dying === 60) { burst(b.x + b.w / 2, b.y - 6, C.gold, 30, 5, { glow: 1 }); floatText(b.x + b.w / 2, b.y - 20, 'CROWN SHATTERED', C.gold); }
+      if (b.dying <= 0) winGame();
+      return;
+    }
+    b.phase = b.hp > 20 ? 1 : b.hp > 10 ? 2 : 3;
+    if (b.daze > 0) {
+      b.daze--;
+      if (!b.dazeShown) { b.dazeShown = true; floatText(b.x + b.w / 2, b.y - 18, 'STRIKE NOW!', C.gold); }
+    } else if (b.lunge > 0) { b.lunge--; b.x += b.vx; if (b.lunge === 0) { b.daze = 80; b.dazeShown = false; } }
     else {
-      const tgt = p.x + (p.x < b.x ? 150 : -150); b.x += (tgt - b.x) * 0.022; b.atkCD--;
+      // hover INSIDE blast range (~110px) so ranged play always lands
+      const tgt = p.x + (p.x < b.x ? 110 : -110); b.x += (tgt - b.x) * 0.03; b.atkCD--;
       if (b.atkCD <= 0) {
-        if (b.phase === 1 || b.phase === 3) { b.vx = (p.x < b.x ? -1 : 1) * (b.phase === 3 ? 5.5 : 3.8); b.lunge = 28; b.atkCD = b.phase === 3 ? 78 : 120; b.sx = 8; b.rear = 16; }
-        else { for (let i = 0; i < 6; i++) notes.push({ x: cam.x + 30 + Math.random() * (W - 60), y: -VOFF - 12, vy: 1.7 + Math.random() * 1.5, kind: 'red', t: 0 }); b.atkCD = 108; b.rear = 14; }
+        const roll = b.phase === 1 ? 0 : Math.random();
+        if (b.phase === 1 || roll < 0.55) {
+          b.vx = (p.x < b.x ? -1 : 1) * (b.phase === 3 ? 5.5 : 3.8); b.lunge = 28; b.atkCD = b.phase === 3 ? 70 : 100; b.sx = 8; b.rear = 18;
+          floatText(b.x + b.w / 2, b.y - 14, '!', C.rage);
+        } else {
+          for (let i = 0; i < (b.phase === 3 ? 7 : 5); i++) notes.push({ x: cam.x + 30 + Math.random() * (W - 60), y: -VOFF - 12, vy: 1.7 + Math.random() * 1.5, kind: 'red', t: 0 });
+          b.atkCD = 100; b.rear = 14;
+        }
+      }
+      if (b.phase === 3) {
+        b.summonCD--;
+        const minions = enemies.filter(e => !e.dead && e.x > 4600).length;
+        if (b.summonCD <= 0 && minions < 2) {
+          b.summonCD = 240;
+          const e = spawn('mite', b.x + (Math.random() < .5 ? -60 : 60), GY); e.rng = [4680, 5320];
+          burst(e.x + 9, GY - 8, C.rage, 10, 2.5, { glow: 1 });
+        }
       }
     }
     b.y = GY - b.h; if (b.sx > 0) b.sx *= 0.85;
-    if (b.x < 2660) b.x = 2660; if (b.x > LW - b.w) b.x = LW - b.w;
-    const bb = { x: b.x, y: b.y, w: b.w, h: b.h }, crown = { x: b.x + 16, y: b.y - 6, w: 40, h: 18 };
+    if (b.x < 4660) b.x = 4660; if (b.x > 5340 - b.w) b.x = 5340 - b.w;
+    const bb = { x: b.x, y: b.y, w: b.w, h: b.h };
+    // crown: rides high normally, sags to head height while dazed (easier crits)
+    const crown = b.daze > 0 ? { x: b.x + 12, y: b.y + 6, w: 48, h: 22 } : { x: b.x + 14, y: b.y - 8, w: 44, h: 20 };
     for (const bl of blasts) {
-      if (hit(bl, crown)) {
-        const onb = QA.onBeat(); const dmg = (rageOn ? 2 : 1) * (onb ? 2 : 1); b.hp -= dmg; b.hurt = 14; shake = onb ? 10 : 6; hitStop = onb ? 3 : 0;
-        burst(b.x + b.w / 2, b.y - 4, onb ? C.gold : C.toxic, onb ? 18 : 10, 3.6, { glow: 1 }); if (onb) ring(b.x + b.w / 2, b.y - 4, C.gold, 20);
-        floatText(b.x + b.w / 2, b.y - 16, onb ? 'ON BEAT! ' + dmg : '-' + dmg, onb ? C.gold : C.toxic);
-        if (onb) { combo++; comboT = 70; showCombo(); }
+      const hitCrown = hit(bl, crown), hitBody = hit(bl, bb);
+      if (hitCrown || hitBody) {
+        bossHit(b, hitCrown ? 2 : 1, bl.x + bl.w / 2, bl.y + bl.h / 2, { crit: hitCrown });
         bl.life = Math.min(bl.life, 2);
+        if (b.hp <= 0) return kingDown();
       }
     }
-    if (p.inv <= 0 && hit(p, bb)) damage(1);
+    if (hit(p, bb)) {
+      const feetWasAbove = (p.y + p.h - p.vy) <= b.y + 12;
+      if (p.dashT > 0 && !p.dashHit) {
+        p.dashHit = true; bossHit(b, 1, p.x + p.w / 2, p.y + p.h / 2); p.inv = Math.max(p.inv, 14);
+        if (b.hp <= 0) return kingDown();
+      } else if (p.vy > 0.6 && feetWasAbove) {
+        bossHit(b, 2, b.x + b.w / 2, b.y - 2, { crit: b.daze > 0 });
+        p.vy = K.jump ? -8.5 : -6.5; p.airJumps = 1; p.inv = Math.max(p.inv, 10); p.squash = 1.35;
+        if (b.hp <= 0) return kingDown();
+      } else if (p.inv <= 0 && b.daze <= 0) damage(1);
+    }
     for (const n of notes) { if (n.kind !== 'red') continue; n.y += n.vy; if (p.inv <= 0 && hit(p, { x: n.x - 7, y: n.y - 7, w: 14, h: 14 })) { damage(1); n.hit = true; } }
-    if (b.hp <= 0) winGame();
+  }
+  function kingDown() {
+    const b = boss; b.dying = 130; b.hp = 0; b.lunge = 0; b.daze = 0; slowMo = 70; shake = 12; flash = 8;
+    notes = notes.filter(n => n.kind !== 'red' && n.kind !== 'shock' && n.kind !== 'wave');
+    queue('king', 'RED SERPENT KING', 'The beat... it was never mine...');
   }
   function kill(e, x, y) {
     e.dead = true; e.fade = 1; kills++; score += 2; rage = Math.min(100, rage + 12);
@@ -464,9 +735,18 @@
     burst(x + e.w / 2, y + e.h / 2, C.slime, 16, 3.6, { glow: 1, shape: 'goo' });
     burst(x + e.w / 2, y + e.h / 2, C.slimeBright, 8, 2, { glow: 1, life: 18 });
     ring(x + e.w / 2, y + e.h / 2, C.slime, 14);
+    // busted amps sometimes spill a power-up
+    if (e.type === 'amp' && Math.random() < 0.6) dropPickup(Math.random() < .4 ? 'heart' : Math.random() < .5 ? 'triple' : 'shield', x + e.w / 2, y - 6);
   }
   function damage(n) {
-    const p = player; if (p.inv > 0) return; hp -= n; p.inv = 72; shake = 9; flash = 4; hitStop = 2;
+    const p = player; if (p.inv > 0) return;
+    if (shieldOn) {   // slime shield absorbs the hit instead
+      shieldOn = false; p.inv = 50; shake = 5;
+      burst(p.x + p.w / 2, p.y + p.h / 2, C.sbBlueLite, 18, 3.2, { glow: 1 }); ring(p.x + p.w / 2, p.y + p.h / 2, C.sbBlueLite, 20);
+      floatText(p.x + p.w / 2, p.y - 8, 'SHIELD!', C.sbBlueLite);
+      return;
+    }
+    hp -= n; p.inv = 72; shake = 9; flash = 4; hitStop = 2;
     if (combo > bestCombo) bestCombo = combo;   // bank the peak before the hit wipes the active combo
     combo = 0; comboT = 0; el.combo && el.combo.classList.remove('show');
     burst(p.x + p.w / 2, p.y + p.h / 2, C.rage, 14, 3.5, { glow: 1 }); p.vy = -3.4; p.vx = -p.dir * 3.5;
@@ -484,10 +764,11 @@
     drawSky(bs);
     ctx.save(); ctx.translate(0, VOFF); drawParallax(cx, bs); ctx.restore();
     ctx.save(); ctx.translate(-cx, VOFF);
-    drawPits(bs); drawPlatforms(bs); drawDecals(); drawTorches(bs); drawCoins();
+    drawPits(bs); drawPlatforms(bs); drawDecals(); drawTorches(bs); drawGates(bs); drawCoins(); drawPickups();
     if (theKey) drawKey();
     drawNotes();
     for (const e of enemies) drawEnemy(e);
+    if (mb) drawMb();
     if (boss) drawBoss();
     drawPrincess();
     for (const b of blasts) drawBlast(b);
@@ -505,11 +786,53 @@
     if (state === 'paused') drawPausedOverlay();
   }
 
+  /* ----- zone palettes: each zone tints the sky + parallax hills, crossfaded over
+     a 300px band at the zone line so walking between zones feels like a scene change
+     (pit = emerald, swamp = neon teal, castle = ember red). Rage overrides all. ----- */
+  const ZPAL = [
+    { sky: ['#0c2e16', '#0a2110', '#05150b'], par: ['#08200f', '#0b3015', '#0f421d'], acc: [141, 255, 43] },
+    { sky: ['#082c30', '#0b1c38', '#060b1a'], par: ['#071c24', '#0a2840', '#0f3a50'], acc: [80, 220, 255] },
+    { sky: ['#2c0a18', '#1c0712', '#0a0308'], par: ['#1c0510', '#2c081c', '#3c0c24'], acc: [255, 70, 90] },
+  ];
+  function hx(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
+  function mixc(a, b, t) { const A = hx(a), B = hx(b); return 'rgb(' + Math.round(A[0] + (B[0] - A[0]) * t) + ',' + Math.round(A[1] + (B[1] - A[1]) * t) + ',' + Math.round(A[2] + (B[2] - A[2]) * t) + ')'; }
+  function blendPal(A, B, t) {
+    return {
+      sky: A.sky.map((c, i) => mixc(c, B.sky[i], t)),
+      par: A.par.map((c, i) => mixc(c, B.par[i], t)),
+      acc: A.acc.map((v, i) => Math.round(v + (B.acc[i] - v) * t)),
+    };
+  }
+  function palNow() {
+    const pos = cam ? cam.x + W / 2 : 0;
+    for (let z = ZONES.length - 1; z >= 1; z--) {
+      const edge = ZONES[z].x0;
+      if (pos >= edge + 150) return ZPAL[z];
+      if (pos > edge - 150) return blendPal(ZPAL[z - 1], ZPAL[z], (pos - (edge - 150)) / 300);
+    }
+    return ZPAL[0];
+  }
+  let PAL = ZPAL[0];
+
   function drawSky(bs) {
+    PAL = palNow();
     const g = ctx.createLinearGradient(0, 0, 0, VH);
     if (rageOn) { g.addColorStop(0, '#2a0410'); g.addColorStop(.5, '#1a0208'); g.addColorStop(1, '#070103'); }
-    else { g.addColorStop(0, '#0c2e16'); g.addColorStop(.45, '#0a2110'); g.addColorStop(1, '#05150b'); }
+    else { g.addColorStop(0, PAL.sky[0]); g.addColorStop(.45, PAL.sky[1]); g.addColorStop(1, PAL.sky[2]); }
     ctx.fillStyle = g; ctx.fillRect(-30, -30, W + 60, VH + 60);
+    // aurora ribbons — slow sine bands in the upper sky, breathing with the beat
+    if (!REDUCED) {
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineWidth = 9; ctx.lineCap = 'round';
+      const acc = rageOn ? [255, 60, 80] : PAL.acc;
+      for (let r = 0; r < 3; r++) {
+        const baseY = VH * (0.10 + r * 0.07), ph = timeNow * 0.00022 + r * 2.1;
+        ctx.strokeStyle = 'rgba(' + acc[0] + ',' + acc[1] + ',' + acc[2] + ',' + (0.035 + bs * 0.045) + ')';
+        ctx.beginPath();
+        for (let x = -20; x <= W + 20; x += 32) ctx.lineTo(x, baseY + Math.sin(x * 0.012 + ph) * (10 + bs * 8) + Math.sin(x * 0.004 - ph * 1.7) * 14);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
     // 808 EMERALD moon — pulses with the live track
     const mx = W * 0.80, my = VH * 0.2, mr = 24 + bs * 7;
     const mg = ctx.createRadialGradient(mx, my, 2, mx, my, mr * 2.6);
@@ -529,29 +852,33 @@
     for (let i = 0; i < 44; i++) { const sxp = (i * 137) % W, syp = (i * 71) % (VH * 0.62); ctx.fillStyle = 'rgba(200,255,190,' + (0.2 + 0.5 * ((Math.sin(timeNow * 0.002 + i) + 1) / 2)) + ')'; ctx.fillRect(sxp, syp, 1, 1); }
   }
   function drawParallax(cx, bs) {
-    const layers = [{ s: 0.2, col: rageOn ? '#240310' : '#08200f', h: 92, amp: 30 },
-    { s: 0.4, col: rageOn ? '#350518' : '#0b3015', h: 72, amp: 22 },
-    { s: 0.62, col: rageOn ? '#470820' : '#0f421d', h: 52, amp: 16 }];
+    const layers = [{ s: 0.2, col: rageOn ? '#240310' : PAL.par[0], h: 92, amp: 30 },
+    { s: 0.4, col: rageOn ? '#350518' : PAL.par[1], h: 72, amp: 22 },
+    { s: 0.62, col: rageOn ? '#470820' : PAL.par[2], h: 52, amp: 16 }];
     for (const L of layers) {
       ctx.save(); ctx.translate(-cx * L.s, 0); ctx.fillStyle = L.col;
       ctx.beginPath(); ctx.moveTo(-40, H);
       for (let x = -40; x < W + 80; x += 20) { const y = H - L.h - Math.sin((x + cx * L.s) * 0.01) * L.amp - (L === layers[2] ? bs * 5 : 0); ctx.lineTo(x, y); } ctx.lineTo(W + 80, H); ctx.closePath(); ctx.fill();
       if (L.s > 0.6) {
-        ctx.strokeStyle = rageOn ? 'rgba(255,31,46,' + (0.2 + bs * 0.3) + ')' : 'rgba(141,255,43,' + (0.2 + bs * 0.35) + ')'; ctx.lineWidth = 1.5;
+        const acc = rageOn ? [255, 31, 46] : PAL.acc;
+        ctx.strokeStyle = 'rgba(' + acc[0] + ',' + acc[1] + ',' + acc[2] + ',' + (0.2 + bs * 0.35) + ')'; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.moveTo(-40, H - L.h);
         for (let x = -40; x < W + 80; x += 20) { const y = H - L.h - Math.sin((x + cx * L.s) * 0.01) * L.amp; ctx.lineTo(x, y); } ctx.stroke();
       }
       ctx.restore();
     }
-    // Static Castle towers in the mid-distance (parallax 0.5), only visible toward the end
+    // Static Castle towers loom in the mid-distance as you push through zone 3
     drawCastle(cx, bs);
-    // floating emerald orbs reacting to the beat
+    // floating accent orbs reacting to the beat
     ctx.save(); ctx.translate(-cx * 0.5, 0);
-    for (let i = 0; i < 18; i++) { const ox = 80 + i * 200, oy = 50 + (i % 4) * 26 + Math.sin(timeNow * 0.001 + i) * 6, r = 1.5 + bs * 2.8; ctx.fillStyle = rageOn ? 'rgba(255,60,80,' + (0.3 + bs * 0.4) + ')' : 'rgba(120,255,90,' + (0.3 + bs * 0.4) + ')'; ctx.beginPath(); ctx.arc(ox, oy, r, 0, 6.28); ctx.fill(); }
+    const oc = rageOn ? [255, 60, 80] : PAL.acc;
+    for (let i = 0; i < 26; i++) { const ox = 80 + i * 200, oy = 50 + (i % 4) * 26 + Math.sin(timeNow * 0.001 + i) * 6, r = 1.5 + bs * 2.8; ctx.fillStyle = 'rgba(' + oc[0] + ',' + oc[1] + ',' + oc[2] + ',' + (0.3 + bs * 0.4) + ')'; ctx.beginPath(); ctx.arc(ox, oy, r, 0, 6.28); ctx.fill(); }
     ctx.restore();
   }
   function drawCastle(cx, bs) {
-    const par = 0.55, sx = 3060 * 1 - cx * par - 40; // screen x of the castle base
+    /* anchored so the keep rises over the hills once the camera crosses into zone 3
+       and slides toward the throne room as you advance */
+    const par = 0.55, sx = 2790 - cx * par - 40; // screen x of the castle base
     if (sx > W + 120 || sx < -260) return;
     ctx.save(); ctx.translate(sx, 0);
     const baseY = H - 64, col = rageOn ? '#1c0510' : '#0c2418', edge = rageOn ? '#3a0a1c' : '#16402a';
@@ -647,8 +974,133 @@
     ctx.shadowBlur = 0; ctx.restore();
     for (let i = 0; i < 3; i++) { const a = k.t * 1.5 + i * 2.1; ctx.fillStyle = 'rgba(160,255,122,.7)'; ctx.fillRect(k.x + Math.cos(a) * 11, k.y + fl + Math.sin(a) * 11, 1.5, 1.5); }
   }
+  function drawGates(bs) {
+    for (const g of gates) {
+      const cx0 = cam.x;
+      if (g.x > cx0 + W + 60 || g.x + g.w < cx0 - 60) continue;
+      if (g.kind === 'slime') {
+        // slime barrier — a wobbling goo wall that melts downward once it opens
+        const hgt = 84 * (1 - g.t); if (hgt < 3) { // melted: residual puddle
+          ctx.fillStyle = 'rgba(141,255,43,.25)'; ctx.beginPath(); ctx.ellipse(g.x + 7, GY, 16, 3, 0, 0, 6.28); ctx.fill(); continue;
+        }
+        ctx.save(); ctx.globalAlpha = 1 - g.t * 0.6;
+        const gr = ctx.createLinearGradient(0, GY - hgt, 0, GY);
+        gr.addColorStop(0, 'rgba(194,255,122,.9)'); gr.addColorStop(1, 'rgba(42,122,0,.95)');
+        ctx.fillStyle = gr;
+        for (let y = 0; y < hgt; y += 4) {
+          const wob = Math.sin((y + timeNow * 0.006) * 0.35) * 2.5;
+          ctx.fillRect(g.x + wob, GY - hgt + y, g.w, 4);
+        }
+        // dripping crest + core glow
+        ctx.fillStyle = C.slimeBright; ctx.fillRect(g.x - 2, GY - hgt - 3, g.w + 4, 4);
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = 'rgba(141,255,43,' + (0.18 + bs * 0.2) + ')'; ctx.fillRect(g.x - 5, GY - hgt, g.w + 10, hgt);
+        ctx.restore();
+        for (let i = 0; i < 3; i++) { const dy = (timeNow * 0.05 + i * 33) % hgt; ctx.fillStyle = C.slime; ctx.fillRect(g.x + 3 + i * 4, GY - hgt + dy, 2, 5); }
+        ctx.restore();
+      } else {
+        // castle gate — stone arch + portcullis that winches up once unlocked
+        const x = g.x - 12, wgt = g.w + 24;
+        ctx.fillStyle = '#2a2a38'; ctx.fillRect(x, GY - 96, 10, 96); ctx.fillRect(x + wgt - 10, GY - 96, 10, 96);
+        ctx.fillStyle = '#3a3a4c'; ctx.fillRect(x - 2, GY - 102, wgt + 4, 10);
+        ctx.fillStyle = '#1c1c28'; for (let i = 0; i < 3; i++) { ctx.fillRect(x + 2, GY - 88 + i * 28, 6, 3); ctx.fillRect(x + wgt - 8, GY - 74 + i * 28, 6, 3); }
+        const lift = g.t * 78;   // portcullis rises as it opens
+        ctx.save(); ctx.beginPath(); ctx.rect(x + 10, GY - 92, wgt - 20, 92); ctx.clip();
+        ctx.fillStyle = '#0d0d14';
+        for (let bx2 = x + 12; bx2 < x + wgt - 10; bx2 += 7) ctx.fillRect(bx2, GY - 92 - lift, 3, 92);
+        for (let by2 = GY - 86 - lift; by2 < GY; by2 += 18) ctx.fillRect(x + 10, by2, wgt - 20, 3);
+        ctx.restore();
+        // keyhole sigil — gold once the key is in hand / gate open
+        const lit = g.open || keysGot >= 1;
+        ctx.fillStyle = lit ? C.gold : '#55556a';
+        if (lit) { ctx.shadowColor = C.gold; ctx.shadowBlur = 8; }
+        ctx.beginPath(); ctx.arc(g.x + g.w / 2, GY - 64, 4, 0, 6.28); ctx.fill();
+        ctx.fillRect(g.x + g.w / 2 - 2, GY - 62, 4, 9); ctx.shadowBlur = 0;
+      }
+    }
+  }
+  function drawPickups() {
+    for (const pu of pickups) {
+      const fl = Math.sin(pu.t * 1.4) * 2.5, fade = pu.life < 90 ? (Math.floor(pu.life / 6) % 2 === 0 ? 0.35 : 1) : 1;
+      ctx.save(); ctx.translate(pu.x, pu.y + fl); ctx.globalAlpha = fade;
+      const col = pu.kind === 'heart' ? C.rageSoft : pu.kind === 'triple' ? C.toxic : C.sbBlueLite;
+      // soft halo
+      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = col; ctx.globalAlpha = fade * 0.22;
+      ctx.beginPath(); ctx.arc(0, 0, 11, 0, 6.28); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = fade;
+      if (pu.kind === 'heart') {
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(-2.5, -2, 3.2, 0, 6.28); ctx.arc(2.5, -2, 3.2, 0, 6.28); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(-5.4, -0.6); ctx.lineTo(0, 6.5); ctx.lineTo(5.4, -0.6); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.fillRect(-3, -3.5, 1.6, 1.6);
+      } else if (pu.kind === 'triple') {
+        ctx.fillStyle = col;
+        for (let i = 0; i < 3; i++) { const a = -1.57 + i * 2.09; ctx.save(); ctx.translate(Math.cos(a) * 4.5, Math.sin(a) * 4.5); ctx.fillRect(-1.5, -3, 3, 6); ctx.restore(); }
+        ctx.fillStyle = '#fff'; ctx.fillRect(-1, -1, 2, 2);
+      } else {
+        ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 6.5, 0, 6.28); ctx.stroke();
+        ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, 6.28); ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+  /* DJ STATIC — a possessed speaker-stack golem. Woofer face bumps with the live
+     track; daze pops the cone out with a gold flare so the crit window reads. */
+  function drawMb() {
+    const b = mb;
+    ctx.save(); ctx.globalAlpha = b.dead ? Math.max(0, b.fade) : 1; ctx.translate(b.x, b.y);
+    if (b.hurt > 0 && Math.floor(b.hurt / 3) % 2 === 0) ctx.globalAlpha *= 0.6;
+    const pulse = b.vol || 0, dazed = b.daze > 0;
+    ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.beginPath(); ctx.ellipse(b.w / 2, b.h + 2, b.w * 0.45, 4, 0, 0, 6.28); ctx.fill();
+    const sq = b.onG ? 1 : 0.94;   // slight stretch in the air
+    ctx.translate(b.w / 2, b.h); ctx.scale(1 / sq, sq); ctx.translate(-b.w / 2, -b.h);
+    // bottom cabinet (woofer)
+    let g = ctx.createLinearGradient(0, b.h - 32, 0, b.h); g.addColorStop(0, '#23232e'); g.addColorStop(1, '#0c0c14');
+    ctx.fillStyle = g; ctx.fillRect(2, b.h - 32, b.w - 4, 32);
+    ctx.strokeStyle = '#3c3c50'; ctx.lineWidth = 1; ctx.strokeRect(2.5, b.h - 31.5, b.w - 5, 31);
+    // top cabinet (head) w/ visor + headphone band
+    g = ctx.createLinearGradient(0, 0, 0, 22); g.addColorStop(0, '#2c2c3a'); g.addColorStop(1, '#14141e');
+    ctx.fillStyle = g; ctx.fillRect(5, 0, b.w - 10, 22);
+    ctx.strokeStyle = '#3c3c50'; ctx.strokeRect(5.5, 0.5, b.w - 11, 21);
+    ctx.fillStyle = C.purple; ctx.fillRect(3, -4, b.w - 6, 5);            // headphone band
+    ctx.fillStyle = '#0b0b12'; ctx.fillRect(1, -2, 6, 12); ctx.fillRect(b.w - 7, -2, 6, 12); // ear cups
+    // LED visor — angry slits, X-eyes while dazed
+    if (dazed) {
+      ctx.strokeStyle = C.gold; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(13, 7); ctx.lineTo(20, 14); ctx.moveTo(20, 7); ctx.lineTo(13, 14);
+      ctx.moveTo(b.w - 20, 7); ctx.lineTo(b.w - 13, 14); ctx.moveTo(b.w - 13, 7); ctx.lineTo(b.w - 20, 14); ctx.stroke();
+    } else {
+      ctx.fillStyle = C.rage; ctx.shadowColor = C.rage; ctx.shadowBlur = 6;
+      ctx.fillRect(12, 9, 9, 3); ctx.fillRect(b.w - 21, 9, 9, 3); ctx.shadowBlur = 0;
+    }
+    // the WOOFER (crit zone): bumps on the beat, pops out gold while dazed
+    const wy = b.h - 16, wr = (dazed ? 10 : 8) + pulse * 3;
+    ctx.fillStyle = '#15151c'; ctx.beginPath(); ctx.arc(b.w / 2, wy, 11, 0, 6.28); ctx.fill();
+    const wg = ctx.createRadialGradient(b.w / 2, wy, 1, b.w / 2, wy, wr);
+    if (dazed) { wg.addColorStop(0, C.goldLt); wg.addColorStop(1, '#7a5a00'); }
+    else { wg.addColorStop(0, C.purpleSoft); wg.addColorStop(1, '#1a1024'); }
+    ctx.fillStyle = wg; ctx.beginPath(); ctx.arc(b.w / 2, wy, wr, 0, 6.28); ctx.fill();
+    ctx.fillStyle = '#050507'; ctx.beginPath(); ctx.arc(b.w / 2, wy, 2.5 + pulse * 1.5, 0, 6.28); ctx.fill();
+    if (dazed) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(255,209,102,' + (0.5 + Math.sin(b.t * 6) * 0.3) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(b.w / 2, wy, wr + 4, 0, 6.28); ctx.stroke(); ctx.restore(); }
+    // tweeter row + jack cables
+    ctx.fillStyle = '#0e0e16'; ctx.fillRect(12, 24, b.w - 24, 4);
+    for (let i = 0; i < 3; i++) { ctx.fillStyle = pulse > 0.3 + i * 0.2 ? C.purpleSoft : '#34344a'; ctx.fillRect(14 + i * 8, 25, 4, 2); }
+    ctx.strokeStyle = '#23232e'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(4, b.h - 6); ctx.quadraticCurveTo(-8, b.h - 2 + Math.sin(b.t * 2) * 2, -12, b.h); ctx.stroke();
+    ctx.restore();
+  }
   function drawNotes() {
     for (const n of notes) {
+      if (n.kind === 'wave') {
+        // bass-drop ground ripple — concentric arcs racing along the floor
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = 'rgba(255,31,46,.8)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(n.x, GY, 9 + Math.sin(n.t) * 2, Math.PI, 0); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,90,69,.45)'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(n.x - n.vx * 3, GY, 5, Math.PI, 0); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,120,130,.5)'; ctx.fillRect(n.x - 1, GY - 12, 2, 4);
+        ctx.restore(); continue;
+      }
       if (n.kind === 'shock') {
         ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = 10; ctx.shadowColor = C.rage;
         const r = 4 + Math.sin(n.t * 6) * 1.2; ctx.fillStyle = C.rageSoft; ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 6.28); ctx.fill();
@@ -790,6 +1242,20 @@
     ctx.drawImage(pcan, ox, oy);
     ctx.restore();
 
+    // slime shield bubble
+    if (shieldOn) {
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = 'rgba(58,107,255,' + (0.4 + QA.beatStrength() * 0.3) + ')'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.ellipse(p.x + p.w / 2, p.y + p.h / 2 - 4, 18, 26 + Math.sin(timeNow * 0.006) * 1.5, 0, 0, 6.28); ctx.stroke();
+      ctx.restore();
+    }
+    // triple-mic charge — three notes orbiting overhead while the power-up is live
+    if (tripleT > 0) {
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = C.toxic;
+      const blinkT = tripleT < 120 && Math.floor(tripleT / 8) % 2 === 0 ? 0.3 : 0.85; ctx.globalAlpha = blinkT;
+      for (let i = 0; i < 3; i++) { const a = timeNow * 0.005 + i * 2.09; ctx.fillRect(p.x + p.w / 2 + Math.cos(a) * 12, p.y - 10 + Math.sin(a) * 3, 2.5, 2.5); }
+      ctx.restore();
+    }
     // rage venom drips
     if (rageOn && Math.random() < 0.3) particles.push({ x: p.x + 4 + Math.random() * 14, y: p.y + 40, vx: 0, vy: 0.4, life: 22, max: 22, col: C.rage, size: 2, grav: 0.12, glow: 1, shape: 'goo' });
   }
@@ -894,7 +1360,9 @@
   function drawBoss() {
     const b = boss; ctx.save(); ctx.translate(b.x, b.y);
     if (b.hurt > 0 && Math.floor(b.hurt / 3) % 2 === 0) ctx.globalAlpha = 0.65;
-    const rear = b.rear > 0 ? -b.rear * 0.4 : 0;
+    if (b.dying > 0 && Math.floor(b.dying / 4) % 2 === 0) ctx.globalAlpha = 0.45;  // death strobe
+    const dazed = b.daze > 0;
+    const rear = b.rear > 0 ? -b.rear * 0.4 : (dazed ? 7 : 0);   // dazed = head slumps
     ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.beginPath(); ctx.ellipse(b.w / 2, b.h + 2, b.w * 0.45, 4, 0, 0, 6.28); ctx.fill();
     ctx.shadowColor = C.rage; ctx.shadowBlur = 18 + b.sx;
     // coiled, scaled body
@@ -918,14 +1386,24 @@
     // glowing eyes
     ctx.fillStyle = C.toxic; ctx.shadowColor = C.toxic; ctx.shadowBlur = 8; ctx.fillRect(2, -5, 4, 4); ctx.shadowBlur = 0; ctx.fillStyle = '#1a0004'; ctx.fillRect(3, -4, 2, 2);
     ctx.restore();
-    // crown of broken speakers (weak point) — pulses, flares ON the beat
+    // crown of broken speakers (weak point) — pulses, flares ON the beat,
+    // and SAGS within stomp reach while he's dazed
     const onb = QA.onBeat(), cp = 0.5 + Math.sin(b.t * 4) * 0.5;
-    ctx.shadowColor = onb ? C.gold : C.rageSoft; ctx.shadowBlur = (onb ? 16 : 8) + cp * 8;
-    ctx.fillStyle = onb ? C.gold : '#d6a020';
+    ctx.save();
+    if (dazed) { ctx.translate(2, 13); ctx.rotate(0.12); }
+    ctx.shadowColor = onb || dazed ? C.gold : C.rageSoft; ctx.shadowBlur = (onb || dazed ? 16 : 8) + cp * 8;
+    ctx.fillStyle = onb || dazed ? C.gold : '#d6a020';
     ctx.beginPath(); ctx.moveTo(14, 4); ctx.lineTo(20, -10); ctx.lineTo(28, 4); ctx.lineTo(36, -10); ctx.lineTo(44, 4); ctx.lineTo(52, -10); ctx.lineTo(58, 4); ctx.closePath(); ctx.fill();
     ctx.shadowBlur = 0; ctx.fillStyle = '#2a1e00';
     ctx.beginPath(); ctx.arc(24, -2, 2.5, 0, 6.28); ctx.fill(); ctx.beginPath(); ctx.arc(40, -2, 2.5, 0, 6.28); ctx.fill();
     if (onb) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = C.toxic; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(18, -6); ctx.lineTo(26, -12); ctx.lineTo(34, -4); ctx.lineTo(44, -12); ctx.lineTo(50, -5); ctx.stroke(); ctx.restore(); }
+    ctx.restore();
+    // dizzy sparks orbiting the slumped head while dazed
+    if (dazed) {
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = C.gold;
+      for (let i = 0; i < 3; i++) { const a = b.t * 5 + i * 2.1; ctx.fillRect(b.w - 12 + Math.cos(a) * 14, b.h * 0.3 + Math.sin(a) * 6, 2.5, 2.5); }
+      ctx.restore();
+    }
     ctx.restore();
   }
   function drawPrincess() {
@@ -980,9 +1458,10 @@
     const rows = [
       ['MOVE', 'A / D  ·  ← →'],
       ['JUMP', 'W / SPACE  (hold = higher)'],
-      ['STOMP', 'jump onto a beast'],
+      ['DOUBLE JUMP', 'press jump again mid-air'],
+      ['STOMP', 'jump onto a beast — works on BOSSES'],
       ['MIC BLAST', 'J'],
-      ['SLIME DASH', 'K'],
+      ['SLIME DASH', 'K  (damages bosses too)'],
       ['RAGE MODE', 'R  (when meter is full)'],
     ];
     ctx.font = '10px "Courier New",monospace';
@@ -1012,11 +1491,14 @@
     if (!el.sub) return;
     let txt;
     if (state === 'win') txt = 'THE BEAT IS RESTORED ★';
-    else if (boss) txt = '▶ STRIKE THE CROWN ON BEAT';
-    else if (keysGot >= 1) txt = '▶ TO STATIC CASTLE →';
-    else if (keyUp) txt = '▶ GRAB THE SLIME KEY';
+    else if (boss) txt = boss.daze > 0 ? '▶ HE\'S DAZED — STRIKE!' : '▶ BREAK THE KING — ON BEAT ✦';
+    else if (keysGot >= 1) txt = '▶ TO THE THRONE ROOM →';
+    else if (theKey) txt = '▶ GRAB THE SLIME KEY';
+    else if (mb && !mbDead) txt = mb.daze > 0 ? '▶ WOOFER EXPOSED — STRIKE!' : '▶ DEFEAT DJ STATIC';
+    else if (kills >= 5) txt = '▶ FACE DJ STATIC →';
     else txt = 'DEFEAT THE BEASTS · ' + Math.min(kills, 5) + '/5';
     if (el.sub.textContent !== txt) el.sub.textContent = txt;
+    if (el.lvlname) { const zn = ZONES[zone].name; if (el.lvlname.textContent !== zn) el.lvlname.textContent = zn; }
   }
   function updateHUD(bs) {
     updateObjective();
@@ -1032,13 +1514,19 @@
     }
   }
   function drawBossBar() {
-    if (!boss || state !== 'play') return;
+    if (state !== 'play') return;
+    let b = null, label = '';
+    if (boss && boss.hp > 0) { b = boss; label = 'RED SERPENT KING — PHASE ' + boss.phase + (boss.daze > 0 ? ' · DAZED!' : ''); }
+    else if (mb && !mb.dead) { b = mb; label = 'DJ STATIC' + (mb.daze > 0 ? ' · WOOFER EXPOSED!' : ''); }
+    if (!b) return;
+    const dazed = b.daze > 0;
     const bw = 220, bx = (W - bw) / 2, by = VH - 22;
     ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(bx - 3, by - 3, bw + 6, 12);
     ctx.fillStyle = '#2a0008'; ctx.fillRect(bx, by, bw, 7);
-    ctx.fillStyle = C.rage; ctx.shadowColor = C.rage; ctx.shadowBlur = 8; ctx.fillRect(bx, by, bw * (boss.hp / boss.maxHp), 7); ctx.shadowBlur = 0;
-    ctx.fillStyle = C.toxic; ctx.font = '8px "Courier New",monospace'; ctx.textAlign = 'center';
-    ctx.fillText('RED SERPENT KING — PHASE ' + boss.phase, W / 2, by - 5); ctx.textAlign = 'left';
+    const col = dazed ? C.gold : C.rage;
+    ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 8; ctx.fillRect(bx, by, bw * Math.max(0, b.hp / b.maxHp), 7); ctx.shadowBlur = 0;
+    ctx.fillStyle = dazed ? C.gold : C.toxic; ctx.font = '8px "Courier New",monospace'; ctx.textAlign = 'center';
+    ctx.fillText(label, W / 2, by - 5); ctx.textAlign = 'left';
   }
 
   /* ===================== responsive layout ===================== */
@@ -1075,33 +1563,41 @@
     update(dt); draw();
     rafId = requestAnimationFrame(loop);
   }
-  function startGame() {
+  function startGame(fromCheckpoint) {
     QA.ensure(); QA.start();    // start the SB site track as the soundtrack (user gesture)
-    reset(); state = 'play';
+    reset(fromCheckpoint === true); state = 'play';
     ['title', 'over', 'win'].forEach(id => el[id] && el[id].classList.add('hidden'));
     el.cabinet && el.cabinet.classList.add('playing');
     setPlayingChrome(true);
     buildHud(); updateHUD(0);
   }
+  function continueGame() { startGame(true); }
   function gameOver() {
-    state = 'over'; rageOn = false; setPlayingChrome(false);
+    state = 'over'; rageOn = false; setPlayingChrome(false); saveBest();
     el.cabinet && el.cabinet.classList.remove('playing');
     if (el.overscore) el.overscore.textContent = 'SLIME COINS: ' + score + '  ·  BEASTS FELLED: ' + kills + '  ·  BEST COMBO: x' + Math.max(bestCombo, combo);
+    // continuing resumes from the last checkpoint with score + progress intact
+    if (el.retrybtn) el.retrybtn.textContent = checkpoint > 0 ? '↻ CONTINUE — ' + ZONES[zoneAt(CHECKPOINTS[checkpoint])].name : '↻ TRY AGAIN';
     el.over && el.over.classList.remove('hidden');
   }
   function winGame() {
     if (state === 'win') return; state = 'win'; win = true; rageOn = false; setPlayingChrome(false); el.cabinet && el.cabinet.classList.remove('playing');
+    saveBest();
     shake = 14; flash = 12; burst(boss.x + boss.w / 2, boss.y, C.slime, 48, 5, { glow: 1 });
     if (el.fscore) el.fscore.textContent = 'SLIME COINS: ' + score + '  ·  BEST COMBO: x' + Math.max(bestCombo, combo) + '  ·  KINGDOM RESTORED';
     setTimeout(() => { el.win && el.win.classList.remove('hidden'); }, 950);
+  }
+  function showBest() {
+    if (!el.best) return; const b = loadBest();
+    el.best.textContent = b.score ? 'BEST RUN — COINS: ' + b.score + ' · COMBO: x' + (b.combo || 0) + (b.won ? ' · ★ KINGDOM SAVED' : '') : '';
   }
   function togglePause() { if (state === 'play') state = 'paused'; else if (state === 'paused') state = 'play'; }
 
   /* ===================== mount / unmount ===================== */
   function wireScreens() {
-    el.startbtn && (el.startbtn.onclick = startGame);
-    el.retrybtn && (el.retrybtn.onclick = startGame);
-    el.replaybtn && (el.replaybtn.onclick = startGame);
+    el.startbtn && (el.startbtn.onclick = () => startGame());
+    el.retrybtn && (el.retrybtn.onclick = () => continueGame());
+    el.replaybtn && (el.replaybtn.onclick = () => startGame());
     el.pausebtn && (el.pausebtn.onclick = togglePause);
     // win-screen links → real site pages (client-side router picks these up)
     root.querySelectorAll('.q-wbtn[data-link]').forEach(btn => {
@@ -1128,7 +1624,7 @@
       ragefill: q('qRagefill'), ragebl: r.querySelector('.q-hud-bl'),
       combo: q('qCombo'), dlg: q('qDlg'), dlgwho: q('qDlgwho'), dlgtxt: q('qDlgtxt'),
       title: q('qTitle'), over: q('qOver'), win: q('qWin'), fscore: q('qFscore'), overscore: q('qOverScore'),
-      startbtn: q('qStart'), retrybtn: q('qRetry'), replaybtn: q('qReplay'), pausebtn: q('qPause'),
+      startbtn: q('qStart'), retrybtn: q('qRetry'), replaybtn: q('qReplay'), pausebtn: q('qPause'), best: q('qBest'),
     };
     // reveal the touch control deck on coarse pointers (CSS keys off this class)
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) root.classList.add('q-has-touch');
@@ -1145,7 +1641,7 @@
     bindTouch(q('qtD'), () => { K.dash = true; K.dashEdge = true; }, () => K.dash = false);
     bindTouch(q('qtRG'), () => { K.rage = true; K.rageEdge = true; }, () => K.rage = false);
     // system row: START/MENU begin the quest from a menu screen, or pause/resume mid-run
-    const sysBtn = () => { if (state === 'play' || state === 'paused') togglePause(); else startGame(); };
+    const sysBtn = () => { if (state === 'play' || state === 'paused') togglePause(); else if (state === 'over') continueGame(); else startGame(); };
     ['qtStart', 'qtMenu'].forEach(id => { const b = q(id); if (b) b.onclick = sysBtn; });
     wireScreens();
     // size the canvas to the cabinet + keep it synced as the layout/orientation changes
@@ -1162,7 +1658,7 @@
     el.title && el.title.classList.remove('hidden');
     el.over && el.over.classList.add('hidden');
     el.win && el.win.classList.add('hidden');
-    reset(); buildHud(); updateHUD(0);
+    reset(); buildHud(); updateHUD(0); showBest();
     if (!running) { running = true; lastFrame = 0; rafId = requestAnimationFrame(loop); }
     window.SBQuest._mounted = true;
   }
@@ -1176,5 +1672,17 @@
     window.SBQuest._mounted = false;
   }
 
-  window.SBQuest = { mount, unmount, _mounted: false };
+  window.SBQuest = {
+    mount, unmount, _mounted: false,
+    /* read-mostly introspection for the headless sim suite (tests/quest.sim.mjs) —
+       returns live references so the sim can verify real combat outcomes. */
+    _debug() {
+      return {
+        state, player, boss, mb, gates, enemies, pickups, notes, blasts, theKey,
+        kills, keysGot, hp, score, checkpoint, mbDead, win, K,
+        setKills(n) { kills = n; },
+        setCheckpoint(n) { checkpoint = n; },
+      };
+    },
+  };
 })();

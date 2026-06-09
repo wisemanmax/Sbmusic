@@ -317,25 +317,27 @@
           <div class="q-how q-tip-key">
             <div class="q-how-grid">
               <span class="key"><b>A</b> <b>D</b> / <b>←</b> <b>→</b></span><span class="act">move</span>
-              <span class="key"><b>W</b> / <b>SPACE</b></span><span class="act">jump &nbsp;(hold for higher)</span>
-              <span class="key"><b>land on a foe</b></span><span class="act hot">STOMP to defeat it</span>
-              <span class="key"><b>J</b></span><span class="act hot">mic blast &nbsp;(ranged hit)</span>
-              <span class="key"><b>K</b></span><span class="act">slime dash &nbsp;(dash through foes)</span>
+              <span class="key"><b>W</b> / <b>SPACE</b></span><span class="act">jump · again mid-air = <b>double jump</b></span>
+              <span class="key"><b>land on a foe</b></span><span class="act hot">STOMP — works on BOSSES too</span>
+              <span class="key"><b>J</b></span><span class="act hot">mic blast &nbsp;(long-range hit)</span>
+              <span class="key"><b>K</b></span><span class="act">slime dash &nbsp;(dash through foes + bosses)</span>
               <span class="key"><b>R</b></span><span class="act">rage mode &nbsp;(when meter is full)</span>
             </div>
-            <span class="hint">jump <b>ON the beat</b> for a higher BEAT JUMP ✦ &nbsp;·&nbsp; press <b>P</b> to pause / view help</span>
+            <span class="hint">hit bosses <b>ON the beat ✦ for DOUBLE damage</b> &nbsp;·&nbsp; press <b>P</b> to pause / view help</span>
           </div>
           <div class="q-how q-tip-touch">
             <div class="q-how-grid">
               <span class="key"><b>◄</b> <b>►</b></span><span class="act">move</span>
-              <span class="key"><b>A</b> / <b>▲</b></span><span class="act">jump · land on a foe to <span class="hot">STOMP</span></span>
+              <span class="key"><b>A</b> / <b>▲</b></span><span class="act">jump · tap again mid-air = <b>double jump</b></span>
+              <span class="key"><b>land on a foe</b></span><span class="act hot">STOMP — works on BOSSES too</span>
               <span class="key"><b>B</b></span><span class="act hot">mic blast</span>
-              <span class="key"><b>L</b></span><span class="act">slime dash</span>
+              <span class="key"><b>L</b></span><span class="act">slime dash &nbsp;(hurts bosses)</span>
               <span class="key"><b>RAGE</b></span><span class="act">rage mode &nbsp;(meter full)</span>
             </div>
-            <span class="hint">tap JUMP <b>on the beat</b> for a higher BEAT JUMP ✦</span>
+            <span class="hint">hit bosses <b>on the beat ✦ for DOUBLE damage</b></span>
           </div>
           <button class="q-play" id="qStart">▶ START QUEST</button>
+          <div class="q-fscore" id="qBest"></div>
           <div class="q-tag q-blink" style="margin-top:18px;">PRESS START — the music becomes your soundtrack</div>
         </div>
 
@@ -345,7 +347,7 @@
           <div class="q-tag">THE KINGDOM GREW SILENT...</div>
           <div class="q-fscore" id="qOverScore" style="margin-top:16px;"></div>
           <div class="q-ctrls" style="margin-top:8px;line-height:1.7;">
-            <span class="hint">TIP: <b>jump on beasts</b> to stomp them, or press <b>J</b> to blast.<br>time hits to the beat ✦ for double damage on the king's crown.</span>
+            <span class="hint">TIP: bosses take damage from <b>everything</b> — stomps, blasts [<b>J</b>] and dashes [<b>K</b>].<br>wait for the <b>DAZE</b> after their big attacks, then unload ✦ on the beat for double.</span>
           </div>
           <button class="q-play" id="qRetry" style="margin-top:22px;">↻ TRY AGAIN</button>
         </div>
@@ -398,8 +400,10 @@
 
       <p class="q-legend">
         the quest rides the <b>live SB player</b> — hit <b>play</b> in the music bar (or just press START) and the
-        beat visuals, <b>BEAT&nbsp;JUMP</b> and the boss-crown timing all lock to whatever track is spinning.
-        clear the pit, find the <span class="blue">slime key</span>, and dethrone the Red Serpent King.
+        beat visuals, <b>BEAT&nbsp;JUMP</b> and boss-damage timing all lock to whatever track is spinning.
+        three zones, two bosses: clear <b>the slime pit</b>, silence <b>DJ STATIC</b> in the neon swamp for the
+        <span class="blue">slime key</span>, then storm static castle and dethrone the <b>Red Serpent King</b>.
+        checkpoints save your run at every gate.
       </p>
     </div>
   </section>
