@@ -154,6 +154,63 @@ const sbReduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 /* coarse-pointer / small-screen = phone or tablet. Used to trim the heaviest audio + render
    work (e.g. the lab reverb impulse) so the lab and visualizers stay smooth on mobile. */
 const sbIsMobile=matchMedia('(pointer:coarse)').matches||innerWidth<700;
+
+/* ---------- ADAPTIVE PERFORMANCE GOVERNOR ----------
+   Chrome and Opera share the Blink engine, so a page that's smooth in one but
+   janky in the other almost always comes down to GPU acceleration: with hardware
+   acceleration off (or the GPU blocklisted) Chrome composites in SOFTWARE, and the
+   stacked blur + mix-blend-mode + backdrop-filter layers here crawl — while a
+   GPU-accelerated browser stays fluid. We can't flip the user's flags, but we can
+   spot the symptom and shed the most GPU-expensive layers. Two triggers: (1) the
+   WebGL renderer reports a software rasterizer at boot, or (2) the live frame rate
+   stays low. Either flips on a 'lite' path (CSS drops the blur/blend/backdrop
+   layers — see styles.css — and the canvases throttle below), so struggling setups
+   go smooth while capable ones are untouched. Force with ?lite / ?full; per session. */
+function sbSoftwareGPU(){
+  try{
+    const c=document.createElement('canvas');
+    const g=c.getContext('webgl')||c.getContext('experimental-webgl');
+    if(!g)return true;                                   // no WebGL at all → treat as software/weak
+    const e=g.getExtension('WEBGL_debug_renderer_info');
+    const r=((e&&g.getParameter(e.UNMASKED_RENDERER_WEBGL))||'').toLowerCase();
+    const lc=g.getExtension('WEBGL_lose_context');if(lc)lc.loseContext();   // don't hold a spare context
+    return /swiftshader|llvmpipe|software|basic render|microsoft basic/.test(r);
+  }catch(_){ return false; }
+}
+function sbSetLite(on){
+  on=!!on; if(on===!!window.SB_LITE)return;
+  window.SB_LITE=on;
+  document.documentElement.classList.toggle('sb-lite',on);
+  try{ on?sessionStorage.setItem('sb_lite','1'):sessionStorage.removeItem('sb_lite'); }catch(_){}
+  // Refit canvases at the new (lower) DPR. Wrapped because at boot these may be in
+  // the temporal dead zone (sizeSnake is declared later) — harmless to skip then,
+  // since the load path sizes every canvas after SB_LITE is already set.
+  try{ if(typeof resizeAll==='function') resizeAll(); }catch(_){}
+  try{ if(typeof sizeSnake==='function') sizeSnake(); }catch(_){}
+}
+window.sbLite=sbSetLite;                                  // manual escape hatch (e.g. support: sbLite(true))
+(function(){
+  const q=location.search;
+  if(/[?&]full\b/.test(q)){ try{sessionStorage.removeItem('sb_lite');}catch(_){} return; }   // explicit opt-out
+  let lite=false; try{ lite=sessionStorage.getItem('sb_lite')==='1'; }catch(_){}
+  if(/[?&](lite|perf)\b/.test(q)) lite=true;
+  else if(!lite && !/[?&]preview\b/.test(q)) lite=sbSoftwareGPU();
+  if(lite) sbSetLite(true);
+})();
+/* live frame-rate watchdog — sampled at the top of the main loop (see frame()) */
+let _fpsPrev=-1,_fpsAcc=0,_fpsN=0,_fpsBad=0;
+function sbSampleFps(t){
+  if(window.SB_LITE||(typeof SB_PREVIEW!=='undefined'&&SB_PREVIEW))return;   // already lite / admin preview
+  if(_fpsPrev<0){_fpsPrev=t;return;}
+  const dt=t-_fpsPrev;_fpsPrev=t;
+  if(t<2500||dt<=0||dt>200)return;          // skip warm-up (load/decode) + tab-switch / stall gaps
+  _fpsAcc+=dt;_fpsN++;
+  if(_fpsN<100)return;                       // ~one window of real frames
+  const avg=_fpsAcc/_fpsN;_fpsAcc=0;_fpsN=0;
+  if(avg>22){ if(++_fpsBad>=2) sbSetLite(true); }   // <~45fps sustained over two windows → shed load
+  else _fpsBad=0;
+}
+
 function emit(x,y,n){if(sbReduceMotion)return;for(let i=0;i<n;i++){if(Math.random()<.5)embers.push({x,y,vx:(Math.random()-.5)*.6,vy:-Math.random()*1.2-.3,life:1,c:emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*2.4+.8})}if(embers.length>180)embers.splice(0,embers.length-180);}
 function burst(x,y,n,c){for(let i=0;i<n;i++){const a=Math.random()*7,sp=Math.random()*4+1;embers.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:1,c:c||emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*3+1})}}
 function sizeTrail(){tcv.width=innerWidth;tcv.height=innerHeight;}sizeTrail();
@@ -799,7 +856,7 @@ function doSize(){
   // display's full DPR (2 on most laptops/desktops) just burns GPU for no visible
   // gain. Cap it, and taper harder on big monitors, so a full-screen shader stops
   // saturating the compositor (which showed up as desktop lag + a sluggish cursor).
-  const cap=(W*H>2200*1300)?1.25:1.5;
+  const cap=window.SB_LITE?1:((W*H>2200*1300)?1.25:1.5);   // lite: render the pit at 1× to cut GPU fill-rate
   DPR=Math.max(1,Math.min(window.devicePixelRatio||1,cap));
   canvas.width=Math.floor(W*DPR); canvas.height=Math.floor(H*DPR);
   canvas.style.width=W+'px'; canvas.style.height=H+'px';
@@ -838,7 +895,7 @@ else { gl=null; setupFallback(); doSize(); spawn(); }
 })();
 
 /* ---------- VISUALIZER CANVAS ---------- */
-function fit(cv){if(!cv)return{};const dpr=Math.min(devicePixelRatio||1,2);const r=cv.getBoundingClientRect();cv.width=r.width*dpr;cv.height=r.height*dpr;const x=cv.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);return{x,w:r.width,h:r.height};}
+function fit(cv){if(!cv)return{};const dpr=Math.min(devicePixelRatio||1,window.SB_LITE?1:2);const r=cv.getBoundingClientRect();cv.width=r.width*dpr;cv.height=r.height*dpr;const x=cv.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);return{x,w:r.width,h:r.height};}
 let heroCv,vizCv,conCv,eqCv,srWaveCv;
 let H={},V={},C={},E={},SRW={};
 /* the visualizer canvases live inside <main>; re-grab them whenever it changes */
@@ -962,7 +1019,8 @@ let _snakeLast=-1e9; const SNAKE_DT=1000/30;
 let _frameLast=-1e9; const FRAME_DT=14;
 function frame(t){
   requestAnimationFrame(frame);
-  if(t-_frameLast<FRAME_DT)return;        // throttle high-refresh displays to ~60fps
+  sbSampleFps(t);                          // watch the real cadence; may flip on the lite path
+  if(t-_frameLast<(window.SB_LITE?22:FRAME_DT))return;   // ~60fps normally, ~45fps in lite
   _frameLast=t;
   // deferred pointer work — kept off the raw mousemove so the cursor itself tracks 1:1
   if(_mouseMoved){_mouseMoved=false;
@@ -972,7 +1030,7 @@ function frame(t){
   }
   updateLevels(t);const energy=levels.reduce((a,b)=>a+b,0)/levels.length+(rageOn?0.35:0);
   // SNAKE PIT (full page) — throttled; runs much slower under reduced-motion
-  const snakeDt=sbReduceMotion?100:SNAKE_DT;
+  const snakeDt=sbReduceMotion?100:(window.SB_LITE?50:SNAKE_DT);   // lite: snake pit → ~20fps
   if(!SB_PREVIEW && (t-_snakeLast)>=snakeDt){ _snakeLast=t; drawSnakes(t,energy); }
   // Visualizers: under reduced-motion, only animate while audio is actually playing
   const drawViz=!sbReduceMotion||playing;
@@ -984,7 +1042,7 @@ function frame(t){
   if(SRW.w&&labIn){const{x,w,h}=SRW;x.clearRect(0,0,w,h);snakeWave(x,w,h,t*.6,7+energy*9,3+energy*4,h*.5);}
   }
   // spark rain — a steady drizzle of sparks from the top. On by default (calm); rage pours it on.
-  if(!sbReduceMotion&&rageFlags().sparkRain&&Math.random()<(rageOn?0.45:0.16)){
+  if(!sbReduceMotion&&!window.SB_LITE&&rageFlags().sparkRain&&Math.random()<(rageOn?0.45:0.16)){
     embers.push({x:Math.random()*innerWidth,y:-4,vx:(Math.random()-.5)*1.4,vy:Math.random()*3+2.5,life:1,c:Math.random()<.5?'#ff7b1f':'#ff1f2e',s:Math.random()*2+1});
   }
   if(embers.length||bolts.length){tctx.clearRect(0,0,tcv.width,tcv.height);tctx.globalCompositeOperation='lighter';
