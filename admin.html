@@ -835,6 +835,7 @@ async function renderAnalytics(root){
     const t=s.totals||{};
     if(!(+t.events)){ host.appendChild(emptyState()); return; }   // clean single empty state, not 4 empty tables
     host.appendChild(statRow(t));
+    if(s.funnel) host.appendChild(funnelRow(s.funnel));   // engagement → conversion (needs the event-funnel migration)
     const ch=chart(s.daily); if(ch) host.appendChild(ch);
     const grid=elt('div','agrid');
     grid.appendChild(tableCard('Top pages',s.top_pages,'views',['Page','Views','Visitors'],[r=>escA(r.page),r=>fmtNum(r.views),r=>fmtNum(r.visitors)]));
@@ -844,7 +845,16 @@ async function renderAnalytics(root){
     if(s.devices&&s.devices.length) grid.appendChild(tableCard('Devices',s.devices,'count',['Device','Views'],[r=>escA(r.device),r=>fmtNum(r.count)]));
     if(s.browsers&&s.browsers.length) grid.appendChild(tableCard('Browsers',s.browsers,'count',['Browser','Views'],[r=>escA(r.browser),r=>fmtNum(r.count)]));
     if(s.os&&s.os.length) grid.appendChild(tableCard('Operating systems',s.os,'count',['OS','Views'],[r=>escA(r.os),r=>fmtNum(r.count)]));
+    if(s.top_events&&s.top_events.length) grid.appendChild(tableCard('Events',s.top_events,'count',['Event','Count'],[r=>escA(r.target),r=>fmtNum(r.count)]));
     host.appendChild(grid);
+  }
+  /* small session funnel: sessions → played a track → joined the list, with conversion %. */
+  function funnelRow(f){
+    const sg=elt('div','statgrid'); const sess=+f.sessions||0, plays=+f.played||0, joins=+f.joined||0;
+    const pct=(a,b)=>b>0?' ('+Math.round(a/b*100)+'%)':'';
+    [[fmtNum(sess),'sessions'],[fmtNum(plays),'played a track'+pct(plays,sess)],[fmtNum(joins),'joined the list'+pct(joins,sess)]]
+      .forEach(([n,l])=>{ const c=elt('div','statcard'); c.appendChild(elt('div','big',String(n))); c.appendChild(elt('div','lbl',l)); sg.appendChild(c); });
+    return sg;
   }
   async function load(){
     host.innerHTML='<div class="empty">loading…</div>';

@@ -8,19 +8,39 @@
 <title>☠ SLIME BY ☠ — official</title>
 <meta name="description" content="Slime By — Delaware rap. green pressure, venom, motion. tap in, follow the snake.">
 <meta name="theme-color" content="#8dff2b">
+<link rel="canonical" href="https://www.slimeby.com/">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23060403'/%3E%3Cpath d='M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30 62 M50 16 L50 84' stroke='%238dff2b' stroke-width='8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="manifest" href="/manifest.webmanifest">
 <meta property="og:type" content="music.musician">
+<meta property="og:site_name" content="SLIME BY">
+<meta property="og:url" content="https://www.slimeby.com/">
 <meta property="og:title" content="SLIME BY — official">
 <meta property="og:description" content="Delaware rap. green pressure, venom, motion. tap in, follow the snake.">
-<meta property="og:image" content="assets/sb-portrait.jpg">
+<meta property="og:image" content="https://www.slimeby.com/assets/sb-portrait.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="SLIME BY — official">
 <meta name="twitter:description" content="Delaware rap. green pressure, venom, motion.">
-<meta name="twitter:image" content="assets/sb-portrait.jpg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<meta name="twitter:image" content="https://www.slimeby.com/assets/sb-portrait.jpg">
 <link rel="stylesheet" href="assets/styles.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "MusicGroup",
+  "name": "Slime By",
+  "alternateName": "SB",
+  "genre": ["Rap", "Hip Hop"],
+  "url": "https://www.slimeby.com/",
+  "image": "https://www.slimeby.com/assets/sb-portrait.jpg",
+  "foundingLocation": "Delaware, USA",
+  "sameAs": [
+    "https://open.spotify.com/artist/70LnkJjJc5yq650kELO09A",
+    "https://music.apple.com/us/artist/slime-by/1542729349",
+    "https://youtube.com/@slimeby_",
+    "https://instagram.com/slimeby_sb",
+    "https://www.tiktok.com/@slimeby_sb"
+  ]
+}
+</script>
 <noscript><style>#loader{display:none!important}</style></noscript>
 <script>try{var s=sessionStorage;if(s.getItem('sb_seen'))document.documentElement.className+=' seen';else s.setItem('sb_seen','1');if(s.getItem('sb_wipe'))document.documentElement.className+=' wipe-armed';}catch(e){}</script>
 </head>
@@ -116,8 +136,16 @@
     <div class="lctabox panel reveal">
       <span class="kicker lkicker">✦ tap in</span>
       <h2 class="lctahead">join the <em>slime</em></h2>
-      <p class="lctatext">first access to drops, merch and shows. follow the snake on every platform and get on the list.</p>
-      <a class="bigbtn bBlood lctabtn" href="connect.html">☠ tap in</a>
+      <p class="lctatext">first access to drops, merch and shows — straight to your inbox.</p>
+      <div class="joinrow" style="margin-top:18px">
+        <input id="lemail" type="email" autocomplete="email" inputmode="email" placeholder="your@email.com" aria-label="your email">
+        <button type="button" onclick="signbook({email:'lemail',note:'lnote',consent:'lconsent'})">join ☠</button>
+      </div>
+      <label class="joinconsent" for="lconsent" style="display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-size:12px;line-height:1.45;text-align:left;opacity:.85;cursor:pointer">
+        <input type="checkbox" id="lconsent" style="margin-top:2px;flex:none">
+        <span>i agree to get email updates from Slime By. unsubscribe anytime — we never sell your info.</span>
+      </label>
+      <div class="joinnote" id="lnote">first access to drops, merch &amp; shows · <a href="connect.html" style="color:var(--slime)">add SMS alerts →</a></div>
     </div>
   </section>
 

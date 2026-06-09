@@ -10,7 +10,7 @@ import { fileURLToPath } from 'url';
 import { chromium } from 'playwright';
 
 const ROOT = normalize(join(dirname(fileURLToPath(import.meta.url)), '..'));
-const MIME = { '.html':'text/html', '.js':'text/javascript', '.css':'text/css', '.mp3':'audio/mpeg', '.jpg':'image/jpeg', '.png':'image/png', '.svg':'image/svg+xml', '.json':'application/json' };
+const MIME = { '.html':'text/html', '.js':'text/javascript', '.css':'text/css', '.mp3':'audio/mpeg', '.jpg':'image/jpeg', '.png':'image/png', '.svg':'image/svg+xml', '.json':'application/json', '.woff2':'font/woff2', '.webmanifest':'application/manifest+json' };
 
 const server = http.createServer(async (req, res) => {
   try {
