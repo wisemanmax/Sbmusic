@@ -196,11 +196,15 @@ function sbSoftwareGPU(){
     return /swiftshader|llvmpipe|software|basic render|microsoft basic/.test(r);
   }catch(_){ return false; }
 }
+var _fpsLastAvg=0;   // last measured avg frame time (ms) — published with the lite-flip telemetry
 function sbSetLite(on){
   on=!!on; if(on===!!window.SB_LITE)return;
   window.SB_LITE=on;
   document.documentElement.classList.toggle('sb-lite',on);
   try{ on?sessionStorage.setItem('sb_lite','1'):sessionStorage.removeItem('sb_lite'); }catch(_){}
+  /* telemetry: let the (consent-gated) analytics know the governor fired, so we can SEE
+     in the dashboard which browsers/devices actually struggle instead of guessing. */
+  try{ document.dispatchEvent(new CustomEvent('sb:lite',{detail:{on:on,avg_ms:Math.round(_fpsLastAvg)||null}})); }catch(_){}
   // Refit canvases at the new (lower) DPR. Wrapped because at boot these may be in
   // the temporal dead zone (sizeSnake is declared later) — harmless to skip then,
   // since the load path sizes every canvas after SB_LITE is already set.
@@ -216,20 +220,43 @@ window.sbLite=sbSetLite;                                  // manual escape hatch
   else if(!lite && !/[?&]preview\b/.test(q)) lite=sbSoftwareGPU();
   if(lite) sbSetLite(true);
 })();
-/* live frame-rate watchdog — sampled at the top of the main loop (see frame()) */
-let _fpsPrev=-1,_fpsAcc=0,_fpsN=0,_fpsBad=0;
+/* live frame-rate watchdog — sampled at the top of the main loop (see frame()).
+   Two triggers per 100-frame window: a bad AVERAGE (<~45fps sustained) or a bad JANK
+   RATIO (>18% of frames over 40ms). The second one matters: a machine that mostly hits
+   60fps but hitches every few frames AVERAGES fine while feeling terrible — exactly the
+   "Chrome feels laggy" report — and the old average-only check never fired for it. */
+let _fpsPrev=-1,_fpsAcc=0,_fpsN=0,_fpsBad=0,_fpsJank=0;
 function sbSampleFps(t){
   if(window.SB_LITE||(typeof SB_PREVIEW!=='undefined'&&SB_PREVIEW))return;   // already lite / admin preview
   if(_fpsPrev<0){_fpsPrev=t;return;}
   const dt=t-_fpsPrev;_fpsPrev=t;
   if(t<2500||dt<=0||dt>200)return;          // skip warm-up (load/decode) + tab-switch / stall gaps
-  _fpsAcc+=dt;_fpsN++;
+  _fpsAcc+=dt;_fpsN++;if(dt>40)_fpsJank++;
   if(_fpsN<100)return;                       // ~one window of real frames
-  const avg=_fpsAcc/_fpsN;_fpsAcc=0;_fpsN=0;
-  if(avg>22){ if(++_fpsBad>=2) sbSetLite(true); }   // <~45fps sustained over two windows → shed load
+  const avg=_fpsAcc/_fpsN,jank=_fpsJank/_fpsN;_fpsAcc=0;_fpsN=0;_fpsJank=0;_fpsLastAvg=avg;
+  if(avg>22||jank>0.18){ if(++_fpsBad>=2) sbSetLite(true); }   // two bad windows → shed load
   else _fpsBad=0;
 }
 
+/* ---------- GLOW SPRITES ----------
+   Pre-rendered radial "glow dot" per color, drawn with drawImage. The old path drew
+   every ember / spark / slime puddle with ctx.shadowBlur or a fresh createRadialGradient
+   PER PARTICLE PER FRAME — both are slow paths in Chrome's canvas raster (a Gaussian
+   blur or a gradient allocation each, ~200×/frame at peak) and a big slice of the
+   "laggy in Chrome" report. A cached sprite is one texture blit instead. */
+const _glowCache={};
+function _fadeColor(c){ if(c[0]==='#'&&c.length===7)return c+'00';
+  const m=/^rgba?\(([^)]+)\)/.exec(c); if(m){const p=m[1].split(',').slice(0,3).join(',');return'rgba('+p+',0)';}
+  return'rgba(0,0,0,0)'; }
+function glowSprite(c){
+  let s=_glowCache[c]; if(s)return s;
+  s=document.createElement('canvas'); s.width=s.height=64;
+  const g=s.getContext('2d'), gr=g.createRadialGradient(32,32,0,32,32,32);
+  gr.addColorStop(0,'#ffffff'); gr.addColorStop(.22,c); gr.addColorStop(1,_fadeColor(c));
+  g.fillStyle=gr; g.beginPath(); g.arc(32,32,32,0,7); g.fill();
+  return _glowCache[c]=s;
+}
+function drawGlow(ctx,x,y,r,c,alpha){ const d=r*2; ctx.globalAlpha=alpha; ctx.drawImage(glowSprite(c),x-r,y-r,d,d); }
 function emit(x,y,n){if(sbReduceMotion)return;for(let i=0;i<n;i++){if(Math.random()<.5)embers.push({x,y,vx:(Math.random()-.5)*.6,vy:-Math.random()*1.2-.3,life:1,c:emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*2.4+.8})}if(embers.length>180)embers.splice(0,embers.length-180);}
 function burst(x,y,n,c){for(let i=0;i<n;i++){const a=Math.random()*7,sp=Math.random()*4+1;embers.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:1,c:c||emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*3+1})}}
 function sizeTrail(){tcv.width=innerWidth;tcv.height=innerHeight;}sizeTrail();
@@ -511,7 +538,13 @@ let sizeSnake,buildSnakes,drawSnakes,snakeLunge;
 (function(){
 "use strict";
 const canvas=document.getElementById('snake');
-const glOpts={antialias:true,premultipliedAlpha:false,alpha:true};
+/* Full-page WebGL tuned for the compositor: premultiplied alpha (the default) lets the
+   browser composite the canvas directly instead of running an un-premultiply pass per
+   frame; MSAA off because the snake shader already smooths its own edges (full-screen
+   MSAA resolve was pure GPU waste); high-performance so dual-GPU machines (where Chrome
+   defaults WebGL to the battery-saver GPU while other browsers grab the discrete one —
+   a classic "laggy in Chrome only" cause) run the pit on the fast GPU. */
+const glOpts={antialias:false,alpha:true,powerPreference:'high-performance'};
 let gl=canvas.getContext('webgl',glOpts)||canvas.getContext('experimental-webgl',glOpts);
 
 const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -697,7 +730,7 @@ void main(){
   col=col/(col+0.6); col=pow(col,vec3(0.85));
   vec3 rageC=vec3(max(max(col.r,col.g),col.b)*1.55+0.16, col.g*0.16+0.015, col.b*0.10);
   col=mix(col,rageC,uRage);   // RAGE MODE bleeds the venom red
-  gl_FragColor=vec4(col,edge);
+  gl_FragColor=vec4(col*edge,edge);   // premultiplied output (canvas composites without conversion)
 }`;
 
 const FOG_VS=`precision highp float; attribute vec2 aPos; attribute vec2 aUV; attribute float aA; attribute float aHue;
@@ -707,7 +740,7 @@ const FOG_FS=`precision highp float; varying vec2 vUV; varying float vA; varying
 void main(){ float d=length(vUV-0.5)*2.0; float f=smoothstep(1.0,0.0,d);
   vec3 g=mix(vec3(0.0,0.96,0.63),vec3(0.0,0.85,0.96),vHue);
   g=mix(g,vec3(1.0,0.14,0.10),uRage);
-  gl_FragColor=vec4(g*f*vA, 1.0); }`;
+  gl_FragColor=vec4(g*f*vA, 0.0); }`;   /* premultiplied additive: light only, leave alpha alone */
 
 const puffs=[];
 function initPuffs(){ puffs.length=0;
@@ -768,8 +801,8 @@ function bindSnakeAttribs(){ const s=stride*4;
 }
 function renderGL(){
   gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
-  // fog (additive)
-  gl.useProgram(fogProg); gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
+  // fog (additive — shaders output premultiplied color, so plain ONE/ONE adds the light)
+  gl.useProgram(fogProg); gl.blendFunc(gl.ONE,gl.ONE);
   const fcount=buildFog(); gl.bindBuffer(gl.ARRAY_BUFFER,fogBuf);
   gl.bufferData(gl.ARRAY_BUFFER,fogArr,gl.DYNAMIC_DRAW);
   const fs=6*4;
@@ -779,8 +812,8 @@ function renderGL(){
   gl.enableVertexAttribArray(fAHue); gl.vertexAttribPointer(fAHue,1,gl.FLOAT,false,fs,20);
   gl.uniform2f(fURes,W,H); gl.uniform1f(fURage,rageMix);
   gl.drawArrays(gl.TRIANGLES,0,fcount);
-  // snakes back->front
-  gl.useProgram(prog); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+  // snakes back->front (premultiplied source-over)
+  gl.useProgram(prog); gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
   gl.uniform2f(uRes,W,H);
   const tt=lowPower?0.0:(performance.now()-startT)*0.0004;
   gl.uniform3f(uLight,Math.cos(tt)*0.5,0.45+Math.sin(tt*0.7)*0.2,0.75);
@@ -805,10 +838,11 @@ function setupOverlay(){ document.body.appendChild(ov); octx=ov.getContext('2d')
 function sizeOverlay(){ ov.width=W*DPR; ov.height=H*DPR; ov.style.width=W+'px'; ov.style.height=H+'px'; octx.setTransform(DPR,0,0,DPR,0,0); }
 function drawSnakeDetails(s){
   octx.save(); octx.globalCompositeOperation='lighter';
+  /* slime puddles: one cached sprite blit each (was a fresh radial gradient per puddle
+     per frame — up to ~180 gradient allocations a frame across the three snakes) */
   for(const sl of s.slime){ if(!lowPower) sl.life-=0.012; if(sl.life<=0)continue;
-    const g=octx.createRadialGradient(sl.x,sl.y,0,sl.x,sl.y,sl.r);
-    g.addColorStop(0,`rgba(0,245,160,${0.08*sl.life*s.dim})`); g.addColorStop(0.5,`rgba(0,120,90,${0.035*sl.life*s.dim})`); g.addColorStop(1,'rgba(0,0,0,0)');
-    octx.fillStyle=g; octx.beginPath(); octx.arc(sl.x,sl.y,sl.r,0,6.283); octx.fill(); }
+    drawGlow(octx,sl.x,sl.y,sl.r,'#00f5a0',0.07*sl.life*s.dim); }
+  octx.globalAlpha=1;
   while(s.slime.length&&s.slime[0].life<=0) s.slime.shift();
   octx.restore();
   const h=s.spine[0],n=s.spine[1];
@@ -942,7 +976,9 @@ let _rzT;addEventListener('resize',()=>{clearTimeout(_rzT);_rzT=setTimeout(()=>{
 function rg(ctx,w){const g=ctx.createLinearGradient(0,0,w,0);g.addColorStop(0,'#ff1f2e');g.addColorStop(.5,'#9b3cff');g.addColorStop(1,'#8dff2b');return g;}
 let levels=new Array(64).fill(0);
 function updateLevels(t){if(graphReady&&playing&&analyser&&bgMode==='local'){analyser.getByteFrequencyData(freq);for(let i=0;i<levels.length;i++)levels[i]+=(freq[i%freq.length]/255-levels[i])*.4;}else{for(let i=0;i<levels.length;i++){const b=.14+.12*Math.sin(t*.0013+i*.35)+.09*Math.sin(t*.0026+i*.7);levels[i]+=(Math.max(0,b)-levels[i])*.08;}}}
-function snakeWave(ctx,w,h,t,amp,thick,yc){ctx.save();ctx.lineCap='round';ctx.shadowColor='#ff1f2e';ctx.shadowBlur=18;const seg=70;for(let pass=0;pass<2;pass++){ctx.beginPath();for(let i=0;i<=seg;i++){const p=i/seg,x=p*w;const lv=levels[Math.floor(p*(levels.length-1))]||0;const wob=Math.sin(p*7+t*.0022+pass*1.6)*amp*(.4+lv*1.6)+Math.sin(p*3-t*.0015)*amp*.4;const y=yc+wob;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.strokeStyle=pass===0?rg(ctx,w):'rgba(255,255,255,.45)';ctx.globalAlpha=pass===0?.95:.3;ctx.lineWidth=thick*(pass===0?1:.4);ctx.stroke();}ctx.restore();}
+/* layered strokes (wide glow → bright line → white thread) instead of ctx.shadowBlur:
+   same neon read, none of the per-stroke Gaussian blur that crawled in Chrome */
+function snakeWave(ctx,w,h,t,amp,thick,yc){ctx.save();ctx.lineCap='round';const seg=70;for(let pass=0;pass<3;pass++){ctx.beginPath();const ph=pass===2?1.6:0;for(let i=0;i<=seg;i++){const p=i/seg,x=p*w;const lv=levels[Math.floor(p*(levels.length-1))]||0;const wob=Math.sin(p*7+t*.0022+ph)*amp*(.4+lv*1.6)+Math.sin(p*3-t*.0015)*amp*.4;const y=yc+wob;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.strokeStyle=pass===2?'rgba(255,255,255,.45)':rg(ctx,w);ctx.globalAlpha=pass===0?.18:(pass===1?.95:.3);ctx.lineWidth=thick*(pass===0?2.8:pass===1?1:.4);ctx.stroke();}ctx.restore();}
 /* ── PLAYER VISUALIZER (music.html #pweq) ──
    The "cool graphic" that comes alive while a track plays: a mirrored neon spectrum (slime →
    alien → blood across the band), a white-hot core, a reactive wave threading the bars, plus a
@@ -971,16 +1007,19 @@ function drawPlayerViz(ctx,w,h,t){
   for(let i=0;i<_PVN;i++){
     const lv=levels[((i*1.6)|0)%levels.length];
     const bh=Math.max(1.5,lv*h*0.5),x=i*bw+bw*0.5,ww=Math.max(1.5,bw*0.44);
-    ctx.fillStyle=cols[i];ctx.shadowColor=cols[i];ctx.shadowBlur=sbIsMobile?5:9;
-    ctx.fillRect(x-ww/2,mid-bh,ww,bh*2);
-    ctx.shadowBlur=0;ctx.fillStyle='rgba(255,255,255,'+(0.22+lv*0.5).toFixed(3)+')';   // hot core
+    ctx.fillStyle=cols[i];
+    ctx.globalAlpha=0.26;ctx.fillRect(x-ww*1.05,mid-bh*1.12,ww*2.1,bh*2.24);            // soft halo (no shadowBlur)
+    ctx.globalAlpha=1;ctx.fillRect(x-ww/2,mid-bh,ww,bh*2);
+    ctx.fillStyle='rgba(255,255,255,'+(0.22+lv*0.5).toFixed(3)+')';                      // hot core
     ctx.fillRect(x-ww*0.22,mid-bh*0.5,ww*0.44,bh);
   }
   ctx.restore();
-  ctx.save();ctx.globalCompositeOperation='lighter';ctx.beginPath();                    // reactive wave
-  for(let i=0;i<=_PVN;i++){const p=i/_PVN,x=p*w,lv=levels[((p*(levels.length-1))|0)]||0;const y=mid+Math.sin(p*9+t*0.004)*(4+lv*16);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
-  ctx.strokeStyle='rgba(141,255,43,0.85)';ctx.lineWidth=2;ctx.shadowColor='#8dff2b';ctx.shadowBlur=7;ctx.stroke();ctx.restore();
-  if(_pvParts.length){ctx.save();ctx.globalCompositeOperation='lighter';for(const p of _pvParts){p.life*=0.93;p.x+=p.vx;p.y+=p.vy;p.vy+=0.04;ctx.globalAlpha=p.life;ctx.fillStyle=p.c;ctx.shadowColor=p.c;ctx.shadowBlur=8;ctx.beginPath();ctx.arc(p.x,p.y,p.s*p.life+0.4,0,7);ctx.fill();}ctx.globalAlpha=1;ctx.restore();_pvParts=_pvParts.filter(p=>p.life>0.06);}
+  ctx.save();ctx.globalCompositeOperation='lighter';                                    // reactive wave
+  for(let pass=0;pass<2;pass++){ctx.beginPath();
+    for(let i=0;i<=_PVN;i++){const p=i/_PVN,x=p*w,lv=levels[((p*(levels.length-1))|0)]||0;const y=mid+Math.sin(p*9+t*0.004)*(4+lv*16);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+    ctx.strokeStyle='rgba(141,255,43,'+(pass?0.85:0.22)+')';ctx.lineWidth=pass?2:6;ctx.stroke();}
+  ctx.restore();
+  if(_pvParts.length){ctx.save();ctx.globalCompositeOperation='lighter';for(const p of _pvParts){p.life*=0.93;p.x+=p.vx;p.y+=p.vy;p.vy+=0.04;drawGlow(ctx,p.x,p.y,(p.s*p.life+0.4)*4,p.c,p.life);}ctx.globalAlpha=1;ctx.restore();_pvParts=_pvParts.filter(p=>p.life>0.06);}
 }
 /* ── FREQUENCY VISUALIZER (lab.html / the "slowed" page · #vizCanvas) ──
    The full-bleed moving backdrop behind the FREQUENCY wordmark, rebuilt as one
@@ -1009,24 +1048,31 @@ function drawFreqViz(ctx,w,h,t,energy){
   const bloom=0.12+_fvBloom*0.5+energy*0.22,rg2=ctx.createRadialGradient(cx,cy,0,cx,cy,Math.max(w,h)*0.42);
   rg2.addColorStop(0,'rgba(141,255,43,'+(0.06*bloom).toFixed(3)+')');rg2.addColorStop(0.45,'rgba(155,60,255,'+(0.04*bloom).toFixed(3)+')');rg2.addColorStop(1,'rgba(0,0,0,0)');
   ctx.fillStyle=rg2;ctx.fillRect(0,0,w,h);
-  /* (3) circular spectrum halo around the title */
+  /* (3) circular spectrum halo around the title — two clean passes (wide faint glow +
+         bright line) instead of 64 shadow-blurred strokes per frame */
   _fvRot+=0.0009+energy*0.0016;
   const R=Math.min(w,h)*0.20,RING=64,lw=Math.max(1.5,w/720);
-  for(let i=0;i<RING;i++){const a=(i/RING)*6.2832+_fvRot,lv=levels[(i*2)%nLv],len=R*0.12+lv*R*0.72,c=cols[((i/RING)*_PVN)|0];
-    ctx.strokeStyle=c;ctx.lineWidth=lw;ctx.lineCap='round';ctx.shadowColor=c;ctx.shadowBlur=sbIsMobile?4:9;ctx.globalAlpha=0.9;
-    ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*R,cy+Math.sin(a)*R);ctx.lineTo(cx+Math.cos(a)*(R+len),cy+Math.sin(a)*(R+len));ctx.stroke();}
-  ctx.shadowBlur=0;ctx.globalAlpha=1;
+  ctx.lineCap='round';
+  for(let pass=0;pass<2;pass++){
+    ctx.lineWidth=pass?lw:lw*3;ctx.globalAlpha=pass?0.9:0.22;
+    for(let i=0;i<RING;i++){const a=(i/RING)*6.2832+_fvRot,lv=levels[(i*2)%nLv],len=R*0.12+lv*R*0.72;
+      ctx.strokeStyle=cols[((i/RING)*_PVN)|0];
+      ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*R,cy+Math.sin(a)*R);ctx.lineTo(cx+Math.cos(a)*(R+len),cy+Math.sin(a)*(R+len));ctx.stroke();}
+  }
+  ctx.globalAlpha=1;
   /* (4) mirrored neon spectrum grounded at the bottom */
   const N=sbIsMobile?28:48,bw=w/N,base=h-Math.min(h*0.05,34);
   for(let i=0;i<N;i++){const lv=levels[((i*1.5)|0)%nLv],bh=Math.max(2,lv*h*0.30),x=i*bw+bw*0.5,ww=Math.max(2,bw*0.5),c=cols[((i/N)*_PVN)|0];
-    ctx.fillStyle=c;ctx.shadowColor=c;ctx.shadowBlur=sbIsMobile?5:11;ctx.fillRect(x-ww/2,base-bh,ww,bh);
-    ctx.shadowBlur=0;ctx.fillStyle='rgba(255,255,255,'+(0.16+lv*0.5).toFixed(3)+')';ctx.fillRect(x-ww*0.2,base-bh*0.5,ww*0.4,bh*0.5);}
+    ctx.fillStyle=c;
+    ctx.globalAlpha=0.25;ctx.fillRect(x-ww*1.05,base-bh*1.1,ww*2.1,bh*1.1);
+    ctx.globalAlpha=1;ctx.fillRect(x-ww/2,base-bh,ww,bh);
+    ctx.fillStyle='rgba(255,255,255,'+(0.16+lv*0.5).toFixed(3)+')';ctx.fillRect(x-ww*0.2,base-bh*0.5,ww*0.4,bh*0.5);}
   /* (5) reactive wave threading above the spectrum */
-  ctx.beginPath();
-  for(let i=0;i<=N;i++){const p=i/N,x=p*w,lv=levels[((p*(nLv-1))|0)]||0,y=base-h*0.13+Math.sin(p*7+t*0.0035)*(6+lv*22);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
-  ctx.strokeStyle='rgba(141,255,43,0.7)';ctx.lineWidth=2;ctx.shadowColor='#8dff2b';ctx.shadowBlur=8;ctx.stroke();ctx.shadowBlur=0;
+  for(let pass=0;pass<2;pass++){ctx.beginPath();
+    for(let i=0;i<=N;i++){const p=i/N,x=p*w,lv=levels[((p*(nLv-1))|0)]||0,y=base-h*0.13+Math.sin(p*7+t*0.0035)*(6+lv*22);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+    ctx.strokeStyle='rgba(141,255,43,'+(pass?0.7:0.2)+')';ctx.lineWidth=pass?2:6;ctx.stroke();}
   /* (6) beat sparks */
-  for(const p of _fvParts){if(!p.spark)continue;p.life*=0.92;p.x+=p.vx/w;p.y+=p.vy/h;p.vy+=0.03;ctx.globalAlpha=p.life;ctx.fillStyle=p.c;ctx.shadowColor=p.c;ctx.shadowBlur=8;ctx.beginPath();ctx.arc(p.x*w,p.y*h,p.s*p.life+0.4,0,7);ctx.fill();}
+  for(const p of _fvParts){if(!p.spark)continue;p.life*=0.92;p.x+=p.vx/w;p.y+=p.vy/h;p.vy+=0.03;drawGlow(ctx,p.x*w,p.y*h,(p.s*p.life+0.4)*4,p.c,p.life);}
   ctx.globalAlpha=1;ctx.restore();
   _fvParts=_fvParts.filter(p=>!p.spark||p.life>0.06);
 }
@@ -1072,8 +1118,8 @@ function frame(t){
     embers.push({x:Math.random()*innerWidth,y:-4,vx:(Math.random()-.5)*1.4,vy:Math.random()*3+2.5,life:1,c:Math.random()<.5?'#ff7b1f':'#ff1f2e',s:Math.random()*2+1});
   }
   if(embers.length||bolts.length){tctx.clearRect(0,0,tcv.width,tcv.height);tctx.globalCompositeOperation='lighter';
-    for(const p of embers){p.life*=.95;p.x+=p.vx;p.y+=p.vy;p.vy+=.02;const s=p.s*p.life+.4;tctx.globalAlpha=p.life;tctx.fillStyle=p.c;tctx.shadowColor=p.c;tctx.shadowBlur=8;tctx.beginPath();tctx.arc(p.x,p.y,s,0,7);tctx.fill();}
-    tctx.globalAlpha=1;tctx.shadowBlur=0;embers=embers.filter(p=>p.life>.05);
+    for(const p of embers){p.life*=.95;p.x+=p.vx;p.y+=p.vy;p.vy+=.02;drawGlow(tctx,p.x,p.y,(p.s*p.life+.4)*4.5,p.c,p.life);}
+    tctx.globalAlpha=1;embers=embers.filter(p=>p.life>.05);
     if(bolts.length)drawBolts();
     if(!embers.length&&!bolts.length)tctx.clearRect(0,0,tcv.width,tcv.height);}
 }
@@ -1349,7 +1395,7 @@ document.getElementById('helpbtn').onclick=openHelp;
 addEventListener('keydown',e=>{if(e.key==='?'&&!isTyping()&&!modal.classList.contains('open'))openHelp();});
 
 /* SHARE */
-function wireShare(){const _shareBtn=document.getElementById('shareBtn');if(_shareBtn)_shareBtn.onclick=async()=>{const data={title:'SLIME BY — official',text:'Delaware rap — green pressure, venom, motion.',url:location.href};try{if(navigator.share){await navigator.share(data);}else{await navigator.clipboard.writeText(location.href);toast('link copied to clipboard ☑');}}catch(_){}};}
+function wireShare(){const _shareBtn=document.getElementById('shareBtn');if(_shareBtn)_shareBtn.onclick=async()=>{const data={title:'SLIME BY — official',text:'Delaware rap — green pressure, venom, motion.',url:location.href};try{track('share',{url:location.pathname});if(navigator.share){await navigator.share(data);}else{await navigator.clipboard.writeText(location.href);toast('link copied to clipboard ☑');}}catch(_){}};}
 
 /* ===================== FEATURED DROP ===================== */
 function previewFeatured(){startAudio();toast('▶ now spinning — '+localTitle());}
@@ -1390,7 +1436,7 @@ function setReverb(v){revAmt=Math.max(0,Math.min(1,v/100));labRev=revAmt;if(srRe
 function setRoom(v){roomP=Math.max(0,Math.min(1,v/100));labRoom=roomP;if(srRoomV)srRoomV.textContent=roomLabel(roomP);saveLabState();}
 const SR_PRESETS={slowrev:[80,30,55],deep:[70,58,80],night:[118,8,26],clean:[100,0,40]};
 function markPreset(name){document.querySelectorAll('.srpresets button').forEach(b=>b.classList.toggle('on',!!name&&b.dataset.preset===name));}
-function applyPreset(name){const p=SR_PRESETS[name];if(!p)return;if(srSpeed)srSpeed.value=p[0];if(srReverb)srReverb.value=p[1];if(srRoom)srRoom.value=p[2];setSpeed(p[0]);setReverb(p[1]);setRoom(p[2]);rebuildImpulse();markPreset(name);}
+function applyPreset(name){const p=SR_PRESETS[name];if(!p)return;if(srSpeed)srSpeed.value=p[0];if(srReverb)srReverb.value=p[1];if(srRoom)srRoom.value=p[2];setSpeed(p[0]);setReverb(p[1]);setRoom(p[2]);rebuildImpulse();markPreset(name);track('lab',{preset:name});}
 /* which preset (if any) matches the current speed/reverb/room state */
 function matchPreset(){const cur=[Math.round(userRate*100),Math.round(revAmt*100),Math.round(roomP*100)];for(const k in SR_PRESETS){const p=SR_PRESETS[k];if(p[0]===cur[0]&&p[1]===cur[1]&&p[2]===cur[2])return k;}return null;}
 /* push the lab's remembered bend onto its sliders + labels and engage it on the live track */
@@ -1407,9 +1453,10 @@ function wireLab(){
   if(!srSpeed&&!srReverb&&!srPlayBtn)return false;   // not the lab page
   /* ensureCtx() on each knob: a touch-drag is a user gesture, so this creates/resumes the
      audio context on mobile (where it starts suspended) and the reverb actually engages. */
-  if(srSpeed)srSpeed.oninput=()=>{ensureCtx();setSpeed(+srSpeed.value);markPreset(null);};
-  if(srReverb)srReverb.oninput=()=>{ensureCtx();setReverb(+srReverb.value);markPreset(null);};
-  if(srRoom){srRoom.oninput=()=>{ensureCtx();setRoom(+srRoom.value);markPreset(null);};srRoom.onchange=()=>rebuildImpulse();}
+  let _labTrkd=false;const _labTrk=()=>{if(!_labTrkd){_labTrkd=true;track('lab',{preset:'custom'});}};   // one event per visit, not one per drag tick
+  if(srSpeed)srSpeed.oninput=()=>{ensureCtx();setSpeed(+srSpeed.value);markPreset(null);_labTrk();};
+  if(srReverb)srReverb.oninput=()=>{ensureCtx();setReverb(+srReverb.value);markPreset(null);_labTrk();};
+  if(srRoom){srRoom.oninput=()=>{ensureCtx();setRoom(+srRoom.value);markPreset(null);_labTrk();};srRoom.onchange=()=>rebuildImpulse();}
   document.querySelectorAll('.srpresets button').forEach(b=>b.onclick=()=>{ensureCtx();applyPreset(b.dataset.preset);if(audio.paused)startAudio();});
   if(srPlayBtn)srPlayBtn.onclick=toggle;
   if(srProgEl)srProgEl.onclick=e=>{if(!isFinite(audio.duration))return;const r=srProgEl.getBoundingClientRect();audio.currentTime=(e.clientX-r.left)/r.width*audio.duration;};
@@ -1585,7 +1632,7 @@ function smartLoadingHTML(){return `<div class="sl-card"><div class="sl-art sl-a
 function smartNotFoundHTML(){return `<div class="sl-card reveal"><div class="sl-art sl-art-blank"><svg viewBox="0 0 100 100"><path d="${SNAKE_PATH}"/></svg></div>
   <div class="sl-meta"><span class="kicker">404</span><h1 class="sl-title" data-t="NOT FOUND">link not found</h1><p class="sl-sub">this slime link doesn’t exist (yet).</p></div>
   <div class="sl-btns"><a class="sl-btn bigbtn bSlime" href="links.html"><span class="sl-btn-l">all links</span><span class="sl-btn-go">↗</span></a><a class="sl-btn bigbtn bAlien" href="index.html"><span class="sl-btn-l">home</span><span class="sl-btn-go">↗</span></a></div></div>`;}
-function wireSmartShare(host){host.querySelectorAll('[data-share]').forEach(b=>{b.onclick=async()=>{const url=b.getAttribute('data-share')||location.href;try{if(navigator.share){await navigator.share({title:document.title,url});}else{await navigator.clipboard.writeText(url);toast('link copied ☑');}}catch(_){}};});}
+function wireSmartShare(host){host.querySelectorAll('[data-share]').forEach(b=>{b.onclick=async()=>{const url=b.getAttribute('data-share')||location.href;try{track('share',{url:url.slice(0,160)});if(navigator.share){await navigator.share({title:document.title,url});}else{await navigator.clipboard.writeText(url);toast('link copied ☑');}}catch(_){}};});}
 function paintSmart(host,link){
   host.innerHTML=link?smartCardHTML(link):(contentSettled()?smartNotFoundHTML():smartLoadingHTML());
   if(link)document.title=(link.title||'SLIME BY')+' — SLIME BY';
@@ -1820,7 +1867,7 @@ function openMerch(card){
   const box=document.getElementById('modalContent');
   box.querySelectorAll('.sizes button').forEach(b=>b.onclick=()=>{box.querySelectorAll('.sizes button').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');try{hat(false);}catch(_){}});
   const nb=document.getElementById('merchNotify');
-  if(nb)nb.onclick=()=>{ const was=isWatched(name); setWatched(name); markWatchedCards(); nb.textContent='✓ on the list ☠'; nb.disabled=true; burst(innerWidth/2,innerHeight*.5,14,'#8dff2b'); toast(was?('already watching '+name):('☠ watching '+name+' — first access when it drops')); };
+  if(nb)nb.onclick=()=>{ const was=isWatched(name); setWatched(name); markWatchedCards(); nb.textContent='✓ on the list ☠'; nb.disabled=true; if(!was)track('merch_watch',{item:name}); burst(innerWidth/2,innerHeight*.5,14,'#8dff2b'); toast(was?('already watching '+name):('☠ watching '+name+' — first access when it drops')); };
 }
 function initMerch(){ const pg=document.getElementById('pgrid'); if(!pg)return;
   pg.querySelectorAll('.prod').forEach(c=>{ io.observe(c); c.tabIndex=0; c.setAttribute('role','button'); c.setAttribute('aria-label',(c.dataset.name||'product')+' — coming soon');

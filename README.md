@@ -92,15 +92,21 @@ admin at `admin.html`.
   badges) support **add, remove, duplicate, and reorder** (move up / down).
 - **Safety rails** — unsaved-change tracking with a status pill, a browser "leave?" guard, and
   an automatic local **draft** that offers to restore your work if you close the tab.
-- **Analytics** — a built-in, Google-Analytics-style dashboard: pageviews, unique visitors,
-  sessions and clicks over a 7 / 30 / 90-day or yearly window, a daily pageviews chart, plus
-  **top pages**, **what people click**, **where they leave off** (exit pages), **referrers**, and
-  **device / browser / OS** breakdowns of the audience.
+- **Analytics** — a built-in, Google-Analytics-style dashboard: **who's on the site right now**,
+  pageviews, unique visitors, sessions, clicks and new-visitor share over a 7 / 30 / 90-day or
+  yearly window, a daily pageviews chart and an **hour-of-day** chart, plus
+  **top tracks** (plays + full listens from the site player), **where fans tap out to**
+  (Spotify / Apple / YouTube / IG / TikTok outbound clicks), **top pages**, **what people click**,
+  **where they leave off** (exit pages), **referrers**, **campaigns** (utm tags / ad-click
+  presence), **device / browser / OS** breakdowns, a session **funnel**
+  (visited → played → really listened (50%+) → joined the list), and a **site health** card
+  (real-user LCP/CLS, lite-mode share *per browser*, perf-governor flips, JS errors in the field).
   First-party and **consent-gated**: a banner asks on first visit and **nothing is tracked until
   the visitor accepts** (decline → no identifier, no events). On accept it collects the usage
   signals above plus device type, browser, OS, a coarse screen bucket, language and timezone —
-  but never an IP address, fingerprint, or third-party/cross-site tag. A public `privacy.html`
-  page documents it and lets visitors change their choice (footer links + `window.sbConsent`).
+  but never an IP address, fingerprint, ad-click id value, or third-party/cross-site tag. A public
+  `privacy.html` page documents it and lets visitors change their choice (footer links +
+  `window.sbConsent`).
 - **Audience** — everyone who joined the slime list from the site, with totals and **CSV export**.
 - **Settings** — change the admin password, **export / import** your whole content model as JSON,
   and reset to the built-in defaults.
