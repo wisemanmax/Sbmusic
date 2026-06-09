@@ -96,7 +96,7 @@
         // silent fallback clock
         clock += dt;
         const period = 60000 / FALLBACK_BPM;
-        if (clock >= period) { clock -= period; lastBeat = timeNow; beatPulse = 1; }
+        if (clock >= period) { clock -= period; lastBeat = timeNow; beatPulse = 1; beatFlash = Math.min(1, beatFlash + 0.5); }
         level += ((0.16 + 0.1 * Math.sin(timeNow * 0.004)) - level) * 0.05;
         bass += (0.12 + 0.1 * Math.max(0, Math.sin(timeNow * 0.006)) - bass) * 0.1;
       }
@@ -300,7 +300,7 @@
       }
     }
     if (p.x < 0) p.x = 0; if (p.x + p.w > LW) p.x = LW - p.w;
-    if (p.y > H + 60) { damage(1, true); p.x = Math.max(40, p.x - 70); p.y = GY - 44; p.vy = 0; }
+    if (p.y > WB + 60) { damage(1, true); p.x = Math.max(40, p.x - 70); p.y = GY - 44; p.vy = 0; }
 
     if (p.inv > 0) p.inv--;
     p.bob += 0.16; if (Math.abs(p.vx) > 0.6) p.walk += Math.abs(p.vx) * 0.06; else p.walk *= 0.8;
@@ -394,6 +394,7 @@
       theKey.t += 0.09;
       if (hit(p, { x: theKey.x - 12, y: theKey.y - 12, w: 24, h: 24 })) {
         theKey = null; keysGot = 1; shake = 7; vibe([12, 30, 12]);
+        notes = notes.filter(n => n.kind !== 'guide');   // the key marker is done — don't leave it floating forever
         burst(p.x, p.y + 10, C.slime, 20, 3.5, { glow: 1 }); ring(p.x + p.w / 2, p.y + 10, C.slime, 22);
         floatText(p.x + p.w / 2, p.y - 8, 'SLIME KEY!', C.slime);
         if (el.keys && el.keys.parentElement) { const k = el.keys.parentElement; k.classList.add('got'); setTimeout(() => k.classList.remove('got'), 520); }
@@ -414,7 +415,7 @@
       if (n.kind === 'guide') n.t += 0.05;
       if (n.kind === 'shock') { n.x += n.vx; n.vy += 0.04; n.y += n.vy; n.t += 0.2; for (const b of blasts) if (hit(b, { x: n.x - 6, y: n.y - 6, w: 12, h: 12 })) { n.hit = true; burst(n.x, n.y, C.toxic, 6, 2, { glow: 1 }); } if (p.inv <= 0 && hit(p, { x: n.x - 6, y: n.y - 6, w: 12, h: 12 })) { damage(1); n.hit = true; } }
     }
-    notes = notes.filter(n => !(n.kind === 'shock' && (n.hit || n.x < cam.x - 30 || n.x > cam.x + W + 30 || n.y > H + 20)) && !(n.kind === 'red' && (n.y > H + 20 || n.hit)));
+    notes = notes.filter(n => !(n.kind === 'shock' && (n.hit || n.x < cam.x - 30 || n.x > cam.x + W + 30 || n.y > WB + 20)) && !(n.kind === 'red' && (n.y > WB + 20 || n.hit)));
 
     // particles / floaters
     for (const pt of particles) { pt.x += pt.vx; pt.y += pt.vy; pt.vy += pt.grav; pt.life--; if (pt.shape === 'ring') pt.r += 1.6; }
@@ -466,6 +467,7 @@
   }
   function damage(n) {
     const p = player; if (p.inv > 0) return; hp -= n; p.inv = 72; shake = 9; flash = 4; hitStop = 2;
+    if (combo > bestCombo) bestCombo = combo;   // bank the peak before the hit wipes the active combo
     combo = 0; comboT = 0; el.combo && el.combo.classList.remove('show');
     burst(p.x + p.w / 2, p.y + p.h / 2, C.rage, 14, 3.5, { glow: 1 }); p.vy = -3.4; p.vx = -p.dir * 3.5;
     if (hp <= 0) gameOver();
@@ -1094,8 +1096,11 @@
     root.querySelectorAll('.q-wbtn[data-link]').forEach(btn => {
       btn.onclick = () => {
         const t = btn.dataset.link;
-        if (t === 'listen') { QA.start(); location.href = 'music.html'; }
-        else if (t === 'vault') location.href = 'vault.html';
+        // use the site's client-side router when present so the music keeps playing
+        // across the hop; fall back to a hard load if app.js isn't on the page.
+        const go = (u) => { if (typeof window.sbNavigate === 'function') window.sbNavigate(u, true); else location.href = u; };
+        if (t === 'listen') { QA.start(); go('music.html'); }
+        else if (t === 'vault') go('vault.html');
       };
     });
   }
@@ -1116,6 +1121,10 @@
     };
     // reveal the touch control deck on coarse pointers (CSS keys off this class)
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) root.classList.add('q-has-touch');
+    // tear down a prior mount's listeners/observer if mount() is re-entered without an
+    // intervening unmount() (router re-entry) — otherwise the old AbortController + ResizeObserver leak.
+    if (inputAC) { try { inputAC.abort(); } catch (_) { } }
+    if (ro) { try { ro.disconnect(); } catch (_) { } ro = null; }
     bindInputs();
     bindTouch(q('qtL'), () => K.l = true, () => K.l = false);
     bindTouch(q('qtR'), () => K.r = true, () => K.r = false);

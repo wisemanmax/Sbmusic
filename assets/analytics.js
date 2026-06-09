@@ -289,5 +289,22 @@
     // pagehide covers the rest. Both are guarded so we only send one exit per page load.
     addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') exit(); });
     addEventListener('pagehide', exit);
+
+    /* SPA hook: app.js swaps pages client-side without a full reload, so without this only
+       the entry page is ever logged — every in-app navigation, its scroll depth and its
+       time-on-page would be mis-attributed to that first page. app.js calls this on each
+       client-side navigation: close out the page being left (time + depth), reset the
+       per-page counters, then log the new pageview (no referrer — it's an internal hop). */
+    window.sbPageview = function () {
+      record('exit', { meta: { seconds: Math.round((Date.now() - t0) / 1000), depth: maxDepth } });
+      PAGE = (location.pathname + location.search).slice(0, 256);
+      maxDepth = 0; t0 = Date.now(); sent = false;
+      record('pageview', {
+        meta: {
+          title: (document.title || '').slice(0, 200),
+          screen: ENV.screen, lang: ENV.lang, tz: ENV.tz, conn: ENV.conn || null,
+        },
+      });
+    };
   }
 })();

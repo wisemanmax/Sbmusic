@@ -316,11 +316,30 @@ $('loginBtn').onclick=async()=>{
   const pw=$('pw').value.trim(); $('gerr').textContent='';
   if(!pw)return;
   $('loginBtn').textContent='checking…'; $('loginBtn').disabled=true;
-  try{ await tryLogin(pw); }
+  try{
+    const r=await sbAdmin(pw,'login');                 // auth step — a 401 here means a wrong password
+    if(r&&r.token){ TOKEN=r.token; sessionStorage.setItem('sb_token',TOKEN); }
+    // editor-load is a SEPARATE step: a failure here is NOT a bad password — the user is
+    // authenticated (token stored), so don't mislabel it as a login failure.
+    try{ await enterEditor(); }
+    catch(le){ $('gerr').textContent='✓ signed in — but loading the editor failed: '+String(le.message||le)+'. Reload to retry.'; }
+  }
   catch(e){ const m=String(e.message||e); $('gerr').textContent=(m.includes('unauthorized')||m.includes('401'))?'✗ wrong password':('✗ '+m); }
   finally{ $('loginBtn').textContent='enter ☠'; $('loginBtn').disabled=false; }
 };
 $('pw').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click();});
+
+/* central session guard: a token-authenticated action that comes back 401 means the session
+   token expired or was revoked (e.g. a password change bumped session_version). Drop the dead
+   token and return to the gate instead of stranding the admin on dead-end "unauthorized" errors. */
+function showGate(msg){ const a=$('app'); if(a)a.style.display='none'; const g=$('gate'); if(g)g.style.display='flex'; if(msg)$('gerr').textContent=msg; }
+(function(){
+  const _raw=window.sbAdmin;
+  window.sbAdmin=async function(auth,action,payload){
+    try{ return await _raw(auth,action,payload); }
+    catch(e){ if(e&&e.status===401&&action!=='login'&&TOKEN){ TOKEN=''; sessionStorage.removeItem('sb_token'); showGate('session expired — sign in again'); } throw e; }
+  };
+})();
 
 async function enterEditor(){
   // Build the whole editor BEFORE revealing it. If anything here throws we stay on
@@ -346,7 +365,7 @@ async function enterEditor(){
 }
 
 /* ---------- model path helpers ---------- */
-function getByPath(p){let o=model;for(const k of p)o=o[k];return o;}
+function getByPath(p){let o=model;for(const k of p){if(o==null)return undefined;o=o[k];}return o;}
 function setByPath(p,v){let o=model;for(let i=0;i<p.length-1;i++)o=o[p[i]];o[p[p.length-1]]=v;}
 function tkeyOf(path){return path.filter(s=>typeof s!=='number').join('.');}
 function meta(path){return (window.SB_SCHEMA&&SB_SCHEMA[tkeyOf(path)])||{};}
@@ -717,7 +736,7 @@ async function renderAudience(root){
       const r=await sbAdmin(authCred(),'list_subs');
       subs=(r&&r.subs)||[];
       draw();
-    }catch(e){ host.innerHTML='<div class="empty">✗ '+(e.message||e)+'</div>'; }
+    }catch(e){ host.innerHTML='<div class="empty">✗ '+escA(e.message||e)+'</div>'; }
   }
   function draw(){
     const emails=subs.filter(s=>s.email).length, phones=subs.filter(s=>s.phone).length;
@@ -869,7 +888,7 @@ function renderSettings(root){
   const impFile=document.createElement('input'); impFile.type='file'; impFile.accept='application/json'; impFile.className='file';
   const imp=elt('button','btn neutral sm','⤒ import content (JSON)'); imp.style.marginLeft='8px';
   imp.onclick=()=>impFile.click();
-  impFile.onchange=async()=>{ const f=impFile.files[0]; if(!f)return; try{ const j=JSON.parse(await f.text()); model=sbMerge(sbClone(SB_DEFAULTS),j); onChange(); buildSidebar(); selectView(view); toast('content imported — review, then publish'); }catch(e){ toast('✗ invalid JSON',true); } };
+  impFile.onchange=async()=>{ const f=impFile.files[0]; if(!f)return; try{ const j=JSON.parse(await f.text()); if(!j||typeof j!=='object'||Array.isArray(j)){ toast('✗ not a valid content file',true); return; } model=sbMerge(sbClone(SB_DEFAULTS),j); onChange(); buildSidebar(); selectView(view); toast('content imported — review, then publish'); }catch(e){ toast('✗ invalid JSON',true); } };
   const ier=elt('div'); ier.style.cssText='display:flex;flex-wrap:wrap;gap:8px'; ier.append(exp,imp,impFile);
   ie.appendChild(ier);
   ie.appendChild(elt('div','fhint','Export a full backup of your content, or import one. Imports merge over the built-in defaults and don’t go live until you publish.'));

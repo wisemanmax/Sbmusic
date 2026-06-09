@@ -97,7 +97,7 @@ const SB_DEFAULTS = {
     apple: 'https://music.apple.com/us/artist/slime-by/1542729349',
     youtube: 'https://youtube.com/@slimeby_',
     instagram: 'https://instagram.com/slimeby_sb',
-    tiktok: 'https://www.tiktok.com/@_slimeby',
+    tiktok: 'https://www.tiktok.com/@slimeby_sb',
     bookingEmail: 'booking@slimeby.com',
     joinTitle: 'join the slime ☠',
     joinSub: 'first access to drops, merch & shows — email for news, phone for SMS alerts',

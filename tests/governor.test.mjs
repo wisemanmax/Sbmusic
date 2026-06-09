@@ -7,9 +7,15 @@ import vm from 'node:vm';
 import assert from 'node:assert/strict';
 
 const src = fs.readFileSync(new URL('../assets/app.js', import.meta.url), 'utf8').split('\n');
-// lines 169..212 (1-based) — the governor block (sbSoftwareGPU / sbSetLite / boot IIFE / sbSampleFps)
-const GOV = src.slice(168, 212).join('\n');
-assert.ok(/function sbSoftwareGPU/.test(GOV) && /function sbSampleFps/.test(GOV), 'extracted wrong block');
+// Extract the governor block (sbSoftwareGPU / sbSetLite / boot IIFE / sbSampleFps) by content
+// rather than hard-coded line numbers, so edits elsewhere in app.js can't silently shift it out
+// of range: from `function sbSoftwareGPU()` to the column-0 closing brace of `sbSampleFps`.
+const start = src.findIndex(l => /^function sbSoftwareGPU\(\)/.test(l));
+const fpsIdx = src.findIndex((l, i) => i > start && /^function sbSampleFps\(/.test(l));
+let end = fpsIdx;
+while (end < src.length && src[end] !== '}') end++;   // sbSampleFps's own closing brace
+const GOV = src.slice(start, end + 1).join('\n');
+assert.ok(start >= 0 && fpsIdx > start && /function sbSoftwareGPU/.test(GOV) && /function sbSampleFps/.test(GOV), 'extracted wrong block');
 
 function makeCtx({ search = '', stored = null, renderer = 'NVIDIA GeForce', webgl = true }) {
   const store = new Map();
