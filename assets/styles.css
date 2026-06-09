@@ -533,6 +533,28 @@ body.rage.rfx-glitch #main{animation:rfxglitch 2.8s steps(1) infinite}
   .reveal{opacity:1!important;transform:none!important}
 }
 
+/* LITE RENDER PATH — adaptive perf governor (see assets/app.js).
+   Auto-enabled when the browser is software-rendering (e.g. Chrome with hardware
+   acceleration off / a blocklisted GPU) or the live frame rate stays low. Chrome
+   and Opera share the Blink engine, so jank in one but not the other is almost
+   always GPU acceleration: without it, the stacked blur + mix-blend-mode +
+   backdrop-filter layers below composite in software and crawl. This sheds those
+   exact layers so struggling setups go smooth; capable ones never load it. */
+html.sb-lite .blob{display:none}                 /* 3× blur(80px)+screen-blend, animated → re-rasters every frame */
+html.sb-lite .grain,html.sb-lite .scan{display:none}   /* full-screen blend overlays */
+html.sb-lite nav.scrolled,html.sb-lite .bigbtn,html.sb-lite .panel,
+html.sb-lite .musicbar,html.sb-lite .totop,html.sb-lite .helpbtn,
+html.sb-lite .modal,html.sb-lite .sb-card .sbblock-in,html.sb-lite .sl-card,
+html.sb-lite .pt-item{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+/* the surfaces above leaned on backdrop-blur for legibility — solidify them now */
+html.sb-lite nav.scrolled{background:rgba(8,5,4,.95)}
+html.sb-lite .panel,html.sb-lite .sb-card .sbblock-in{background:rgba(12,9,7,.92)}
+html.sb-lite .sl-card{background:rgba(12,9,7,.95)}
+html.sb-lite .pt-item{background:rgba(12,9,7,.9)}
+html.sb-lite .bigbtn{background:rgba(10,7,5,.82)}
+html.sb-lite .sbmono{animation:none;filter:drop-shadow(0 0 16px var(--slime))}  /* stop per-frame drop-shadow re-raster */
+html.sb-lite .glitch::before,html.sb-lite .glitch::after{display:none}          /* stop continuous clip-path animation */
+
 /* ===== FLESH-OUT: toasts, modal, filters, shows, shortcuts ===== */
 /* TOASTS */
 #toasts{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:11500;display:flex;flex-direction:column;gap:10px;align-items:center;pointer-events:none}

@@ -4,11 +4,12 @@
   "private": true,
   "description": "SLIME BY — static, no-build site (HTML + assets/app.js + cms.js).",
   "scripts": {
-    "check:js": "node --check assets/app.js && node --check assets/quest.js && node --check cms.js && node --check assets/analytics.js && node --check tests/e2e.mjs",
+    "check:js": "node --check assets/app.js && node --check assets/quest.js && node --check cms.js && node --check assets/analytics.js && node --check tests/e2e.mjs && node --check tests/governor.test.mjs",
     "serve": "python3 -m http.server 8000",
     "test:install": "playwright install --with-deps chromium",
+    "test:governor": "node tests/governor.test.mjs",
     "test:e2e": "node tests/e2e.mjs",
-    "test": "npm run check:js && npm run test:e2e"
+    "test": "npm run check:js && npm run test:governor && npm run test:e2e"
   },
   "devDependencies": {
     "playwright": "^1.56.1"
