@@ -88,6 +88,8 @@ globalThis.document = {
 let rafCb = null;
 globalThis.requestAnimationFrame = cb => { rafCb = cb; return 1; };
 globalThis.cancelAnimationFrame = () => { rafCb = null; };
+// Node 20 has no global `navigator` (Node 21+ does) — stub it for the touch checks
+if (!globalThis.navigator) Object.defineProperty(globalThis, 'navigator', { value: { maxTouchPoints: 0 }, configurable: true });
 
 /* ---------- load the real engine ---------- */
 const code = await readFile(join(ROOT, 'assets', 'quest.js'), 'utf8');
