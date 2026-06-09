@@ -103,4 +103,27 @@ check('~50fps (avg 20 < 22) → stays full',
   check('one bad window + recovery → stays full', !env.ctx.window.SB_LITE);
 }
 
+console.log('jank-ratio trigger (good average, bad hitches):');
+// 60fps with a 60ms hitch every 4th frame: avg = (3·16.7 + 60)/4 ≈ 27.5? No —
+// feed 3 smooth frames then 1 long one. jank ratio 25% > 18% must flip even
+// when the long frames are mild enough that older builds' average check missed it.
+function feedPattern(frames, pattern) {
+  const env = run({ renderer: 'NVIDIA' });
+  let t = 3000, i = 0;
+  for (let n = 0; n < frames; n++) { env.ctx.sbSampleFps(t); t += pattern[i++ % pattern.length]; }
+  return env;
+}
+{
+  // mostly 60fps + every 5th frame a 50ms hitch → avg 23.3ms... pick a milder hitch so the
+  // AVERAGE stays under 22 (the old trigger) and only the jank ratio can catch it:
+  // 4×14ms + 1×48ms → avg 20.8ms (< 22, old check passes it), jank 20% (> 18%) → flips.
+  const env = feedPattern(260, [14, 14, 14, 14, 48]);
+  check('janky-but-good-average (20% hitches) → flips to lite', env.ctx.window.SB_LITE === true);
+}
+{
+  // same smooth base with rare hitches (10% > 40ms) → must NOT flip
+  const env = feedPattern(400, [14, 14, 14, 14, 14, 14, 14, 14, 14, 48]);
+  check('rare hitches (10%) → stays full', !env.ctx.window.SB_LITE);
+}
+
 console.log(`\nAll ${pass} governor checks passed.`);

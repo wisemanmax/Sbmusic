@@ -662,9 +662,15 @@
     }
   }
   function drawFireflies(cx, bs) {
+    // halo = a second, bigger translucent arc — not ctx.shadowBlur (a per-fly Gaussian
+    // blur every frame, one of the slowest canvas paths in Chrome's raster)
     ctx.save();
-    for (const f of fireflies) { const sxp = f.x - cx; if (sxp < -10 || sxp > W + 10) continue; const a = 0.3 + 0.5 * ((Math.sin(f.t) + 1) / 2); ctx.fillStyle = rageOn ? 'rgba(255,90,100,' + a + ')' : 'rgba(180,255,120,' + a + ')'; ctx.shadowColor = rageOn ? C.rage : C.slime; ctx.shadowBlur = 6; ctx.beginPath(); ctx.arc(sxp, f.y + Math.sin(f.t * 1.3) * 4, f.r + bs * 0.8, 0, 6.28); ctx.fill(); }
-    ctx.shadowBlur = 0; ctx.restore();
+    for (const f of fireflies) { const sxp = f.x - cx; if (sxp < -10 || sxp > W + 10) continue; const a = 0.3 + 0.5 * ((Math.sin(f.t) + 1) / 2); const fy = f.y + Math.sin(f.t * 1.3) * 4, fr = f.r + bs * 0.8;
+      ctx.fillStyle = rageOn ? 'rgba(255,90,100,' + (a * 0.3).toFixed(3) + ')' : 'rgba(180,255,120,' + (a * 0.3).toFixed(3) + ')';
+      ctx.beginPath(); ctx.arc(sxp, fy, fr + 2.5, 0, 6.28); ctx.fill();
+      ctx.fillStyle = rageOn ? 'rgba(255,90,100,' + a + ')' : 'rgba(180,255,120,' + a + ')';
+      ctx.beginPath(); ctx.arc(sxp, fy, fr, 0, 6.28); ctx.fill(); }
+    ctx.restore();
   }
 
   /* ----- Slime By hero (upgraded, beat-reactive) -----
@@ -945,11 +951,16 @@
       const a = Math.max(0, pt.life / pt.max);
       if (pt.shape === 'ring') { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a * 0.7; ctx.strokeStyle = pt.col; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r, 0, 6.28); ctx.stroke(); ctx.restore(); continue; }
       if (pt.shape === 'puddle') { ctx.save(); ctx.globalAlpha = a * 0.5; ctx.fillStyle = pt.col; ctx.beginPath(); ctx.ellipse(pt.x, pt.y, pt.size + (1 - a) * 3, pt.size * 0.4, 0, 0, 6.28); ctx.fill(); ctx.restore(); continue; }
-      if (pt.glow) { ctx.globalCompositeOperation = 'lighter'; ctx.shadowColor = pt.col; ctx.shadowBlur = 6; }
+      if (pt.glow) {
+        // glow = a faint oversized pass underneath instead of per-particle shadowBlur
+        ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = pt.col; ctx.globalAlpha = a * 0.35;
+        if (pt.shape === 'goo') { ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.size * (0.6 + a * 0.6) + 2.5, 0, 6.28); ctx.fill(); }
+        else ctx.fillRect(pt.x - 2, pt.y - 2, pt.size + 4, pt.size + 4);
+      }
       ctx.globalAlpha = a; ctx.fillStyle = pt.col;
       if (pt.shape === 'goo') { ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.size * (0.6 + a * 0.6), 0, 6.28); ctx.fill(); }
       else ctx.fillRect(pt.x, pt.y, pt.size, pt.size);
-      ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
     }
   }
   function drawFloaters() {

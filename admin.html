@@ -771,7 +771,7 @@ function fmtDate(s){ if(!s)return''; const d=new Date(s); return isNaN(d)?s:d.to
 async function renderAnalytics(root){
   root.innerHTML='';
   const head=elt('div','ehead'); head.appendChild(elt('h2',null,'Analytics'));
-  head.appendChild(elt('p',null,'What visitors view, what they click, and where they drop off. Anonymous & first-party — no cookies, no personal data.'));
+  head.appendChild(elt('p',null,'Who’s on now, what they view and click, which tracks they actually listen to, which platforms they tap out to, campaigns, and real-user site performance. Anonymous & first-party — consent-gated, no cookies, no personal data.'));
   root.appendChild(head);
 
   const bar=elt('div'); bar.style.cssText='display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap';
@@ -790,9 +790,11 @@ async function renderAnalytics(root){
     d.appendChild(elt('p',null,'Once the site is live and visitors start tapping in, their pageviews, clicks and drop-off points show up here. Try a wider range, or check back soon ☠'));
     return d;
   }
-  function statRow(t){
+  function statRow(t,s){
     const sg=elt('div','statgrid');
     const cards=[[fmtNum(t.pageviews),'pageviews'],[fmtNum(t.visitors),'visitors'],[fmtNum(t.sessions),'sessions'],[fmtNum(t.clicks),'clicks']];
+    if(s&&s.live_now!=null) cards.unshift([fmtNum(s.live_now),'on the site now']);
+    if(t.new_visitors!=null&&+t.visitors>0) cards.push([Math.round((+t.new_visitors||0)/(+t.visitors)*100)+'%','new visitors']);
     if(t.avg_seconds!=null) cards.push([fmtDur(t.avg_seconds),'avg time on page']);
     if(t.avg_scroll!=null) cards.push([(t.avg_scroll||0)+'%','avg scroll depth']);
     cards.forEach(([n,l])=>{ const c=elt('div','statcard'); c.appendChild(elt('div','big',String(n))); c.appendChild(elt('div','lbl',l)); sg.appendChild(c); });
@@ -830,30 +832,75 @@ async function renderAnalytics(root){
     tw.innerHTML='<table class="tbl"><thead><tr>'+headers.map((h,i)=>'<th'+(i>0?' style="text-align:right"':'')+'>'+escA(h)+'</th>').join('')+'</tr></thead><tbody>'+body+'</tbody></table>';
     card.appendChild(tw); return card;
   }
+  /* pageviews by hour of day — when the audience is actually awake (UTC) */
+  function hoursChart(hours){
+    if(!hours||!hours.length) return null;
+    const byHour=new Array(24).fill(0);
+    hours.forEach(h=>{ const i=+h.hour; if(i>=0&&i<24) byHour[i]=+h.views||0; });
+    const peak=Math.max(0,...byHour); if(!peak) return null;
+    const wrap=elt('div');
+    const cap=elt('div','acap');
+    cap.appendChild(Object.assign(elt('span','l'),{textContent:'pageviews by hour (UTC)'}));
+    cap.appendChild(Object.assign(elt('span','r'),{textContent:'peak at '+String(byHour.indexOf(peak)).padStart(2,'0')+':00 UTC'}));
+    wrap.appendChild(cap);
+    const c=elt('div','achart');
+    byHour.forEach((v,i)=>{ const b=document.createElement('i'); b.style.height=Math.max(2,Math.round(v/peak*100))+'%'; b.title=String(i).padStart(2,'0')+':00 UTC · '+v+' views'; c.appendChild(b); });
+    wrap.appendChild(c); return wrap;
+  }
+  /* real-user performance + breakage ("is the site lagging out there?") */
+  function healthCard(s){
+    const p=s.perf||{};
+    if(!(+p.samples)) return null;
+    const ms=v=>v==null?'—':(+v>=1000?(+v/1000).toFixed(1)+'s':Math.round(+v)+'ms');
+    const card=elt('div','card');
+    card.appendChild(Object.assign(elt('div','cardhead'),{innerHTML:'<h3>Site health</h3>'}));
+    const kv=[
+      ['load speed (LCP, avg / p75)', ms(p.avg_lcp)+' / '+ms(p.p75_lcp)],
+      ['layout shift (CLS avg)', p.avg_cls!=null?String(p.avg_cls):'—'],
+      ['visits in lite (low-power) mode', (p.lite_pct||0)+'%'],
+      ['perf governor kicked in', fmtNum(p.lite_flips)+'×'],
+      ['JS errors recorded', fmtNum(p.js_errors)],
+    ];
+    const tw=elt('div','tablewrap');
+    let rows=kv.map(([k,v])=>'<tr><td>'+escA(k)+'</td><td class="muted" style="text-align:right;white-space:nowrap">'+escA(v)+'</td></tr>').join('');
+    (s.perf_by_browser||[]).slice(0,5).forEach(r=>{
+      rows+='<tr><td class="muted">↳ '+escA(r.browser)+' ('+fmtNum(r.samples)+' visits)</td><td class="muted" style="text-align:right;white-space:nowrap">LCP '+ms(r.avg_lcp)+' · lite '+(r.lite_pct||0)+'%</td></tr>';
+    });
+    tw.innerHTML='<table class="tbl"><thead><tr><th>Performance</th><th style="text-align:right">Value</th></tr></thead><tbody>'+rows+'</tbody></table>';
+    card.appendChild(tw); return card;
+  }
   function draw(s){
     s=s||{}; host.innerHTML='';
     const t=s.totals||{};
     if(!(+t.events)){ host.appendChild(emptyState()); return; }   // clean single empty state, not 4 empty tables
-    host.appendChild(statRow(t));
+    host.appendChild(statRow(t,s));
     if(s.funnel) host.appendChild(funnelRow(s.funnel));   // engagement → conversion (needs the event-funnel migration)
     const ch=chart(s.daily); if(ch) host.appendChild(ch);
+    const hc=hoursChart(s.hours); if(hc) host.appendChild(hc);
     const grid=elt('div','agrid');
+    if(s.top_tracks&&s.top_tracks.length) grid.appendChild(tableCard('Top tracks (site player)',s.top_tracks,'plays',['Track','Plays','Full listens'],[r=>escA(r.track),r=>fmtNum(r.plays),r=>fmtNum(r.full_listens)]));
+    if(s.outbound&&s.outbound.length) grid.appendChild(tableCard('Where fans tap out to',s.outbound,'clicks',['Platform','Clicks','Sessions'],[r=>escA(r.platform),r=>fmtNum(r.clicks),r=>fmtNum(r.sessions)]));
     grid.appendChild(tableCard('Top pages',s.top_pages,'views',['Page','Views','Visitors'],[r=>escA(r.page),r=>fmtNum(r.views),r=>fmtNum(r.visitors)]));
     grid.appendChild(tableCard('What people click',s.top_clicks,'clicks',['Element','Clicks'],[r=>escA(r.target),r=>fmtNum(r.clicks)]));
     grid.appendChild(tableCard('Where they leave off',s.exit_pages,'exits',['Exit page','Exits'],[r=>escA(r.page),r=>fmtNum(r.exits)]));
     grid.appendChild(tableCard('Referrers',s.referrers,'count',['Source','Visits'],[r=>escA(r.referrer),r=>fmtNum(r.count)]));
+    if(s.campaigns&&s.campaigns.length) grid.appendChild(tableCard('Campaigns (utm / ads)',s.campaigns,'sessions',['Source · campaign','Sessions'],[r=>escA([r.source,r.campaign||r.medium].filter(Boolean).join(' · ')),r=>fmtNum(r.sessions)]));
     if(s.devices&&s.devices.length) grid.appendChild(tableCard('Devices',s.devices,'count',['Device','Views'],[r=>escA(r.device),r=>fmtNum(r.count)]));
     if(s.browsers&&s.browsers.length) grid.appendChild(tableCard('Browsers',s.browsers,'count',['Browser','Views'],[r=>escA(r.browser),r=>fmtNum(r.count)]));
     if(s.os&&s.os.length) grid.appendChild(tableCard('Operating systems',s.os,'count',['OS','Views'],[r=>escA(r.os),r=>fmtNum(r.count)]));
     if(s.top_events&&s.top_events.length) grid.appendChild(tableCard('Events',s.top_events,'count',['Event','Count'],[r=>escA(r.target),r=>fmtNum(r.count)]));
+    const health=healthCard(s); if(health) grid.appendChild(health);
+    if(s.top_errors&&s.top_errors.length) grid.appendChild(tableCard('JS errors in the field',s.top_errors,'count',['Error','Count'],[r=>escA(r.msg),r=>fmtNum(r.count)]));
     host.appendChild(grid);
   }
-  /* small session funnel: sessions → played a track → joined the list, with conversion %. */
+  /* session funnel: sessions → played → really listened (50%+) → joined, with conversion %. */
   function funnelRow(f){
     const sg=elt('div','statgrid'); const sess=+f.sessions||0, plays=+f.played||0, joins=+f.joined||0;
     const pct=(a,b)=>b>0?' ('+Math.round(a/b*100)+'%)':'';
-    [[fmtNum(sess),'sessions'],[fmtNum(plays),'played a track'+pct(plays,sess)],[fmtNum(joins),'joined the list'+pct(joins,sess)]]
-      .forEach(([n,l])=>{ const c=elt('div','statcard'); c.appendChild(elt('div','big',String(n))); c.appendChild(elt('div','lbl',l)); sg.appendChild(c); });
+    const cards=[[fmtNum(sess),'sessions'],[fmtNum(plays),'played a track'+pct(plays,sess)]];
+    if(f.listened!=null) cards.push([fmtNum(+f.listened||0),'heard 50%+ of a song'+pct(+f.listened||0,sess)]);
+    cards.push([fmtNum(joins),'joined the list'+pct(joins,sess)]);
+    cards.forEach(([n,l])=>{ const c=elt('div','statcard'); c.appendChild(elt('div','big',String(n))); c.appendChild(elt('div','lbl',l)); sg.appendChild(c); });
     return sg;
   }
   async function load(){

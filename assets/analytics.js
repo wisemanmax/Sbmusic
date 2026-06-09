@@ -11,6 +11,20 @@
    only, see migration 20260608140000_analytics_consent_dimensions).
    On decline it stores the choice and stays silent.
 
+   The DEEP layer (same consent, same first-party boundary):
+   • listen depth   — which track is playing and how far it gets
+                      (25/50/75/95% milestones via the site player)
+   • outbound       — which platform a fan leaves to (Spotify /
+                      Apple / YouTube / IG / TikTok / other host)
+   • campaigns      — utm_* params + ad-click ids present on the
+                      ENTRY url of a session (first-touch)
+   • new/returning  — whether this visitor id was just created
+   • web vitals     — LCP / CLS / TTFB / load time + whether the
+                      perf governor's lite mode is on (real-user
+                      performance, e.g. "is Chrome lagging?")
+   • js errors      — first 3 errors per page (message + file:line)
+   • perf_lite      — the adaptive governor flipping lite mid-visit
+
    We deliberately do NOT fingerprint, do NOT persist IP addresses
    from the client, and do NOT track across sites — so this stays
    first-party and honest. The admin reads aggregates through the
@@ -72,30 +86,34 @@
       bar.setAttribute('role', 'dialog');
       bar.setAttribute('aria-live', 'polite');
       bar.setAttribute('aria-label', 'Privacy & analytics consent');
+      /* styled to match the site (dark panel, slime accent) instead of the old generic grey */
       bar.style.cssText = [
         'position:fixed', 'left:12px', 'right:12px', 'bottom:12px', 'z-index:2147483000',
-        'max-width:680px', 'margin:0 auto', 'padding:14px 16px',
-        'background:#0c140c', 'color:#dfeede',
-        'border:1px solid #2f5d2f', 'border-radius:14px',
-        'box-shadow:0 10px 40px rgba(0,0,0,.5)',
-        'font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif'
+        'max-width:680px', 'margin:0 auto', 'padding:16px 18px',
+        'background:rgba(10,8,6,.96)', 'color:#e8f3e2',
+        'border:1px solid rgba(141,255,43,.45)', 'border-radius:4px',
+        'box-shadow:0 16px 50px rgba(0,0,0,.65), 0 0 28px rgba(141,255,43,.12)',
+        "font:14px/1.5 'Oswald',system-ui,-apple-system,Segoe UI,Roboto,sans-serif",
+        'letter-spacing:.2px'
       ].join(';');
       bar.innerHTML =
         '<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">' +
           '<div style="flex:1 1 280px;min-width:240px">' +
-            '<strong style="color:#5fe05f">We use first-party analytics.</strong> ' +
-            'If you accept, we record how the site is used (pages, clicks, scroll, time) ' +
-            'plus your device type, browser, OS, language and timezone — so we can improve ' +
-            'the site and our drops. No cross-site tracking, no selling your data. ' +
-            '<a href="privacy.html" style="color:#7ef07e;text-decoration:underline">Privacy policy</a>.' +
+            '<strong style="color:#8dff2b;letter-spacing:1px">☠ FIRST-PARTY ANALYTICS.</strong> ' +
+            'If you accept, we record how the site is used (pages, clicks, scroll, time, which tracks ' +
+            'get played &amp; which platforms you tap out to) plus your device type, browser, OS, language, ' +
+            'timezone and anonymous performance/error reports — so we can improve the site and our drops. ' +
+            'No cross-site tracking, no selling your data. ' +
+            '<a href="privacy.html" style="color:#b6ff5a;text-decoration:underline">Privacy policy</a>.' +
           '</div>' +
           '<div style="display:flex;gap:8px;flex:0 0 auto">' +
             '<button type="button" id="sb-consent-no" ' +
-              'style="cursor:pointer;padding:9px 14px;border-radius:10px;border:1px solid #3a3a3a;' +
-              'background:transparent;color:#cfcfcf;font:inherit">Decline</button>' +
+              'style="cursor:pointer;padding:10px 16px;border:1px solid rgba(255,255,255,.28);' +
+              'background:transparent;color:#cfcfc6;font:inherit;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-size:12px">Decline</button>' +
             '<button type="button" id="sb-consent-yes" ' +
-              'style="cursor:pointer;padding:9px 16px;border-radius:10px;border:0;' +
-              'background:#3fb53f;color:#06210a;font:inherit;font-weight:700">Accept</button>' +
+              'style="cursor:pointer;padding:10px 18px;border:1px solid #8dff2b;' +
+              'background:#8dff2b;color:#08120a;font:inherit;font-weight:700;letter-spacing:1px;text-transform:uppercase;font-size:12px;' +
+              'box-shadow:0 0 18px rgba(141,255,43,.35)">Accept ☠</button>' +
           '</div>' +
         '</div>';
       document.body.appendChild(bar);
@@ -135,8 +153,9 @@
 
     var SESSION_GAP = 30 * 60 * 1000;
 
+    var isNewVisitor = false;
     var visitorId = lsGet('sb_vid');
-    if (!visitorId) { visitorId = rid(); lsSet('sb_vid', visitorId); }
+    if (!visitorId) { visitorId = rid(); lsSet('sb_vid', visitorId); isNewVisitor = true; }
 
     // a session id lives in sessionStorage; the last-activity stamp lives in
     // localStorage so a session that idles past the gap starts fresh, like GA.
@@ -157,6 +176,26 @@
     // attribute a referrer only on the entry hit of a session (GA-style)
     var firstHit = !ssGet('sb_ref_done');
     ssSet('sb_ref_done', '1');
+
+    /* ---- campaign attribution: utm_* params + ad-click ids on the ENTRY url.
+           First-touch per session (stored once), so a campaign visit keeps its
+           attribution across in-app navigation without re-parsing every page. ---- */
+    function utmData() {
+      try {
+        var cached = ssGet('sb_utm');
+        if (cached != null) return cached === '' ? null : JSON.parse(cached);
+        var q = new URLSearchParams(location.search), o = {}, has = false;
+        ['source', 'medium', 'campaign', 'term', 'content'].forEach(function (k) {
+          var v = q.get('utm_' + k);
+          if (v) { o[k] = String(v).slice(0, 80); has = true; }
+        });
+        ['fbclid', 'gclid', 'ttclid', 'igshid', 'igsh'].forEach(function (k) {
+          if (q.get(k) && !o.ad) { o.ad = k; has = true; }   // presence only, never the id value
+        });
+        ssSet('sb_utm', has ? JSON.stringify(o) : '');
+        return has ? o : null;
+      } catch (_) { return null; }
+    }
 
     /* ---- device / browser / os / context (parsed from the UA + a couple of
             safe client hints; coarse on purpose — buckets, not fingerprints) ---- */
@@ -241,14 +280,17 @@
     };
 
     /* ---- pageview (carries the visit context in meta) ---- */
-    var ref = firstHit ? refHost() : '';
-    record('pageview', {
-      referrer: ref ? ref.slice(0, 512) : null,
-      meta: {
+    function pageviewMeta() {
+      var m = {
         title: (document.title || '').slice(0, 200),
         screen: ENV.screen, lang: ENV.lang, tz: ENV.tz, conn: ENV.conn || null,
-      },
-    });
+      };
+      if (isNewVisitor) { m.nv = 1; isNewVisitor = false; }   // flag the very first pageview only
+      var utm = utmData(); if (utm) m.utm = utm;              // first-touch campaign for this session
+      return m;
+    }
+    var ref = firstHit ? refHost() : '';
+    record('pageview', { referrer: ref ? ref.slice(0, 512) : null, meta: pageviewMeta() });
 
     /* ---- click tracking (delegated; captures a human label for what was clicked) ---- */
     function labelFor(el) {
@@ -260,11 +302,34 @@
            || el.tagName.toLowerCase();
       return String(t).replace(/\s+/g, ' ').trim().slice(0, 120);
     }
+    /* which platform an outbound host belongs to — the question an artist actually asks
+       ("where do my fans tap out to?"), kept coarse on purpose */
+    function platformOf(host) {
+      host = String(host || '').toLowerCase();
+      if (/spotify\./.test(host)) return 'spotify';
+      if (/music\.apple|itunes\.apple/.test(host)) return 'apple music';
+      if (/youtube\.|youtu\.be/.test(host)) return 'youtube';
+      if (/instagram\./.test(host)) return 'instagram';
+      if (/tiktok\./.test(host)) return 'tiktok';
+      if (/soundcloud\./.test(host)) return 'soundcloud';
+      if (/twitter\.|x\.com$/.test(host)) return 'x';
+      if (/facebook\./.test(host)) return 'facebook';
+      return 'other';
+    }
     document.addEventListener('click', function (ev) {
       var el = ev.target && ev.target.closest && ev.target.closest('a,button,[data-track],[role="button"]');
       if (!el) return;
       var label = labelFor(el);
       if (label) record('click', { target: label });
+      // outbound: a real external link → log the destination platform + host
+      try {
+        var a = el.tagName === 'A' ? el : (el.closest && el.closest('a[href]'));
+        if (a && a.host && a.host !== location.host && /^https?:$/.test(a.protocol)) {
+          record('event', { target: 'outbound', meta: {
+            platform: platformOf(a.host), host: String(a.host).slice(0, 120), label: label.slice(0, 80) || null,
+          } });
+        }
+      } catch (_) {}
     }, true);
 
     /* ---- scroll depth: track the furthest % of the page reached ---- */
@@ -276,6 +341,85 @@
       if (d > maxDepth) maxDepth = Math.min(100, Math.max(0, d));
     }, { passive: true });
 
+    /* ---- listen depth: how far each track ACTUALLY gets played.
+           Binds to the site's persistent <audio> element (it lives outside <main>, so one
+           binding survives all client-side navigation). Milestones fire once per loaded
+           source; the title comes from the player bridge so it names the real track. ---- */
+    (function bindListen() {
+      var a = document.getElementById('audio');
+      if (!a) { addEventListener('DOMContentLoaded', bindListen, { once: true }); return; }
+      if (a.__sbListen) return; a.__sbListen = 1;
+      var MS = [25, 50, 75, 95], hit = {};
+      function title() {
+        try { return ((window.SBPlayer && window.SBPlayer.title()) || '').slice(0, 80); }
+        catch (_) { return ''; }
+      }
+      a.addEventListener('loadstart', function () { hit = {}; });
+      a.addEventListener('timeupdate', function () {
+        if (!a.duration || !isFinite(a.duration)) return;
+        var pct = (a.currentTime / a.duration) * 100;
+        for (var i = 0; i < MS.length; i++) {
+          if (pct >= MS[i] && !hit[MS[i]]) {
+            hit[MS[i]] = 1;
+            record('event', { target: 'listen', meta: { track: title() || null, pct: MS[i] } });
+          }
+        }
+      });
+    })();
+
+    /* ---- real-user performance: LCP / CLS / TTFB / load — plus whether the adaptive
+           perf governor is in lite mode. This is how "the site lags in <browser>" stops
+           being a guess: slice web_vitals by browser in the dashboard. Sent once. ---- */
+    var _lcp = 0, _cls = 0;
+    try {
+      new PerformanceObserver(function (l) {
+        var es = l.getEntries(); if (es.length) _lcp = es[es.length - 1].startTime;
+      }).observe({ type: 'largest-contentful-paint', buffered: true });
+    } catch (_) {}
+    try {
+      new PerformanceObserver(function (l) {
+        l.getEntries().forEach(function (e) { if (!e.hadRecentInput) _cls += e.value; });
+      }).observe({ type: 'layout-shift', buffered: true });
+    } catch (_) {}
+    var vitalsSent = false;
+    function sendVitals() {
+      if (vitalsSent) return; vitalsSent = true;
+      try {
+        var nav = (performance.getEntriesByType('navigation') || [])[0] || {};
+        record('event', { target: 'web_vitals', meta: {
+          lcp: Math.round(_lcp) || null,
+          cls: Math.round(_cls * 1000) / 1000,
+          ttfb: Math.round(nav.responseStart || 0) || null,
+          load: Math.round(nav.loadEventEnd || 0) || null,
+          lite: document.documentElement.classList.contains('sb-lite') ? 1 : 0,
+        } });
+      } catch (_) {}
+    }
+    if (document.readyState === 'complete') setTimeout(sendVitals, 3500);
+    else addEventListener('load', function () { setTimeout(sendVitals, 3500); });
+
+    /* ---- the adaptive perf governor flipping lite MID-VISIT (frame-rate watchdog) ---- */
+    document.addEventListener('sb:lite', function (e) {
+      var d = (e && e.detail) || {};
+      if (!d.on) return;
+      record('event', { target: 'perf_lite', meta: { avg_ms: d.avg_ms || null } });
+    });
+
+    /* ---- JS errors: the first few per page, so breakage in the field is visible ---- */
+    var errN = 0;
+    addEventListener('error', function (e) {
+      if (errN >= 3 || !e) return; errN++;
+      var src = (e.filename ? String(e.filename).split('/').pop() : '') + ':' + (e.lineno || 0);
+      record('event', { target: 'js_error', meta: {
+        msg: String(e.message || 'error').slice(0, 180), src: src.slice(0, 120),
+      } });
+    });
+    addEventListener('unhandledrejection', function (e) {
+      if (errN >= 3) return; errN++;
+      var m = ''; try { m = String((e && e.reason && (e.reason.message || e.reason)) || ''); } catch (_) {}
+      record('event', { target: 'js_error', meta: { msg: ('unhandled: ' + m).slice(0, 180) } });
+    });
+
     /* ---- exit / "where they leave off": time-on-page + how far they scrolled.
            The exit *page* is derived server-side as the last pageview of a session,
            so it's reliable even if this beacon is dropped. Fires once. ---- */
@@ -283,6 +427,7 @@
     var sent = false;
     function exit() {
       if (sent) return; sent = true;
+      sendVitals();   // make sure the perf sample isn't lost on a fast bounce
       record('exit', { meta: { seconds: Math.round((Date.now() - t0) / 1000), depth: maxDepth } });
     }
     // visibilitychange→hidden is the most reliable end-of-visit signal (esp. mobile);
@@ -299,12 +444,7 @@
       record('exit', { meta: { seconds: Math.round((Date.now() - t0) / 1000), depth: maxDepth } });
       PAGE = (location.pathname + location.search).slice(0, 256);
       maxDepth = 0; t0 = Date.now(); sent = false;
-      record('pageview', {
-        meta: {
-          title: (document.title || '').slice(0, 200),
-          screen: ENV.screen, lang: ENV.lang, tz: ENV.tz, conn: ENV.conn || null,
-        },
-      });
+      record('pageview', { meta: pageviewMeta() });
     };
   }
 })();
