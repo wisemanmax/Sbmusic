@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+<script>if(location.protocol==='http:'&&!/^(localhost|127\.0\.0\.1|\[?::1\]?)$/.test(location.hostname))location.replace(location.href.replace(/^http:/,'https:'));</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🐍 slimémon — SLIME BY</title>
+<meta name="description" content="SLIMÉMON — a creature-catching RPG in the SB universe. Pick a starter, walk the routes, catch venom-mons, battle trainers and topple the Fang Gym. Saves to your phone.">
+<meta name="theme-color" content="#8dff2b">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23060403'/%3E%3Cpath d='M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30 62 M50 16 L50 84' stroke='%238dff2b' stroke-width='8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<meta property="og:type" content="website">
+<meta property="og:title" content="SLIME BY — slimémon">
+<meta property="og:site_name" content="SLIME BY">
+<meta property="og:url" content="https://www.slimeby.com/monsters.html">
+<meta property="og:description" content="SLIMÉMON — catch, train and battle creatures in the SB universe. A faithful pocket-RPG, in your browser.">
+<meta property="og:image" content="https://www.slimeby.com/assets/my-time-cover.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="assets/styles.css">
+<noscript><style>#loader{display:none!important}</style></noscript>
+<script>try{var s=sessionStorage;if(s.getItem('sb_seen'))document.documentElement.className+=' seen';else s.setItem('sb_seen','1');if(s.getItem('sb_wipe'))document.documentElement.className+=' wipe-armed';}catch(e){}</script>
+<link rel="canonical" href="https://www.slimeby.com/monsters.html">
+<link rel="manifest" href="/manifest.webmanifest">
+</head>
+<body>
+
+<div id="loader"><div class="lt">SLIME BY</div><div class="ls">loading the slime…</div><div class="bar"><i></i></div></div>
+<noscript><div class="nojs">SLIME BY — <a href="index.html">home</a> · <a href="music.html">music</a> · <a href="lab.html">slowed</a> · <a href="world.html">sb world</a> · <a href="quest.html">the game</a> · <a href="monsters.html">slimémon</a> · <a href="vault.html">vault</a> · <a href="shows.html">shows</a> · <a href="connect.html">tap in</a></div></noscript>
+
+<main id="main">
+
+  <header class="pagehead">
+    <div class="kicker">slimémon</div>
+    <h1 class="glitch" data-t="SLIMÉMON">SLIMÉMON</h1>
+    <p class="psub">a <b>pocket RPG</b> in the SB universe · catch · train · battle</p>
+  </header>
+
+  <section id="poke">
+    <!-- ============================================================
+         The whole game lives in #pkRoot. assets/monsters.js (loaded on
+         demand by app.js) mounts the engine here. Everything — overworld,
+         menus, dialogue and battles — renders on the single #pkGame canvas
+         at a fixed internal resolution, scaled crisply to the cabinet, so
+         it travels with the page through the client-side router and never
+         leaks styles into the site chrome.
+    ============================================================= -->
+    <div id="pkRoot">
+      <style>
+        #pkRoot{ --pk-slime:#8dff2b; --pk-bright:#c2ff7a; --pk-toxic:#d6ff38; --pk-gold:#ffd166;
+          --pk-rage:#ff1f2e; --pk-purple:#9b3cff; --pk-blue:#3a6bff; --pk-mono:'Courier New',monospace;
+          display:flex; flex-direction:column; align-items:center; gap:14px; padding:6px 0 30px; width:100%; box-sizing:border-box; }
+
+        /* the handheld screen — a 3:2 console glass, CRT-dressed to match the cabinet in "Slime the Game" */
+        #pkRoot .pk-cabinet{
+          position:relative; width:min(720px, 96vw, calc((100dvh - 250px) * 1.5));
+          aspect-ratio:3/2; background:#04060a; overflow:hidden; touch-action:none;
+          border:1px solid rgba(141,255,43,.35); border-radius:8px;
+          box-shadow:0 0 60px rgba(141,255,43,.16), inset 0 0 60px rgba(0,0,0,.6);
+        }
+        #pkRoot canvas#pkGame{ position:absolute; inset:0; width:100%; height:100%;
+          image-rendering:pixelated; image-rendering:crisp-edges; z-index:10; display:block; }
+        #pkRoot .pk-scan{ position:absolute; inset:0; pointer-events:none; z-index:40;
+          background:repeating-linear-gradient(0deg,rgba(0,0,0,.13) 0,rgba(0,0,0,.13) 1px,transparent 2px,transparent 3px); mix-blend-mode:multiply; opacity:.45; }
+        #pkRoot .pk-vig{ position:absolute; inset:0; pointer-events:none; z-index:41;
+          background:radial-gradient(ellipse at center,transparent 56%,rgba(0,0,0,.5) 100%); }
+
+        /* ===== handheld control deck — shown on touch (engine adds .pk-has-touch) ===== */
+        #pkRoot .pk-deck{ display:none; flex-direction:column; gap:14px; width:100%; box-sizing:border-box;
+          padding:14px 18px calc(14px + env(safe-area-inset-bottom,0px)); touch-action:none; user-select:none;
+          background:linear-gradient(180deg,rgba(8,18,9,0),rgba(6,12,6,.55)); }
+        #pkRoot.pk-has-touch .pk-deck{ display:flex; }
+        #pkRoot .pk-brandrow{ display:flex; align-items:center; justify-content:center; }
+        #pkRoot .pk-brand{ font-family:var(--pk-mono); font-weight:900; letter-spacing:5px; font-size:11px; color:#6f9a64; text-shadow:0 0 12px rgba(141,255,43,.28); }
+        #pkRoot .pk-body{ display:flex; align-items:center; justify-content:space-between; gap:14px; }
+        #pkRoot .pk-dpad{ display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr);
+          width:clamp(132px,40vw,156px); aspect-ratio:1; }
+        #pkRoot .pk-dpad .pk-pad{ font-size:clamp(15px,4.6vw,20px); }
+        #pkRoot .pk-pad-u{ grid-area:1/2/2/3; border-bottom:0; border-radius:13px 13px 0 0; }
+        #pkRoot .pk-pad-l{ grid-area:2/1/3/2; border-right:0; border-radius:13px 0 0 13px; }
+        #pkRoot .pk-pad-r{ grid-area:2/3/3/4; border-left:0; border-radius:0 13px 13px 0; }
+        #pkRoot .pk-pad-d{ grid-area:3/2/4/3; border-top:0; border-radius:0 0 13px 13px; }
+        #pkRoot .pk-pad-nub{ grid-area:2/2/3/3; align-self:stretch; justify-self:stretch; display:grid; place-items:center;
+          border-top:1.5px solid rgba(141,255,43,.5); border-bottom:1.5px solid rgba(141,255,43,.5);
+          background:radial-gradient(circle at 50% 38%,rgba(141,255,43,.28),rgba(141,255,43,.04)); }
+        #pkRoot .pk-pad-nub::after{ content:""; width:34%; height:34%; border-radius:50%;
+          background:rgba(141,255,43,.18); box-shadow:inset 0 0 6px rgba(141,255,43,.4); }
+        #pkRoot .pk-cluster{ display:grid; grid-template-columns:auto auto; grid-template-rows:auto auto; gap:12px; }
+        #pkRoot .pk-face{ width:clamp(60px,18vw,72px); height:clamp(60px,18vw,72px); border-radius:50%; flex-direction:column; gap:1px; line-height:1; }
+        #pkRoot .pk-face b{ font-size:clamp(17px,5vw,22px); }
+        #pkRoot .pk-face span{ font-size:8px; letter-spacing:1px; opacity:.85; font-weight:700; }
+        #pkRoot .pk-b{ grid-area:1/1/2/2; }   /* B — upper-left  */
+        #pkRoot .pk-a{ grid-area:2/2/3/3; }   /* A — lower-right */
+        #pkRoot .pk-system{ display:flex; align-items:flex-start; justify-content:center; gap:26px; }
+        #pkRoot .pk-sys{ -webkit-tap-highlight-color:transparent; touch-action:manipulation; cursor:pointer;
+          font-family:var(--pk-mono); font-weight:700; letter-spacing:2px; font-size:9px; color:#7fae72; background:none; border:0; padding:0; }
+        #pkRoot .pk-sys::before{ content:""; display:block; width:30px; height:8px; margin:0 auto 6px; border-radius:6px;
+          background:linear-gradient(180deg,#1c2c18,#0c160b); border:1px solid rgba(141,255,43,.4); box-shadow:inset 0 1px 0 rgba(255,255,255,.08); transition:.12s; }
+        #pkRoot .pk-sys:active::before{ background:linear-gradient(180deg,rgba(141,255,43,.45),rgba(141,255,43,.15)); box-shadow:0 0 12px rgba(141,255,43,.4); }
+
+        /* shared button shell */
+        #pkRoot .pk-btn{ -webkit-tap-highlight-color:transparent; touch-action:none; user-select:none; position:relative;
+          display:grid; place-items:center; cursor:pointer; font-family:var(--pk-mono); font-weight:900; letter-spacing:1px; font-size:13px; color:var(--pk-slime);
+          border:1.5px solid rgba(141,255,43,.5); background:linear-gradient(180deg,rgba(141,255,43,.12),rgba(141,255,43,.03));
+          box-shadow:0 2px 0 rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.12),0 0 14px rgba(141,255,43,.12);
+          transition:transform .06s,box-shadow .12s,background .12s; }
+        #pkRoot .pk-face{ border-radius:50%; }
+        #pkRoot .pk-btn.pressed{ transform:translateY(2px) scale(.95);
+          background:linear-gradient(180deg,rgba(141,255,43,.34),rgba(141,255,43,.14));
+          box-shadow:0 0 24px rgba(141,255,43,.5),inset 0 0 14px rgba(141,255,43,.28); }
+        #pkRoot .pk-a{ color:#06140a; border-color:rgba(194,255,122,.9);
+          background:linear-gradient(180deg,var(--pk-bright),#3f9c12); text-shadow:0 1px 0 rgba(255,255,255,.3);
+          box-shadow:0 2px 0 rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.4),0 0 18px rgba(141,255,43,.3); }
+        #pkRoot .pk-a span{ color:#06140a; opacity:.7; }
+        #pkRoot .pk-a.pressed{ background:linear-gradient(180deg,#eaffd2,#5cc41e); box-shadow:0 0 26px rgba(141,255,43,.6),inset 0 0 14px rgba(255,255,255,.4); }
+        #pkRoot .pk-b{ color:var(--pk-purple); border-color:rgba(155,60,255,.55);
+          background:linear-gradient(180deg,rgba(155,60,255,.16),rgba(155,60,255,.04));
+          box-shadow:0 2px 0 rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.08),0 0 14px rgba(155,60,255,.16); }
+        #pkRoot .pk-b.pressed{ background:linear-gradient(180deg,rgba(155,60,255,.4),rgba(155,60,255,.16)); box-shadow:0 0 24px rgba(155,60,255,.55),inset 0 0 14px rgba(155,60,255,.3); }
+
+        #pkRoot .pk-legend{ font-family:var(--pk-mono); font-size:11px; letter-spacing:1px; color:#7fae72; text-align:center; max-width:680px; line-height:1.7; }
+        #pkRoot .pk-legend b{ color:var(--pk-slime); }
+        #pkRoot .pk-legend .p{ color:var(--pk-purple); }
+        @media (max-width:620px){ #pkRoot .pk-legend{ font-size:10px; } }
+
+        /* ===== MOBILE: immersive handheld (mirrors "Slime the Game") ===== */
+        @media (max-width:760px){
+          #poke{ padding:0; }
+          .pagehead{ display:none; }
+          #pkRoot{ gap:0; padding:0; height:100dvh; min-height:100dvh; justify-content:flex-start; background:#08080d; }
+          #pkRoot.pk-has-touch{ display:flex; flex-direction:column; padding-bottom:calc(var(--pk-deckh,250px) + 6px); }
+          #pkRoot.pk-has-touch .pk-cabinet{ flex:1 1 auto; min-height:0; aspect-ratio:auto;
+            width:100vw; max-width:100vw; border-radius:0; border-left:0; border-right:0;
+            margin-top:calc(env(safe-area-inset-top,0px) + 52px); }
+          #pkRoot.pk-has-touch .pk-deck{
+            position:fixed; left:0; right:0; bottom:0; width:100%; z-index:1900; margin:0; gap:clamp(10px,3vw,16px);
+            padding:12px clamp(14px,5vw,26px) calc(14px + env(safe-area-inset-bottom,0px));
+            background:radial-gradient(130% 100% at 50% -12%,rgba(141,255,43,.12),transparent 55%),linear-gradient(180deg,#0c160b,#07100a 60%,#050a06);
+            -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+            border-top:1px solid rgba(141,255,43,.28); box-shadow:inset 0 1px 0 rgba(141,255,43,.18),0 -12px 34px rgba(0,0,0,.6); }
+          #pkRoot .pk-legend{ display:none; }
+        }
+        @media (max-width:360px){ #pkRoot .pk-deck{ padding-left:12px; padding-right:12px; gap:10px; } #pkRoot .pk-system{ gap:18px; } }
+      </style>
+
+      <div class="pk-cabinet" id="pkCabinet">
+        <canvas id="pkGame"></canvas>
+        <div class="pk-scan"></div><div class="pk-vig"></div>
+      </div>
+
+      <!-- handheld control deck — shown only on touch (engine adds .pk-has-touch) -->
+      <div class="pk-deck" id="pkDeck">
+        <div class="pk-brandrow"><span class="pk-brand">SLIME&nbsp;BY · POCKET</span></div>
+        <div class="pk-body">
+          <div class="pk-dpad" role="group" aria-label="move">
+            <button class="pk-btn pk-pad pk-pad-u" id="pkU" type="button" aria-label="up">▲</button>
+            <button class="pk-btn pk-pad pk-pad-l" id="pkL" type="button" aria-label="left">◄</button>
+            <span class="pk-pad-nub" aria-hidden="true"></span>
+            <button class="pk-btn pk-pad pk-pad-r" id="pkR" type="button" aria-label="right">►</button>
+            <button class="pk-btn pk-pad pk-pad-d" id="pkD" type="button" aria-label="down">▼</button>
+          </div>
+          <div class="pk-cluster">
+            <button class="pk-btn pk-face pk-b" id="pkB" type="button" aria-label="B — back"><b>B</b><span>BACK</span></button>
+            <button class="pk-btn pk-face pk-a" id="pkA" type="button" aria-label="A — confirm"><b>A</b><span>OK</span></button>
+          </div>
+        </div>
+        <div class="pk-system">
+          <button class="pk-sys" id="pkSelect" type="button" aria-label="select">SELECT</button>
+          <button class="pk-sys" id="pkStart" type="button" aria-label="start / menu">START</button>
+        </div>
+      </div>
+
+      <p class="pk-legend">
+        a full <b>pocket RPG</b> — pick a starter from <b>Prof. Drip</b>, wade the tall grass, weaken wild
+        <span class="p">slimémon</span> and throw a <b>slime ball</b> to catch them. level up, evolve, beat the
+        route trainers, then storm the <b>Fang Gym</b> and take the badge. <b>arrows / WASD</b> to walk,
+        <b>Z / A</b> = confirm, <b>X / B</b> = back, <b>Enter</b> = menu. your journey <b>saves to this device</b>.
+      </p>
+    </div>
+  </section>
+
+</main>
+
+<script src="cms.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

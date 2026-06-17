@@ -34,6 +34,12 @@ and publish live.
   with rage off.
 - **Videos** — a grid of clips that open a **YouTube embed** in the lightbox.
 - **Live visualizer** — real-time frequency bars/waves driven by the playing track.
+- **Arcade** — two built-in games that share the site chrome and load on demand: **Slime the
+  Game** (`quest.html`), a beat-reactive platformer that rides the live player, and **SLIMÉMON**
+  (`monsters.html`), a full Game-Boy-style creature-catching RPG — a tile overworld with wild
+  encounters, turn-based battles on a six-power type chart (STAB, stat stages, status), catching,
+  EXP/evolution, a party + bag + shop, route trainers, a gym + badge, and a local save. Original
+  SB-themed creatures and art (no third-party assets); plays with keyboard or an on-screen pad.
 - **Music** — release grid with **all / albums / singles** filters, an in-page player
   (play/pause, seek, **volume**), and the live Spotify artist embed.
 - **Vault** — click any visual to open a lightbox with a "watch on YouTube" link.
@@ -140,6 +146,7 @@ music.html                  # Music — slime player, releases, Spotify embed
 lab.html                    # The Lab — slowed + reverb studio + visualizer
 world.html                  # SB World — about + the five-powers lore
 quest.html                  # Slime the Game — beat-reactive arcade quest (rides the live player)
+monsters.html               # SLIMÉMON — a full pocket creature-RPG (catch · train · battle · gym)
 vault.html                  # Vault — visuals grid + videos
 shows.html                  # Shows — tour dates + merch (coming soon)
 connect.html                # Tap In — socials, join-the-list, booking
@@ -150,6 +157,7 @@ assets/
   styles.css                # all site styles (shared by every page)
   app.js                    # site engine — injects shared chrome + wires every feature
   quest.js                  # "Slime the Game" engine — mounted on quest.html, beats off the live player
+  monsters.js               # "SLIMÉMON" engine — pocket creature-RPG mounted on monsters.html
   man-of-my-word.mp3        # background track (loops)
   my-time-cover.jpg         # My Time cover art
   sb-portrait.jpg           # artist photo (hero + about)
