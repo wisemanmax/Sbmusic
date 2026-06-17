@@ -11,7 +11,7 @@ const SNAKE_PATH = "M70 28 C70 18 30 18 30 32 C30 46 70 42 70 58 C70 74 30 74 30
 const SB_NAV_FALLBACK = [
   { href: 'index.html', label: 'home' }, { href: 'music.html', label: 'music' },
   { href: 'lab.html', label: 'slowed' }, { href: 'world.html', label: 'sb world' },
-  { href: 'quest.html', label: 'the game' },
+  { href: 'quest.html', label: 'the game' }, { href: 'monsters.html', label: 'slimémon' },
   { href: 'vault.html', label: 'vault' }, { href: 'shows.html', label: 'shows' },
   { href: 'connect.html', label: 'tap in' }, { href: 'links.html', label: 'links' },
 ];
@@ -1946,6 +1946,21 @@ function sbEnsureQuest(){
   document.head.appendChild(s);
 }
 
+/* Mount the SLIMÉMON engine when monsters.html is on screen. Same on-demand pattern as
+   the quest: the client-side router never runs scripts inside a swapped-in <main>, and
+   the RPG is dead weight on every other page, so it loads once and re-mounts against the
+   freshly-swapped DOM. Its loop self-unmounts when its canvas leaves the document. */
+function sbEnsurePoke(){
+  if(currentPage()!=='monsters.html') return;
+  const r=document.getElementById('pkRoot'); if(!r) return;
+  if(window.SBPoke){ try{ window.SBPoke.mount(r); }catch(_){} return; }
+  if(sbEnsurePoke._loading) return; sbEnsurePoke._loading=true;
+  const s=document.createElement('script'); s.src='assets/monsters.js'; s.async=true;
+  s.onload=()=>{ sbEnsurePoke._loading=false; const root=document.getElementById('pkRoot'); if(window.SBPoke&&root){ try{ window.SBPoke.mount(root); }catch(_){} } };
+  s.onerror=()=>{ sbEnsurePoke._loading=false; };
+  document.head.appendChild(s);
+}
+
 /* ===================== PER-PAGE INIT =====================
    Runs on first load AND after every client-side navigation. Re-wires everything that
    lives inside <main> against the freshly-swapped DOM, and engages the right audio
@@ -1973,6 +1988,7 @@ function sbInitPage(){
   setUI(bgIsPlaying());   // reflect play state on the new page's transport UI
   updateBgTitle();        // keep the now-playing title in sync (local track or YouTube)
   sbEnsureQuest();        // mount "Slime the Game" when its page is on screen (no-op elsewhere)
+  sbEnsurePoke();         // mount "SLIMÉMON" when monsters.html is on screen (no-op elsewhere)
 }
 
 /* legacy full-load wipe cleanup (kept for hard navigations / no-JS-router fallbacks) */

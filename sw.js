@@ -7,7 +7,7 @@
    range requests, and the large MP3s (served immutable over HTTP
    already — caching them here would just bloat storage).
    ============================================================ */
-const VERSION = 'sb-cache-v2';   // bumped: perf-tuned renderer + deep analytics + UI polish
+const VERSION = 'sb-cache-v3';   // bumped: + SLIMÉMON pocket RPG (monsters.html) and nav
 const CORE = [
   '/', '/index.html',
   '/assets/styles.css', '/assets/app.js', '/cms.js', '/assets/analytics.js',
