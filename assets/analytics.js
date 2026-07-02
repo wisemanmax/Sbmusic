@@ -159,12 +159,16 @@
 
     // a session id lives in sessionStorage; the last-activity stamp lives in
     // localStorage so a session that idles past the gap starts fresh, like GA.
+    var _sidStamped = 0;
     function sessionId() {
       var now = Date.now();
       var id = ssGet('sb_sid');
       var last = parseInt(lsGet('sb_sid_t') || '0', 10);
       if (!id || !last || (now - last) > SESSION_GAP) { id = rid(); ssSet('sb_sid', id); }
-      lsSet('sb_sid_t', String(now));
+      // refresh the last-activity stamp at most every 15s — sessionId() runs on EVERY
+      // recorded event, and a synchronous localStorage write per click/scroll-milestone
+      // is main-thread work the 30-minute session gap doesn't need.
+      if (now - _sidStamped > 15000) { _sidStamped = now; lsSet('sb_sid_t', String(now)); }
       return id;
     }
 
@@ -332,12 +336,19 @@
       } catch (_) {}
     }, true);
 
-    /* ---- scroll depth: track the furthest % of the page reached ---- */
-    var maxDepth = 0;
+    /* ---- scroll depth: track the furthest % of the page reached.
+           scrollHeight/clientHeight are cached and re-measured off the hot path (they
+           force a synchronous layout when read inside a scroll handler) — depth is a
+           coarse percentage, so a slightly stale denominator is fine. ---- */
+    var maxDepth = 0, _sdDenom = 0, _sdAt = 0;
     addEventListener('scroll', function () {
-      var h = document.documentElement;
-      var denom = h.scrollHeight - h.clientHeight;
-      var d = denom > 0 ? Math.round((h.scrollTop / denom) * 100) : 0;
+      var now = Date.now();
+      if (now - _sdAt > 4000) {   // re-measure at most every 4s (resize / content growth)
+        _sdAt = now;
+        var h = document.documentElement;
+        _sdDenom = h.scrollHeight - h.clientHeight;
+      }
+      var d = _sdDenom > 0 ? Math.round((window.scrollY / _sdDenom) * 100) : 0;
       if (d > maxDepth) maxDepth = Math.min(100, Math.max(0, d));
     }, { passive: true });
 
@@ -443,7 +454,7 @@
     window.sbPageview = function () {
       record('exit', { meta: { seconds: Math.round((Date.now() - t0) / 1000), depth: maxDepth } });
       PAGE = (location.pathname + location.search).slice(0, 256);
-      maxDepth = 0; t0 = Date.now(); sent = false;
+      maxDepth = 0; _sdAt = 0; t0 = Date.now(); sent = false;   // new page → re-measure depth denominator
       record('pageview', { meta: pageviewMeta() });
     };
   }

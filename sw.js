@@ -7,7 +7,7 @@
    range requests, and the large MP3s (served immutable over HTTP
    already — caching them here would just bloat storage).
    ============================================================ */
-const VERSION = 'sb-cache-v2';   // bumped: perf-tuned renderer + deep analytics + UI polish
+const VERSION = 'sb-cache-v3';   // bumped: perf pass (culling/gradient caches), SW ok-guard, preconnects
 const CORE = [
   '/', '/index.html',
   '/assets/styles.css', '/assets/app.js', '/cms.js', '/assets/analytics.js',
@@ -48,7 +48,14 @@ self.addEventListener('fetch', (e) => {
     // cached fallback when offline.
     e.respondWith(
       fetch(req)
-        .then((r) => { const cp = r.clone(); caches.open(VERSION).then((c) => c.put(req, cp)); return r; })
+        .then((r) => {
+          // only cache good responses: a 404 (e.g. the clean-URL smart-link route is
+          // SERVED as a 404 by GitHub Pages) or a transient 500 must never become the
+          // offline copy — and skipping them also stops every visited /slug from
+          // piling its own entry into the cache.
+          if (r && r.ok) { const cp = r.clone(); caches.open(VERSION).then((c) => c.put(req, cp)); }
+          return r;
+        })
         .catch(() => caches.match(req).then((m) => m || caches.match('/index.html')))
     );
     return;

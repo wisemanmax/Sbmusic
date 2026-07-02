@@ -617,7 +617,14 @@ function buildControl(key,value,path,m){
   if(type==='date'){
     const c=document.createElement('input'); c.type='datetime-local'; c.className='inp';
     c.value=toLocalInput(value);
-    c.onchange=()=>commit(path, c.value?c.value.length===16?c.value+':00':c.value:'');
+    /* store the editor's UTC offset with the date — a bare 'YYYY-MM-DDTHH:MM:SS' is parsed
+       in each VISITOR's own timezone, so the countdown would hit zero at a different moment
+       around the world. With an explicit offset every visitor counts to the same instant. */
+    c.onchange=()=>{ if(!c.value){commit(path,'');return;}
+      const v=c.value.length===16?c.value+':00':c.value, d=new Date(v);
+      if(isNaN(d)){commit(path,v);return;}
+      const m=-d.getTimezoneOffset(), a=Math.abs(m), p=n=>String(n).padStart(2,'0');
+      commit(path, v+(m<0?'-':'+')+p(a/60|0)+':'+p(a%60)); };
     return c;
   }
   if(type==='slug'){       // keep URL slugs clean as you type (lowercase, dashes)

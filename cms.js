@@ -30,7 +30,7 @@ const SB_DEFAULTS = {
     apple: 'https://music.apple.com/us/artist/slime-by/1542729349',
     youtube: 'https://youtube.com/@slimeby_',
     presaveUrl: 'https://open.spotify.com/artist/70LnkJjJc5yq650kELO09A',
-    dropDate: '2026-07-04T00:00:00',
+    dropDate: '2026-07-04T00:00:00-04:00',   // explicit offset: every visitor counts to the same instant
   },
   music: {
     /* The player is a live tracklist — the now-playing label always reflects the loaded song,
