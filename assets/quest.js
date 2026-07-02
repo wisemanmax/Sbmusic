@@ -143,6 +143,7 @@
   /* ===================== input ===================== */
   const K = { l: false, r: false, jump: false, jumpEdge: false, atk: false, atkEdge: false, dash: false, dashEdge: false, rage: false, rageEdge: false };
   let held = {};
+  let _jumpHeld = 0;           // ref-count for the two touch jump buttons (▲ + A)
   let inputAC = null;          // AbortController for all listeners (cleared on unmount)
   let typed = '';
 
@@ -738,9 +739,11 @@
     // busted amps sometimes spill a power-up
     if (e.type === 'amp' && Math.random() < 0.6) dropPickup(Math.random() < .4 ? 'heart' : Math.random() < .5 ? 'triple' : 'shield', x + e.w / 2, y - 6);
   }
-  function damage(n) {
-    const p = player; if (p.inv > 0) return;
-    if (shieldOn) {   // slime shield absorbs the hit instead
+  function damage(n, unavoidable) {
+    /* unavoidable hits (pit falls) always land: they bypass i-frames and can't be
+       shield-blocked — a fall isn't a hit the shield can catch */
+    const p = player; if (!unavoidable && p.inv > 0) return;
+    if (shieldOn && !unavoidable) {   // slime shield absorbs the hit instead
       shieldOn = false; p.inv = 50; shake = 5;
       burst(p.x + p.w / 2, p.y + p.h / 2, C.sbBlueLite, 18, 3.2, { glow: 1 }); ring(p.x + p.w / 2, p.y + p.h / 2, C.sbBlueLite, 20);
       floatText(p.x + p.w / 2, p.y - 8, 'SHIELD!', C.sbBlueLite);
@@ -767,7 +770,7 @@
     drawPits(bs); drawPlatforms(bs); drawDecals(); drawTorches(bs); drawGates(bs); drawCoins(); drawPickups();
     if (theKey) drawKey();
     drawNotes();
-    for (const e of enemies) drawEnemy(e);
+    for (const e of enemies) { if (e.x > cx + W + 80 || e.x + e.w < cx - 80) continue; drawEnemy(e); }   // cull off-screen
     if (mb) drawMb();
     if (boss) drawBoss();
     drawPrincess();
@@ -814,12 +817,19 @@
   }
   let PAL = ZPAL[0];
 
+  /* the sky gradient only changes on zone crossings / resize / rage — cache it instead of
+     allocating a fresh CanvasGradient every frame (inside the 300px blend band PAL is a new
+     object each frame, so it naturally rebuilds there and only there) */
+  let _skyG = null, _skyPal = null, _skyVH = 0, _skyRage = null;
   function drawSky(bs) {
     PAL = palNow();
-    const g = ctx.createLinearGradient(0, 0, 0, VH);
-    if (rageOn) { g.addColorStop(0, '#2a0410'); g.addColorStop(.5, '#1a0208'); g.addColorStop(1, '#070103'); }
-    else { g.addColorStop(0, PAL.sky[0]); g.addColorStop(.45, PAL.sky[1]); g.addColorStop(1, PAL.sky[2]); }
-    ctx.fillStyle = g; ctx.fillRect(-30, -30, W + 60, VH + 60);
+    if (!_skyG || _skyPal !== PAL || _skyVH !== VH || _skyRage !== rageOn) {
+      _skyPal = PAL; _skyVH = VH; _skyRage = rageOn;
+      const g = _skyG = ctx.createLinearGradient(0, 0, 0, VH);
+      if (rageOn) { g.addColorStop(0, '#2a0410'); g.addColorStop(.5, '#1a0208'); g.addColorStop(1, '#070103'); }
+      else { g.addColorStop(0, PAL.sky[0]); g.addColorStop(.45, PAL.sky[1]); g.addColorStop(1, PAL.sky[2]); }
+    }
+    ctx.fillStyle = _skyG; ctx.fillRect(-30, -30, W + 60, VH + 60);
     // aurora ribbons — slow sine bands in the upper sky, breathing with the beat
     if (!REDUCED) {
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineWidth = 9; ctx.lineCap = 'round';
@@ -896,22 +906,35 @@
     ctx.beginPath(); ctx.moveTo(116, baseY - 46); ctx.lineTo(133, baseY - 66); ctx.lineTo(150, baseY - 46); ctx.fill();
     ctx.restore();
   }
+  /* every pit shares one gradient (depends only on WB + rage) — cache it */
+  let _pitG = null, _pitGK = '';
   function drawPits(bs) {
-    for (const pit of pits) {
-      const grad = ctx.createLinearGradient(0, WB - 40, 0, WB);
+    const cx0 = cam.x, key = (rageOn ? 'r' : 'n') + WB;
+    if (_pitGK !== key) {
+      _pitGK = key; const grad = _pitG = ctx.createLinearGradient(0, WB - 40, 0, WB);
       if (rageOn) { grad.addColorStop(0, 'rgba(255,31,46,.6)'); grad.addColorStop(1, 'rgba(120,0,15,.9)'); }
       else { grad.addColorStop(0, 'rgba(141,255,43,.55)'); grad.addColorStop(1, 'rgba(8,50,15,.95)'); }
-      ctx.fillStyle = grad;
+    }
+    for (const pit of pits) {
+      if (pit[0] > cx0 + W + 40 || pit[0] + pit[1] < cx0 - 40) continue;   // off-screen
+      ctx.fillStyle = _pitG;
       for (let x = 0; x < pit[1]; x += 4) { const wv = Math.sin((x + timeNow * 0.005) * 0.25) * 2.5 + Math.sin((x + timeNow * 0.009) * 0.6) * 1.5; ctx.fillRect(pit[0] + x, GY + 2 + wv, 4, WB - GY); }
       for (let i = 0; i < 5; i++) { const bx = pit[0] + 10 + ((i * 23 + timeNow * 0.03) % (pit[1] - 20)); const by = WB - 10 - ((timeNow * 0.05 + i * 40) % 30); ctx.fillStyle = rageOn ? 'rgba(255,120,130,.6)' : 'rgba(160,255,122,.6)'; ctx.beginPath(); ctx.arc(bx, by, 1.5, 0, 6.28); ctx.fill(); }
     }
   }
   function drawPlatforms(bs) {
+    const cx0 = cam.x;
     for (const pl of plats) {
+      if (pl.x > cx0 + W + 40 || pl.x + pl.w < cx0 - 40) continue;   // off-screen
       const tall = pl.y === GY;
-      const g = ctx.createLinearGradient(0, pl.y, 0, tall ? WB : pl.y + 16);
-      g.addColorStop(0, rageOn ? '#3a1018' : '#15401c'); g.addColorStop(1, rageOn ? '#1a050a' : '#082611');
-      ctx.fillStyle = g; ctx.fillRect(pl.x, pl.y, pl.w, tall ? WB - pl.y : 16);
+      /* platform geometry is static — cache its gradient per rage/viewport state instead
+         of allocating ~24 CanvasGradients a frame */
+      const gk = (rageOn ? 'r' : 'n') + (tall ? WB : 0);
+      if (pl._gk !== gk) {
+        pl._gk = gk; const g = pl._g = ctx.createLinearGradient(0, pl.y, 0, tall ? WB : pl.y + 16);
+        g.addColorStop(0, rageOn ? '#3a1018' : '#15401c'); g.addColorStop(1, rageOn ? '#1a050a' : '#082611');
+      }
+      ctx.fillStyle = pl._g; ctx.fillRect(pl.x, pl.y, pl.w, tall ? WB - pl.y : 16);
       ctx.fillStyle = rageOn ? '#52131f' : '#1d5226';
       for (let x = pl.x + 4; x < pl.x + pl.w; x += 12) { const yy = pl.y + 8 + ((x * 7) % (tall ? 40 : 8)); ctx.fillRect(x, yy, 2, 2); }
       ctx.fillStyle = rageOn ? '#7a1228' : C.slimeDeep; ctx.fillRect(pl.x, pl.y, pl.w, 5);
@@ -922,7 +945,9 @@
     }
   }
   function drawDecals() {
+    const cx0 = cam.x;
     for (const d of decals) {
+      if (d.x > cx0 + W + 20 || d.x < cx0 - 20) continue;   // off-screen
       d.f += 0.02;
       if (d.type === 'mush') {
         const sw = Math.sin(d.f) * 1;
@@ -933,7 +958,9 @@
     }
   }
   function drawTorches(bs) {
+    const cx0 = cam.x;
     for (const t of torches) {
+      if (t.x > cx0 + W + 60 || t.x < cx0 - 60) continue;   // off-screen
       t.t += 0.12;
       rr(t.x - 1, t.y - 22, 3, 20, '#3a2a1a');
       const fy = t.y - 24 + Math.sin(t.t) * 1, fr = 4 + Math.sin(t.t * 1.7) * 1.5 + bs * 3;
@@ -946,21 +973,31 @@
     }
   }
   function drawCoins() {
+    /* halo = an oversized translucent pass, not ctx.shadowBlur (a per-coin Gaussian blur
+       every frame — one of the slowest canvas paths in Chrome's raster) */
+    const cx0 = cam.x;
     for (const c of coins) {
-      if (c.got) continue; const fl = Math.sin(c.bob) * 2.5;
+      if (c.got) continue;
+      if (c.x > cx0 + W + 20 || c.x < cx0 - 20) continue;   // off-screen
+      const fl = Math.sin(c.bob) * 2.5;
       if (c.shard) {
         ctx.save(); ctx.translate(c.x, c.y + fl); ctx.rotate(timeNow * 0.003);
+        ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.3; ctx.fillStyle = C.gold;
+        ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(8, 0); ctx.lineTo(0, 9); ctx.lineTo(-8, 0); ctx.closePath(); ctx.fill();
+        ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
         const g = ctx.createLinearGradient(-6, -6, 6, 6); g.addColorStop(0, C.goldLt); g.addColorStop(1, C.gold);
-        ctx.fillStyle = g; ctx.shadowColor = C.gold; ctx.shadowBlur = 10;
+        ctx.fillStyle = g;
         ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(5, 0); ctx.lineTo(0, 6); ctx.lineTo(-5, 0); ctx.closePath(); ctx.fill();
-        ctx.shadowBlur = 0; ctx.fillStyle = '#fff'; ctx.fillRect(-1, -3, 2, 2); ctx.restore();
+        ctx.fillStyle = '#fff'; ctx.fillRect(-1, -3, 2, 2); ctx.restore();
       } else {
         ctx.save(); ctx.translate(c.x, c.y + fl);
         const sc = 0.7 + Math.abs(Math.sin(timeNow * 0.004 + c.bob)) * 0.3; ctx.scale(sc, 1);
-        ctx.fillStyle = C.slime; ctx.shadowColor = C.slime; ctx.shadowBlur = 8;
-        ctx.beginPath(); ctx.arc(0, 0, 4.5, 0, 6.28); ctx.fill();
+        ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.28; ctx.fillStyle = C.slime;
+        ctx.beginPath(); ctx.arc(0, 0, 7.5, 0, 6.28); ctx.fill();
+        ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+        ctx.fillStyle = C.slime; ctx.beginPath(); ctx.arc(0, 0, 4.5, 0, 6.28); ctx.fill();
         ctx.fillStyle = C.slimeBright; ctx.beginPath(); ctx.arc(-1.2, -1.2, 1.5, 0, 6.28); ctx.fill();
-        ctx.shadowBlur = 0; ctx.restore();
+        ctx.restore();
       }
     }
   }
@@ -1442,9 +1479,14 @@
     }
   }
   function drawFloaters() {
+    /* glow = a faint double-print underneath, not per-text shadowBlur (slow raster path) */
     ctx.save(); ctx.font = 'bold 8px "Courier New",monospace'; ctx.textAlign = 'center';
-    for (const f of floaters) { const a = Math.max(0, f.life / f.max); ctx.globalAlpha = a; ctx.fillStyle = f.col; ctx.shadowColor = f.col; ctx.shadowBlur = 6; ctx.fillText(f.txt, f.x, f.y); }
-    ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.textAlign = 'left'; ctx.restore();
+    for (const f of floaters) {
+      const a = Math.max(0, f.life / f.max); ctx.fillStyle = f.col;
+      ctx.globalAlpha = a * 0.35; ctx.fillText(f.txt, f.x, f.y + 1);
+      ctx.globalAlpha = a; ctx.fillText(f.txt, f.x, f.y);
+    }
+    ctx.globalAlpha = 1; ctx.textAlign = 'left'; ctx.restore();
   }
   function drawPausedOverlay() {
     ctx.fillStyle = 'rgba(3,8,4,.8)'; ctx.fillRect(0, 0, W, VH);
@@ -1551,16 +1593,22 @@
     if (!root || !cv) return;
     if (el.deck) { const dh = Math.round(el.deck.getBoundingClientRect().height); document.documentElement.style.setProperty('--q-deckh', (dh || 0) + 'px'); }
     fitCanvas();
+    _drawnState = '';   // canvas was resized/cleared — repaint even on a static screen
   }
   function scheduleRelayout() { if (relayoutQueued) return; relayoutQueued = true; requestAnimationFrame(relayout); }
 
   /* ===================== loop / state ===================== */
-  let running = false, rafId = 0, lastFrame = 0;
+  let running = false, rafId = 0, lastFrame = 0, _drawnState = '';
   function loop(ts) {
     if (!running) return;
     if (!cv || !document.body.contains(cv)) { unmount(); return; }   // navigated away → self-clean
     const dt = Math.min(50, ts - (lastFrame || ts)); lastFrame = ts;
-    update(dt); draw();
+    update(dt);
+    /* the title / game-over / win screens sit behind a near-opaque overlay and pause is a
+       static card — paint those once instead of re-rendering the whole animated world at
+       60fps while the player sits on a menu (repaints on state change or resize) */
+    if (state === 'play') { draw(); _drawnState = ''; }
+    else if (_drawnState !== state) { draw(); _drawnState = state; }
     rafId = requestAnimationFrame(loop);
   }
   function startGame(fromCheckpoint) {
@@ -1635,8 +1683,13 @@
     bindInputs();
     bindTouch(q('qtL'), () => K.l = true, () => K.l = false);
     bindTouch(q('qtR'), () => K.r = true, () => K.r = false);
-    bindTouch(q('qtU'), () => { K.jump = true; K.jumpEdge = true; }, () => K.jump = false);  // d-pad up → jump
-    bindTouch(q('qtJ'), () => { K.jump = true; K.jumpEdge = true; }, () => K.jump = false);
+    /* ▲ and A both jump — ref-count the holds so releasing one finger doesn't cut the
+       variable jump height while the other button is still physically held */
+    _jumpHeld = 0;
+    const jDown = () => { _jumpHeld++; K.jump = true; K.jumpEdge = true; };
+    const jUp = () => { _jumpHeld = Math.max(0, _jumpHeld - 1); if (!_jumpHeld) K.jump = false; };
+    bindTouch(q('qtU'), jDown, jUp);  // d-pad up → jump
+    bindTouch(q('qtJ'), jDown, jUp);
     bindTouch(q('qtA'), () => { K.atk = true; K.atkEdge = true; }, () => K.atk = false);
     bindTouch(q('qtD'), () => { K.dash = true; K.dashEdge = true; }, () => K.dash = false);
     bindTouch(q('qtRG'), () => { K.rage = true; K.rageEdge = true; }, () => K.rage = false);
@@ -1668,7 +1721,7 @@
     if (ro) { try { ro.disconnect(); } catch (_) { } ro = null; }
     try { document.documentElement.style.removeProperty('--q-deckh'); } catch (_) { }
     if (inputAC) { try { inputAC.abort(); } catch (_) { } inputAC = null; }
-    held = {}; for (const k in K) if (typeof K[k] === 'boolean') K[k] = false;
+    held = {}; _jumpHeld = 0; for (const k in K) if (typeof K[k] === 'boolean') K[k] = false;
     window.SBQuest._mounted = false;
   }
 

@@ -523,8 +523,17 @@ function isTyping(){const a=document.activeElement;return a&&(a.tagName==='INPUT
 function slimeSplash(x,y){stab();if(x!=null)burst(x,y,18,'#8dff2b');snakeLunge();}
 /* the hero / contact splash marks live inside <main> → wired in sbInitPage() */
 
-/* scroll progress (used by the snake pit + the top progress bar) */
-function scrollProg(){const m=document.documentElement.scrollHeight-innerHeight;return m>0?Math.min(1,Math.max(0,scrollY/m)):0;}
+/* scroll progress (used by the snake pit + the top progress bar).
+   scrollHeight is CACHED: reading it inside a scroll handler forces a synchronous layout
+   on every scroll tick (it competes with the render loop during momentum scrolling).
+   It's refreshed whenever the document can actually change height — resize, page load,
+   CMS content application, and a slow safety tick for late-loading lazy images. */
+let _scrollMax=0;
+function refreshScrollMax(){_scrollMax=document.documentElement.scrollHeight-innerHeight;}
+addEventListener('load',refreshScrollMax);
+setInterval(()=>{if(!document.hidden)refreshScrollMax();},2500);   // lazy images / embeds settling
+function scrollProg(){const m=_scrollMax;return m>0?Math.min(1,Math.max(0,scrollY/m)):0;}
+refreshScrollMax();
 
 /* =====================================================================
    INTERACTIVE BACKGROUND SNAKES — photoreal procedural WebGL pit.
@@ -972,7 +981,7 @@ function setupCulling(){
 }
 
 /* ---------- ONE debounced resize handler for every canvas + the snake pit ---------- */
-let _rzT;addEventListener('resize',()=>{clearTimeout(_rzT);_rzT=setTimeout(()=>{sizeTrail();sizeSnake();buildSnakes();resizeAll();},150);});
+let _rzT;addEventListener('resize',()=>{clearTimeout(_rzT);_rzT=setTimeout(()=>{sizeTrail();sizeSnake();buildSnakes();resizeAll();refreshScrollMax();},150);});
 function rg(ctx,w){const g=ctx.createLinearGradient(0,0,w,0);g.addColorStop(0,'#ff1f2e');g.addColorStop(.5,'#9b3cff');g.addColorStop(1,'#8dff2b');return g;}
 let levels=new Array(64).fill(0);
 function updateLevels(t){if(graphReady&&playing&&analyser&&bgMode==='local'){analyser.getByteFrequencyData(freq);for(let i=0;i<levels.length;i++)levels[i]+=(freq[i%freq.length]/255-levels[i])*.4;}else{for(let i=0;i<levels.length;i++){const b=.14+.12*Math.sin(t*.0013+i*.35)+.09*Math.sin(t*.0026+i*.7);levels[i]+=(Math.max(0,b)-levels[i])*.08;}}}
@@ -1135,8 +1144,11 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){resizeAll
    runs even with rage off; the rest only ignite while rage is engaged. */
 const flashEl=document.getElementById('flash');
 function flash(c){if(!flashEl)return;flashEl.style.background=c||'var(--slime)';flashEl.style.transition='none';flashEl.style.opacity='.45';requestAnimationFrame(()=>{flashEl.style.transition='opacity .55s ease';flashEl.style.opacity='0';});}
-/* merged effect flags: built-in defaults overlaid with whatever's published */
-function rageFlags(){const d=(window.SB_DEFAULTS&&SB_DEFAULTS.rageFx)||{};const c=(window.SB&&SB.rageFx)||{};return Object.assign({},d,c);}
+/* merged effect flags: built-in defaults overlaid with whatever's published.
+   Cached — this is read every animation frame (spark rain gate), and rebuilding the
+   merged object 60×/s was steady GC garbage. applyContent() invalidates it. */
+let _rageFlagsCache=null;
+function rageFlags(){if(_rageFlagsCache)return _rageFlagsCache;const d=(window.SB_DEFAULTS&&SB_DEFAULTS.rageFx)||{};const c=(window.SB&&SB.rageFx)||{};return _rageFlagsCache=Object.assign({},d,c);}
 /* toggle the CSS-driven effect classes on <body> to match the flags (ambient ones stay on
    even with rage off; the rest only while rage is engaged) */
 const RFX_CLASS={shake:'rfx-shake',redOverlay:'rfx-overlay',glitch:'rfx-glitch',heartbeat:'rfx-heart',fire:'rfx-fire',static:'rfx-static',bloodDrip:'rfx-drip'};
@@ -1405,7 +1417,13 @@ function notifyDrop(){gotoConnectJoin('☠ drop your email — first to know');}
    bare 'YYYY-MM-DDTHH:MM' is parsed in each visitor's own timezone). */
 let dropDate=new Date('2026-07-04T00:00:00-04:00');
 function tickCountdown(){const el=document.getElementById('cd');if(!el)return;const d=dropDate-Date.now();if(isNaN(d)||d<=0){el.innerHTML='<span class="cdlive">OUT NOW ☠</span>';return;}const u=(n,l)=>`<div class="cdu"><b>${String(n).padStart(2,'0')}</b><span>${l}</span></div>`;el.innerHTML=u(Math.floor(d/864e5),'days')+u(Math.floor(d/36e5)%24,'hrs')+u(Math.floor(d/6e4)%60,'min')+u(Math.floor(d/1e3)%60,'sec');}
-tickCountdown();setInterval(tickCountdown,1000);
+/* only run the 1s ticker on pages that actually have the countdown (#cd) —
+   re-checked after every client-side navigation in sbInitPage() */
+let _cdTimer=null;
+function syncCountdownTimer(){const has=!!document.getElementById('cd');
+  if(has&&!_cdTimer)_cdTimer=setInterval(tickCountdown,1000);
+  else if(!has&&_cdTimer){clearInterval(_cdTimer);_cdTimer=null;}}
+tickCountdown();syncCountdownTimer();
 
 /* ===================== VIDEOS (content-driven) ===================== */
 let VIDEOS=[];
@@ -1673,7 +1691,7 @@ function renderPortal(c){
 }
 
 function applyContent(c){
-  if(!c)return;window.SB=c;
+  if(!c)return;window.SB=c;_rageFlagsCache=null;   // published rageFx may have changed
   const q=s=>document.querySelector(s);
   const txt=(s,v)=>{const e=q(s);if(e&&v!=null)e.textContent=v;};
   const setHtml=(s,v)=>{const e=q(s);if(e&&v!=null)e.innerHTML=sanitizeHtml(v);};   // allowlist-sanitized rich text
@@ -1730,6 +1748,7 @@ function applyContent(c){
   renderSmartLink(c);        // link.html?l=<slug>
   renderPortal(c);           // links.html portal hub
   renderRoute(c);            // 404.html clean-URL routing (slimeby.com/<slug>)
+  refreshScrollMax();        // content changed the page height — re-sync the cached max
 }
 
 /* ===================== INTERACTION LAYER =====================
@@ -1831,23 +1850,31 @@ addEventListener('scroll',updateProgress,{passive:true}); updateProgress();
 /* ---- pointer 3D tilt on display cards ---- */
 if(finePointer&&!reducedMotion){
   const TILT='.rel,.vcard,.vid,.upanel,.dropfeat,.dropcard,.prod';
-  let cur=null;
+  let cur=null,curRect=null;
   const reset=el=>{ if(el){el.style.transform='';el.classList.remove('tilting');} };
+  /* the card's rect is measured ONCE on entry (before its own transform moves it) and
+     reused for every subsequent move — calling getBoundingClientRect() per pointermove
+     forced a layout on every event on high-rate mice, and measuring a mid-tilt card fed
+     its own transform back into the math (a subtle wobble). Scrolling invalidates it. */
   document.addEventListener('pointermove',e=>{
     const card=e.target.closest(TILT);
-    if(card!==cur){ reset(cur); cur=card; if(card&&!(card.classList.contains('reveal')&&!card.classList.contains('in')))card.classList.add('tilting'); }
+    if(card!==cur){ reset(cur); cur=card; curRect=null; if(card&&!(card.classList.contains('reveal')&&!card.classList.contains('in')))card.classList.add('tilting'); }
     if(!card||!card.classList.contains('tilting'))return;
-    const r=card.getBoundingClientRect(); if(!r.width)return;
+    const r=curRect||(curRect=card.getBoundingClientRect()); if(!r.width)return;
     const px=(e.clientX-r.left)/r.width-.5, py=(e.clientY-r.top)/r.height-.5, max=7;
     card.style.transform=`perspective(820px) rotateX(${(-py*max).toFixed(2)}deg) rotateY(${(px*max).toFixed(2)}deg) translateY(-6px)`;
   },{passive:true});
-  document.addEventListener('pointerleave',()=>{reset(cur);cur=null;});
+  document.addEventListener('pointerleave',()=>{reset(cur);cur=null;curRect=null;});
+  addEventListener('scroll',()=>{curRect=null;},{passive:true});
 }
 /* ---- magnetic primary buttons (re-bound per page since most live in <main>) ---- */
 function wireMagnetic(){ if(!(finePointer&&!reducedMotion))return;
   document.querySelectorAll('.bigbtn,.btnX').forEach(b=>{
-    b.onpointermove=e=>{const r=b.getBoundingClientRect();b.style.transform=`translate(${((e.clientX-r.left)/r.width-.5)*10}px,${((e.clientY-r.top)/r.height-.5)*10}px)`;};
-    b.onpointerleave=()=>{b.style.transform='';};
+    /* measure once on entry, not per move — see the tilt handler above */
+    let r=null;
+    b.onpointerenter=()=>{r=b.getBoundingClientRect();};
+    b.onpointermove=e=>{if(!r)r=b.getBoundingClientRect();b.style.transform=`translate(${((e.clientX-r.left)/r.width-.5)*10}px,${((e.clientY-r.top)/r.height-.5)*10}px)`;};
+    b.onpointerleave=()=>{r=null;b.style.transform='';};
   });
 }
 
@@ -1966,7 +1993,8 @@ function sbInitPage(){
   const hm=document.getElementById('heroMono'); if(hm)hm.onclick=e=>slimeSplash(e.clientX,e.clientY);
   const cm=document.getElementById('contactMono'); if(cm)cm.onclick=e=>slimeSplash(e.clientX,e.clientY);
   wireMfilter(); wireMerchAlert(); wireVault(); wireTour(); wireShare(); initMerch(); wireMagnetic();
-  tickCountdown();
+  tickCountdown(); syncCountdownTimer();
+  refreshScrollMax();     // the swapped <main> changed the page height
   if(currentPage()==='lab.html') wireLab(); else applyNormalFx();   // lab = slowed+reverb, else normal
   loadContent();          // apply CMS defaults + fetch published content for this page
   deepLinkJoin();
