@@ -12,7 +12,12 @@
 @font-face{font-family:'Pirata One';font-style:normal;font-weight:400;font-display:swap;src:url(fonts/pirata-one-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF}
 @font-face{font-family:'Pirata One';font-style:normal;font-weight:400;font-display:swap;src:url(fonts/pirata-one-latin.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
 :root{
-  --bg:#060403; --ink:#f2efe9; --soft:#b9b3a8; --muted:#6b6358;
+  /* --muted carries every piece of small secondary copy (track durations, release
+     subtitles, stat labels, the footer). At the old #6b6358 that was 3.46:1 on the
+     page background — under the 4.5:1 WCAG AA floor for text below 24px. #857c6f
+     keeps the same washed-out register and clears AA (≈4.98:1 on --bg, ≈4.84:1 on
+     the translucent panels). */
+  --bg:#060403; --ink:#f2efe9; --soft:#b9b3a8; --muted:#857c6f;
   --slime:#8dff2b; --slime2:#b6ff5a; --venom:#2a7a00; --blood:#ff1f2e; --blood2:#ff5a45; --alien:#9b3cff; --alien2:#c47bff;
   --disp:'Pirata One',cursive; --ui:'Oswald',sans-serif; --mono:'Courier New',monospace;
 }
@@ -213,8 +218,8 @@ section{padding:clamp(60px,9vw,116px) clamp(18px,5vw,56px);position:relative;z-i
 /* "load a track" picker — pick any catalog song to drop into the bender */
 .srpick{max-width:680px;margin:22px auto 0;padding:18px 20px}
 .srpickhead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-.srpickhead h3{font-family:var(--disp);font-weight:400;font-size:22px;margin:0;line-height:1}
-.srpickhead h3 em{color:var(--slime);font-style:normal}
+.srpickhead h2{font-family:var(--disp);font-weight:400;font-size:22px;margin:0;line-height:1}
+.srpickhead h2 em{color:var(--slime);font-style:normal}
 .srpicksub{font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--muted)}
 .srtracks{list-style:none;margin:0;padding:0;border:1px solid rgba(255,255,255,.12);background:rgba(12,9,7,.45);max-height:336px;overflow-y:auto}
 
@@ -295,7 +300,8 @@ section{padding:clamp(60px,9vw,116px) clamp(18px,5vw,56px);position:relative;z-i
 .tdur{font-family:var(--mono);font-size:11px;color:var(--muted);flex:none}
 .tgo{font-size:11px;color:var(--slime);flex:none;opacity:0;transition:opacity .16s;width:14px;text-align:center}
 .trk:hover .tgo{opacity:1}
-.tbadge{font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#08120a;background:var(--alien);padding:2px 7px;border-radius:3px;flex:none;box-shadow:0 0 12px rgba(155,60,255,.45)}
+/* white ink on the purple chip: #08120a on --alien was 4.07:1, just under AA at 9px */
+.tbadge{font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#fff;background:var(--alien);padding:2px 7px;border-radius:3px;flex:none;box-shadow:0 0 12px rgba(155,60,255,.45)}
 /* the little animated EQ that lights the row that's actually playing */
 .teq{display:none;align-items:flex-end;gap:2px;width:16px;height:16px;flex:none}
 .teq i{width:3px;background:var(--slime);border-radius:1px;height:30%}
@@ -451,7 +457,7 @@ section{padding:clamp(60px,9vw,116px) clamp(18px,5vw,56px);position:relative;z-i
 #contactCanvas{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0;opacity:.5}
 .contact .inner{position:relative;z-index:2}
 .contact .sbmono{width:90px;margin:0 auto 18px}
-.contact h2{font-family:var(--disp);font-size:clamp(44px,9vw,120px);letter-spacing:1px;color:var(--ink);text-shadow:3px 0 var(--blood),-3px 0 rgba(141,255,43,.8)}
+.contact h1{font-family:var(--disp);font-size:clamp(44px,9vw,120px);letter-spacing:1px;color:var(--ink);text-shadow:3px 0 var(--blood),-3px 0 rgba(141,255,43,.8);margin:0}
 .contact .clinks{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:30px}
 .joinrow input::placeholder{color:var(--muted)}
 .booking{margin-top:22px;font-weight:500;font-size:13px;letter-spacing:1px;color:var(--soft)}
@@ -471,8 +477,11 @@ footer{padding:48px 22px 40px;text-align:center;position:relative;z-index:1}
 .disc::after{content:"";position:absolute;inset:0;margin:auto;width:9px;height:9px;border-radius:50%;background:#060403;border:1px solid var(--slime)}
 .disc.spin{animation:spin 4s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.minfo{padding:0 14px 0 11px;max-width:0;overflow:hidden;white-space:nowrap;transition:max-width .4s ease}
-.musicbar.open .minfo{max-width:200px}
+/* Collapsed, the panel is max-width:0 — but overflow:hidden clips to the PADDING box,
+   so keeping the 25px of side padding on always let a sliver of "NOW PLAYING" / the
+   track title bleed out of the shut bar. Collapse the padding with the width. */
+.minfo{padding:0;max-width:0;overflow:hidden;white-space:nowrap;transition:max-width .4s ease,padding .4s ease}
+.musicbar.open .minfo{max-width:200px;padding:0 14px 0 11px}
 .minfo .now{font-weight:700;font-size:8px;letter-spacing:2px;color:var(--slime2);text-transform:uppercase}
 .minfo .stitle{font-family:var(--disp);font-size:15px;margin-top:1px}
 .pbtn{width:40px;height:40px;flex-shrink:0;border-radius:50%;border:1px solid var(--slime);cursor:pointer;color:var(--slime);font-size:13px;background:rgba(141,255,43,.1);transition:.14s}
