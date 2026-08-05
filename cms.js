@@ -31,6 +31,9 @@ const SB_DEFAULTS = {
     youtube: 'https://youtube.com/@slimeby_',
     presaveUrl: 'https://open.spotify.com/artist/70LnkJjJc5yq650kELO09A',
     dropDate: '2026-07-04T00:00:00-04:00',   // explicit offset: every visitor counts to the same instant
+    /* The card only claims "OUT NOW" when this is flipped on. A date sliding past on its own
+       never marks a track as released — see tickCountdown() in assets/app.js. */
+    released: false,
   },
   music: {
     /* The player is a live tracklist — the now-playing label always reflects the loaded song,
@@ -299,7 +302,8 @@ const SB_SCHEMA = {
   'drop.apple':            { label: 'Apple Music link', type: 'url' },
   'drop.youtube':          { label: 'YouTube link', type: 'url' },
   'drop.presaveUrl':       { label: 'Pre-save link', type: 'url' },
-  'drop.dropDate':         { label: 'Next drop date', type: 'date', hint: 'Powers the countdown. After it passes the card reads “OUT NOW”.' },
+  'drop.dropDate':         { label: 'Next drop date', type: 'date', hint: 'Powers the countdown. Once it passes the card reads “dropping soon” — it will not claim the track is out until you tick “Released” below.' },
+  'drop.released':         { label: 'Released', type: 'boolean', hint: 'Tick this the day it actually lands. Only then does the card read “OUT NOW ☠”.' },
 
   'music.playerCover':     { label: 'Player cover art', type: 'image' },
   'music.spotifyArtistId': { label: 'Spotify artist ID', hint: 'The ID in open.spotify.com/artist/<ID>.' },

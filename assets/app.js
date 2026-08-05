@@ -1412,11 +1412,19 @@ function wireShare(){const _shareBtn=document.getElementById('shareBtn');if(_sha
 /* ===================== FEATURED DROP ===================== */
 function previewFeatured(){startAudio();toast('▶ now spinning — '+localTitle());}
 function notifyDrop(){gotoConnectJoin('☠ drop your email — first to know');}
-/* drop date is set from CMS content (drop.dropDate); counts down, then reads OUT NOW.
-   Use an explicit offset so every visitor counts down to the same instant (else a
-   bare 'YYYY-MM-DDTHH:MM' is parsed in each visitor's own timezone). */
-let dropDate=new Date('2026-07-04T00:00:00-04:00');
-function tickCountdown(){const el=document.getElementById('cd');if(!el)return;const d=dropDate-Date.now();if(isNaN(d)||d<=0){el.innerHTML='<span class="cdlive">OUT NOW ☠</span>';return;}const u=(n,l)=>`<div class="cdu"><b>${String(n).padStart(2,'0')}</b><span>${l}</span></div>`;el.innerHTML=u(Math.floor(d/864e5),'days')+u(Math.floor(d/36e5)%24,'hrs')+u(Math.floor(d/6e4)%60,'min')+u(Math.floor(d/1e3)%60,'sec');}
+/* drop date is set from CMS content (drop.dropDate). Use an explicit offset so every visitor
+   counts down to the same instant (else a bare 'YYYY-MM-DDTHH:MM' is parsed in each visitor's
+   own timezone).
+   A date passing is NOT a release. The card used to flip itself to "OUT NOW" the moment the
+   countdown hit zero, so a drop that slipped — or a date nobody updated — had the homepage
+   claiming a track was out when it wasn't. "OUT NOW" now requires drop.released, an explicit
+   switch in the admin; an expired countdown with the switch still off reads "dropping soon". */
+let dropDate=new Date('2026-07-04T00:00:00-04:00'),dropReleased=false;
+function tickCountdown(){const el=document.getElementById('cd');if(!el)return;
+  if(dropReleased){el.innerHTML='<span class="cdlive">OUT NOW ☠</span>';return;}
+  const d=dropDate-Date.now();
+  if(isNaN(d)||d<=0){el.innerHTML='<span class="cdsoon">dropping soon ☠</span>';return;}
+  const u=(n,l)=>`<div class="cdu"><b>${String(n).padStart(2,'0')}</b><span>${l}</span></div>`;el.innerHTML=u(Math.floor(d/864e5),'days')+u(Math.floor(d/36e5)%24,'hrs')+u(Math.floor(d/6e4)%60,'min')+u(Math.floor(d/1e3)%60,'sec');}
 /* only run the 1s ticker on pages that actually have the countdown (#cd) —
    re-checked after every client-side navigation in sbInitPage() */
 let _cdTimer=null;
@@ -1707,7 +1715,9 @@ function applyContent(c){
     bg('#drop .dropfeat .cover',c.drop.cover);txt('#drop .dropfeat h3',c.drop.featuredTitle);txt('#drop .dropfeat .dsub',c.drop.featuredSub);
     const dl=document.querySelectorAll('#drop .dropfeat .smartlinks a');[c.drop.spotify,c.drop.apple,c.drop.youtube].forEach((u,i)=>{if(dl[i]&&u){const su=safeUrl(u);if(su)dl[i].href=su;}});
     href('#presaveBtn',c.drop.presaveUrl);
-    if(c.drop.dropDate){const d=new Date(c.drop.dropDate);if(!isNaN(d.getTime()))dropDate=d;tickCountdown();}}
+    if(c.drop.dropDate){const d=new Date(c.drop.dropDate);if(!isNaN(d.getTime()))dropDate=d;}
+    dropReleased=!!c.drop.released;
+    tickCountdown();}   /* outside the date guard — the released switch has to land either way */
 
   if(c.music){bg('#music .pwart',c.music.playerCover);
     /* keep the persistent bottom player bar (shown on every page) in sync with the CMS
