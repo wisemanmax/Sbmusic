@@ -165,6 +165,8 @@ section{padding:clamp(60px,9vw,116px) clamp(18px,5vw,56px);position:relative;z-i
 .cdu b{display:block;font-family:var(--disp);font-size:26px;color:#fff;line-height:1}
 .cdu span{font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase}
 .cdlive{font-family:var(--disp);font-size:24px;color:var(--slime)}
+/* countdown expired but the drop hasn't been marked released — honest holding state */
+.cdsoon{font-family:var(--disp);font-size:24px;color:var(--soft)}
 
 /* VIDEOS */
 .vidgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}

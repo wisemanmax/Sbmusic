@@ -246,6 +246,29 @@ try {
   }
 
   // ---------------------------------------------------------------
+  group('drop countdown: a passed date never claims the track is out');
+  {
+    const page = await browser.newPage();
+    await page.goto(base + '/index.html', { waitUntil: 'load' });
+    await page.waitForTimeout(800);
+    const r = await page.evaluate(() => {
+      const cd = () => document.getElementById('cd').textContent;
+      const past = '2020-01-01T00:00:00-04:00', future = '2099-01-01T00:00:00-04:00';
+      const out = {};
+      applyContent({ drop: { dropDate: past, released: false } });   out.expiredUnreleased = cd();
+      applyContent({ drop: { dropDate: past, released: true } });    out.expiredReleased   = cd();
+      applyContent({ drop: { dropDate: future, released: false } }); out.pending           = cd();
+      applyContent({ drop: { dropDate: future, released: true } });  out.earlyReleased     = cd();
+      return out;
+    });
+    check('expired + not released → holding state, never "OUT NOW"',
+      !/out now/i.test(r.expiredUnreleased) && /soon/i.test(r.expiredUnreleased), r.expiredUnreleased);
+    check('expired + released → OUT NOW', /out now/i.test(r.expiredReleased), r.expiredReleased);
+    check('future date → counts down', /days/i.test(r.pending) && !/out now/i.test(r.pending), r.pending);
+    check('released early → OUT NOW beats the clock', /out now/i.test(r.earlyReleased), r.earlyReleased);
+    await page.close();
+  }
+
   group('shows: ticket links sanitized');
   {
     const page = await browser.newPage();
