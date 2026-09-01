@@ -42,6 +42,12 @@ supabase functions deploy admin --no-verify-jwt
 - **Token revocation.** Tokens embed `session_version` (column on `admin_config`).
   `set_password` bumps it, so changing the password instantly invalidates every
   outstanding token instead of waiting out the 8h TTL.
+- **Password change needs the current password.** `set_password` takes
+  `{ currentPassword, newPassword }` and re-verifies `currentPassword` (throttled like a
+  login) — a session token alone can't rotate the password, so a leaked token can't lock
+  the owner out or mint itself a fresh session.
+- **`save` validates its payload.** Only a JSON object (≤ 2 MB) is accepted, written with
+  an upsert so a fresh database (no `site_content` row yet) still publishes.
 - **CORS allowlist.** Responses reflect only allow-listed origins (`slimeby.com`,
   `www.slimeby.com`, localhost), not `*`. Override with the `ALLOWED_ORIGINS` env
   (comma-separated) without redeploying.

@@ -763,7 +763,10 @@ async function renderAudience(root){
   csv.onclick=()=>{
     if(!subs.length){toast('nothing to export');return;}
     const lines=[['email','phone','joined']].concat(subs.map(s=>[s.email||'',s.phone||'',s.created_at||'']));
-    const txt=lines.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+    /* a cell starting with = + - @ or a tab/CR is a formula to Excel / Sheets — and anyone can
+       insert a subscriber row with the public key, so neutralise it with a leading apostrophe */
+    const cell=c=>{c=String(c);if(/^[=+\-@\t\r]/.test(c))c="'"+c;return '"'+c.replace(/"/g,'""')+'"';};
+    const txt=lines.map(r=>r.map(cell).join(',')).join('\n');
     const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([txt],{type:'text/csv'})); a.download='slime-audience.csv'; a.click();
   };
   load();
@@ -931,18 +934,24 @@ function renderSettings(root){
   // change password
   const pc=elt('div','card');
   pc.appendChild(Object.assign(elt('div','cardhead'),{innerHTML:'<h3>Change password</h3>'}));
-  const np=document.createElement('input'); np.className='inp'; np.type='password'; np.placeholder='new password (min 6 chars)';
-  const np2=document.createElement('input'); np2.className='inp'; np2.type='password'; np2.placeholder='confirm new password'; np2.style.marginTop='8px';
+  const cp=document.createElement('input'); cp.className='inp'; cp.type='password'; cp.placeholder='current password'; cp.autocomplete='current-password';
+  const np=document.createElement('input'); np.className='inp'; np.type='password'; np.placeholder='new password (min 6 chars)'; np.style.marginTop='8px'; np.autocomplete='new-password';
+  const np2=document.createElement('input'); np2.className='inp'; np2.type='password'; np2.placeholder='confirm new password'; np2.style.marginTop='8px'; np2.autocomplete='new-password';
   const pbtn=elt('button','btn sm','update password'); pbtn.style.marginTop='10px';
   pbtn.onclick=async()=>{
-    if(np.value.length<6){toast('password too short',true);return;}
-    if(np.value!==np2.value){toast('passwords don’t match',true);return;}
+    // trimmed exactly like the login box, so a password can never be set in a form it can't be typed in
+    const cur=cp.value.trim(), next=np.value.trim();
+    if(!cur){toast('enter your current password',true);return;}
+    if(next.length<6){toast('password too short',true);return;}
+    if(next!==np2.value.trim()){toast('passwords don’t match',true);return;}
     pbtn.disabled=true; pbtn.textContent='updating…';
-    try{ const r=await sbAdmin(authCred(),'set_password',{newPassword:np.value}); if(r&&r.token){ TOKEN=r.token; sessionStorage.setItem('sb_token',TOKEN); } np.value=np2.value=''; toast('✓ password updated'); }
+    try{ const r=await sbAdmin(authCred(),'set_password',{currentPassword:cur,newPassword:next}); if(r&&r.token){ TOKEN=r.token; sessionStorage.setItem('sb_token',TOKEN); } cp.value=np.value=np2.value=''; toast('✓ password updated'); }
     catch(e){ toast('✗ '+(e.message||e),true); }
     finally{ pbtn.disabled=false; pbtn.textContent='update password'; }
   };
-  pc.append(np,np2,pbtn); root.appendChild(pc);
+  pc.append(cp,np,np2,pbtn);
+  pc.appendChild(elt('div','fhint','Changing the password signs out every other admin session (a stolen session token can’t change it without the current password).'));
+  root.appendChild(pc);
 
   // import / export
   const ie=elt('div','card');
@@ -952,7 +961,12 @@ function renderSettings(root){
   const impFile=document.createElement('input'); impFile.type='file'; impFile.accept='application/json'; impFile.className='file';
   const imp=elt('button','btn neutral sm','⤒ import content (JSON)'); imp.style.marginLeft='8px';
   imp.onclick=()=>impFile.click();
-  impFile.onchange=async()=>{ const f=impFile.files[0]; if(!f)return; try{ const j=JSON.parse(await f.text()); if(!j||typeof j!=='object'||Array.isArray(j)){ toast('✗ not a valid content file',true); return; } model=sbMerge(sbClone(SB_DEFAULTS),j); onChange(); buildSidebar(); selectView(view); toast('content imported — review, then publish'); }catch(e){ toast('✗ invalid JSON',true); } };
+  impFile.onchange=async()=>{ const f=impFile.files[0]; if(!f)return; try{ const j=JSON.parse(await f.text()); if(!j||typeof j!=='object'||Array.isArray(j)){ toast('✗ not a valid content file',true); return; }
+    /* a top-level key of the wrong shape (e.g. "pages": "x") would throw deep inside the editor / publish
+       handler with no feedback — drop such keys back to their defaults and say which */
+    const merged=sbMerge(sbClone(SB_DEFAULTS),j), dropped=[];
+    for(const k of Object.keys(SB_DEFAULTS)){ const d=SB_DEFAULTS[k], v=merged[k]; const bad=Array.isArray(d)?!Array.isArray(v):(d&&typeof d==='object')?(!v||typeof v!=='object'||Array.isArray(v)):false; if(bad){ merged[k]=sbClone(d); dropped.push(k); } }
+    model=merged; onChange(); buildSidebar(); selectView(view); toast(dropped.length?('imported — ignored malformed: '+dropped.join(', ')):'content imported — review, then publish',dropped.length>0); }catch(e){ toast('✗ invalid JSON',true); } };
   const ier=elt('div'); ier.style.cssText='display:flex;flex-wrap:wrap;gap:8px'; ier.append(exp,imp,impFile);
   ie.appendChild(ier);
   ie.appendChild(elt('div','fhint','Export a full backup of your content, or import one. Imports merge over the built-in defaults and don’t go live until you publish.'));

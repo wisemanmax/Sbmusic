@@ -30,12 +30,18 @@ const check = (name, ok, extra='') => { results.push({ name, ok: !!ok }); consol
 const group = (n) => console.log('\n• ' + n);
 
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--mute-audio'] });
+// Hermetic: every page in this context gets "nothing published" from the CMS and a black-holed
+// analytics endpoint, so CI never depends on (or writes to) the live Supabase project and
+// the assertions below run against the built-in defaults, not whatever was last published.
+const ctx = await browser.newContext();
+await ctx.route('**/rest/v1/site_content**', r => r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+await ctx.route('**/rest/v1/analytics_events**', r => r.fulfill({ status: 201, body: '' }));
 
 try {
   // ---------------------------------------------------------------
   group('sanitization + XSS');
   {
-    const page = await browser.newPage();
+    const page = await ctx.newPage();
     let xss = false;
     page.on('dialog', d => { xss = true; d.dismiss().catch(()=>{}); });
     await page.exposeFunction('__xss', () => { xss = true; });
@@ -72,7 +78,7 @@ try {
   // ---------------------------------------------------------------
   group('player: persists across pages, normal by default, lab = slowed');
   {
-    const page = await browser.newPage();
+    const page = await ctx.newPage();
     const errs = []; page.on('pageerror', e => errs.push(e.message));
     await page.goto(base + '/index.html', { waitUntil: 'load' });
     await page.waitForTimeout(800);
@@ -99,7 +105,8 @@ try {
     check('lab: playback is slowed (< 0.95)', lab.rate < 0.95 && !lab.paused, 'rate='+lab.rate);
     // the lab now has its own "load a track" picker — every catalog song selectable, bent
     const labRows = await page.$$eval('#srTracks .trk', els => els.length);
-    check('lab: track picker lists the catalog', labRows === 10, 'rows='+labRows);
+    const catalog = await page.evaluate(() => LOCAL_TRACKS.length);
+    check('lab: track picker lists the catalog', labRows === catalog && catalog > 1, 'rows='+labRows+' catalog='+catalog);
     const labPick = await page.evaluate(async () => {
       const row = document.querySelector('#srTracks .trk[data-i="4"]');
       row.click();                                   // load a different song into the bender
@@ -123,7 +130,7 @@ try {
   // the player looks dead. Each control, clicked cold as the first gesture, must START the track.
   group('transport: first click on a play control starts the music');
   for (const sel of ['#pwplay', '#pbtn', '#disc']) {
-    const page = await browser.newPage();
+    const page = await ctx.newPage();
     const errs = []; page.on('pageerror', e => errs.push(e.message));
     await page.goto(base + '/music.html', { waitUntil: 'load' });
     await page.waitForTimeout(700);
@@ -137,7 +144,7 @@ try {
   // ---------------------------------------------------------------
   group('accessibility: modal focus management');
   {
-    const page = await browser.newPage();
+    const page = await ctx.newPage();
     await page.goto(base + '/world.html', { waitUntil: 'load' });
     await page.waitForTimeout(1000);
     await page.evaluate(() => {
@@ -160,7 +167,7 @@ try {
   // ---------------------------------------------------------------
   group('reduced motion');
   {
-    const page = await browser.newPage();
+    const page = await ctx.newPage();
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto(base + '/index.html', { waitUntil: 'load' });
     await page.waitForTimeout(700);
@@ -180,7 +187,7 @@ try {
   // ---------------------------------------------------------------
   group('join form: consent gate + retry queue (no permanent PII)');
   {
-    const page = await browser.newPage();
+    const page = await ctx.newPage();
     const errs = []; page.on('pageerror', e => errs.push(e.message));
     // Intercept the sign-up POST so the test never depends on (or pollutes) the real
     // Supabase backend. `mode` lets each sub-test pick the response sbSubscribe should see.
@@ -232,7 +239,7 @@ try {
   // ---------------------------------------------------------------
   group('persistent music bar: cover follows CMS, title follows the live track');
   {
-    const page = await browser.newPage();
+    const page = await ctx.newPage();
     await page.goto(base + '/world.html', { waitUntil: 'load' });
     await page.waitForTimeout(800);
     const r = await page.evaluate(() => {
@@ -248,7 +255,7 @@ try {
   // ---------------------------------------------------------------
   group('drop countdown: a passed date never claims the track is out');
   {
-    const page = await browser.newPage();
+    const page = await ctx.newPage();
     await page.goto(base + '/index.html', { waitUntil: 'load' });
     await page.waitForTimeout(800);
     const r = await page.evaluate(() => {
@@ -271,7 +278,7 @@ try {
 
   group('shows: ticket links sanitized');
   {
-    const page = await browser.newPage();
+    const page = await ctx.newPage();
     let xss = false;
     page.on('dialog', d => { xss = true; d.dismiss().catch(()=>{}); });
     await page.exposeFunction('__xss', () => { xss = true; });
@@ -295,7 +302,7 @@ try {
   // ---------------------------------------------------------------
   group('local playlist: the uploaded catalog cycles + loops');
   {
-    const page = await browser.newPage();
+    const page = await ctx.newPage();
     const errs = []; page.on('pageerror', e => errs.push(e.message));
     await page.goto(base + '/music.html', { waitUntil: 'load' });
     await page.waitForTimeout(1200);
@@ -303,9 +310,10 @@ try {
       prev: !!document.getElementById('prevbtn'), next: !!document.getElementById('nextbtn'),
       count: Array.isArray(LOCAL_TRACKS) ? LOCAL_TRACKS.length : 0,
       first: (LOCAL_TRACKS[0]||{}).title, last: (LOCAL_TRACKS[LOCAL_TRACKS.length-1]||{}).title,
+      rows: document.querySelectorAll('#tracklist .trk, .trk[data-i]').length,
     }));
     check('playlist: skip buttons present in the music bar', has.prev && has.next);
-    check('playlist: My Time catalog + Man Of My Word loaded in order', has.count === 10 && has.first === 'My Time' && has.last === 'Man Of My Word', 'count='+has.count);
+    check('playlist: My Time catalog + Man Of My Word loaded in order', has.count > 1 && has.first === 'My Time' && has.last === 'Man Of My Word' && has.rows >= has.count, 'count='+has.count+' rows='+has.rows);
     const r = await page.evaluate(async () => {
       loadTrack(0, true);
       await new Promise(s => setTimeout(s, 250));
@@ -355,6 +363,96 @@ try {
     });
     check('playlist: ducks for an embedded video, resumes on close', duck.wasPlaying && duck.duckedPaused && duck.resumed);
     check('playlist: skip controls raise no JS errors', errs.length === 0, errs.join(' | '));
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------
+  group('analytics: uniform batch keys + decline really stops tracking');
+  {
+    const page = await ctx.newPage();
+    const batches = [];
+    await page.route('**/rest/v1/analytics_events**', r => {
+      try { batches.push(JSON.parse(r.request().postData() || '[]')); } catch (_) { batches.push('unparseable'); }
+      r.fulfill({ status: 201, body: '' });
+    });
+    await page.addInitScript(() => { try { localStorage.setItem('sb_consent', 'granted'); sessionStorage.setItem('sb_track_local', '1'); } catch (_) {} });
+    await page.goto(base + '/index.html', { waitUntil: 'load' });
+    await page.waitForTimeout(600);
+    // a nav click queues a click + the exit of this page + the next pageview inside one 1.5s window
+    await page.click('#nav .navlinks a[href="music.html"]');
+    await page.waitForFunction(() => location.pathname.endsWith('music.html'), null, { timeout: 5000 });
+    await page.waitForTimeout(2200);
+    const rows = batches.flat();
+    const keysets = [...new Set(rows.map(r => Object.keys(r).sort().join(',')))];
+    check('analytics: events sent after consent', rows.length >= 3 && !batches.includes('unparseable'), 'rows=' + rows.length);
+    check('analytics: batches mix event types (the case PostgREST rejects when keys differ)', batches.some(b => Array.isArray(b) && new Set(b.map(r => r.type)).size > 1));
+    check('analytics: every row carries the same key set', keysets.length === 1 && /meta/.test(keysets[0]) && /target/.test(keysets[0]) && /referrer/.test(keysets[0]), keysets.join(' | '));
+    const n0 = batches.length;
+    await page.evaluate(() => window.sbConsent('denied'));
+    await page.click('#nav .navlinks a[href="lab.html"]');
+    await page.waitForFunction(() => location.pathname.endsWith('lab.html'), null, { timeout: 5000 });
+    await page.waitForTimeout(2200);
+    const after = await page.evaluate(() => ({ vid: localStorage.getItem('sb_vid'), consent: localStorage.getItem('sb_consent') }));
+    check('analytics: decline mid-visit → nothing more is sent', batches.length === n0, `batches ${n0}→${batches.length}`);
+    check('analytics: decline drops the visitor id', after.vid === null && after.consent === 'denied', JSON.stringify(after));
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------
+  group('clean-URL router: a custom page keeps the visitor’s query string');
+  {
+    const page = await ctx.newPage();
+    await page.goto(base + '/404.html?utm_source=ig&x=1#top', { waitUntil: 'load' });
+    await page.waitForTimeout(500);
+    await page.evaluate(() => renderRoute({ links: [], pages: [{ slug: '404', title: 'T', blocks: [] }] }));
+    await page.waitForFunction(() => location.pathname.endsWith('page.html'), null, { timeout: 5000 });
+    const u = await page.evaluate(() => location.search + location.hash);
+    check('custom-page redirect appends the query as extra params', u === '?p=404&utm_source=ig&x=1#top', u);
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------
+  group('privacy page: styled + state shown when reached through the in-app router');
+  {
+    const page = await ctx.newPage();
+    await page.addInitScript(() => { try { localStorage.setItem('sb_consent', 'denied'); sessionStorage.setItem('sb_track_local', '1'); } catch (_) {} });
+    await page.goto(base + '/index.html', { waitUntil: 'load' });
+    await page.waitForTimeout(600);
+    await page.evaluate(() => document.querySelector('.flinks a[href="privacy.html"]:not([data-track])').click());
+    await page.waitForFunction(() => location.pathname.endsWith('privacy.html'), null, { timeout: 5000 });
+    await page.waitForTimeout(800);
+    const st = await page.evaluate(() => ({
+      state: (document.getElementById('privacy-state') || {}).textContent || '',
+      maxw: getComputedStyle(document.querySelector('.legal')).maxWidth,
+    }));
+    check('privacy: consent state rendered via the router', /analytics OFF/.test(st.state), st.state);
+    check('privacy: page styles apply via the router', st.maxw === '760px', st.maxw);
+    await page.click('.privacy-actions button.primary');
+    await page.waitForTimeout(250);
+    const st2 = await page.evaluate(() => document.getElementById('privacy-state').textContent);
+    check('privacy: accepting updates the state line', /analytics ON/.test(st2), st2);
+    await page.close();
+  }
+
+  // ---------------------------------------------------------------
+  group('join popup: explicit opt-in required (same gate as the page forms)');
+  {
+    const page = await ctx.newPage();
+    await page.route('**/rest/v1/subscribers**', r => r.fulfill({ status: 201, body: '' }));
+    await page.goto(base + '/index.html', { waitUntil: 'load' });
+    await page.waitForTimeout(600);
+    await page.evaluate(() => openJoinPopup());
+    await page.waitForSelector('#jpGo', { timeout: 3000 });
+    await page.fill('#jpEmail', 'fan@example.com');
+    await page.click('#jpGo');
+    await page.waitForTimeout(250);
+    const r1 = await page.evaluate(() => ({ note: document.getElementById('jpNote').textContent, joined: localStorage.getItem('sb_joined') }));
+    check('popup: no consent → blocked, not marked joined', /tick the box/i.test(r1.note) && !r1.joined, r1.note);
+    await page.check('#jpConsent');
+    await page.click('#jpGo');
+    await page.waitForTimeout(500);
+    const r2 = await page.evaluate(() => ({ note: document.getElementById('jpNote').textContent, joined: localStorage.getItem('sb_joined') }));
+    check('popup: consent ticked → joins', /you in/i.test(r2.note) && r2.joined === '1', r2.note);
     await page.close();
   }
 } finally {

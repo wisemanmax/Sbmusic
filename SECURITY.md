@@ -107,7 +107,9 @@ and returns a short-lived **HMAC-signed token** (8h, signed with a key derived f
 service-role key); the client keeps the *token* in `sessionStorage` and sends it on every
 other call. Old `sb_pw` sessions are migrated to a token on next load and the stored
 password is deleted. The function still accepts the password as a fallback, so an expired
-token can never lock the admin out. Source: [`supabase/functions/admin/index.ts`](supabase/functions/admin/index.ts).
+token can never lock the admin out. Changing the password (`set_password`) requires the
+*current* password as well (rate-limited like a login), so a leaked token alone can't rotate
+it, lock the owner out, or mint itself a fresh session. Source: [`supabase/functions/admin/index.ts`](supabase/functions/admin/index.ts).
 
 Remaining (recommended, see the function README):
 1. **Hash** the password in `admin_config` (currently plaintext) — `set_password` writes a

@@ -162,16 +162,24 @@
     }
     if (game) { e.preventDefault(); e.stopPropagation(); } // keep the site's space=pause etc. out of the cabinet
   }
+  /* leave browser shortcuts (Ctrl/Cmd/Alt + key) and typing in any text field to the browser —
+     the join popup and site chrome share this window with the cabinet */
+  function skipKey(e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return true;
+    const a = document.activeElement;
+    return !!(a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable));
+  }
   function bindInputs() {
     inputAC = new AbortController(); const sig = inputAC.signal;
     addEventListener('keydown', e => {
+      if (skipKey(e)) return;
       if (held[e.code]) { // repeat: still swallow game keys, don't refire edges
         onKeySwallow(e); return;
       }
       held[e.code] = true; onKey(e, true);
       if (e.key && e.key.length === 1) { typed = (typed + e.key.toLowerCase()).slice(-12); if ((typed.endsWith('princess') || typed.endsWith('slime')) && state === 'title') startGame(); }
     }, { capture: true, signal: sig });
-    addEventListener('keyup', e => { held[e.code] = false; onKey(e, false); }, { capture: true, signal: sig });
+    addEventListener('keyup', e => { held[e.code] = false; if (skipKey(e)) return; onKey(e, false); }, { capture: true, signal: sig });
     addEventListener('blur', () => { for (const k in K) if (typeof K[k] === 'boolean') K[k] = false; held = {}; }, { signal: sig });
     // auto-pause a live run when the tab is hidden (rAF already halts; this stops deaths-while-away)
     document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') togglePause(); }, { signal: sig });
@@ -225,6 +233,10 @@
     ];
     if (checkpoint >= 1 && kills < 5) kills = 5;       // continuing past a gate keeps it satisfied
     if (checkpoint >= 2) { mbDead = true; keysGot = Math.max(keysGot, 1); }
+    // continuing from BEFORE the castle with DJ STATIC already felled but the key never
+    // grabbed (died between the arena and the gate): the key was just wiped above and he
+    // won't respawn while mbDead — the gate could never open. Let him rise again.
+    if (fromCheckpoint && checkpoint < 2 && mbDead && keysGot < 1) mbDead = false;
     princess = { x: 5240, y: 96, t: 0 };
     [180, 520, 1000, 1500, 2050, 2600, 3050, 3700, 4150, 4700, 5150].forEach(x => torches.push({ x, y: GY - 2, t: Math.random() * 6 }));
     for (let i = 0; i < 70; i++) fireflies.push({ x: Math.random() * LW, y: 36 + Math.random() * 170, t: Math.random() * 6, sp: 0.2 + Math.random() * 0.5, r: 1 + Math.random() * 1.6 });
@@ -436,9 +448,10 @@
       for (const b of blasts) {
         if (hit(b, eb)) {
           e.hp--; e.kb = b.dir * 5; burst(ex + e.w / 2, ey, C.toxic, 9, 2.5, { glow: 1 });
-          b.life = Math.min(b.life, 4); if (e.hp <= 0) kill(e, ex, ey);
+          b.life = Math.min(b.life, 4); if (e.hp <= 0) { kill(e, ex, ey); break; }   // one kill per beast (TRIPLE MIC lands 3 co-located blasts)
         }
       }
+      if (e.dead) continue;   // felled this frame — no contact damage from a corpse
       if (p.inv <= 0 && hit(p, eb)) {
         // STOMP — coming down onto an enemy from above defeats it (Mario-style) and
         // bounces you off. This is the intuitive "jump on it" kill players expect, so
@@ -770,7 +783,7 @@
     drawPits(bs); drawPlatforms(bs); drawDecals(); drawTorches(bs); drawGates(bs); drawCoins(); drawPickups();
     if (theKey) drawKey();
     drawNotes();
-    for (const e of enemies) { if (e.x > cx + W + 80 || e.x + e.w < cx - 80) continue; drawEnemy(e); }   // cull off-screen
+    for (const e of enemies) { const x = e._x != null ? e._x : e.x; if (x > cx + W + 80 || x + e.w < cx - 80) continue; drawEnemy(e); }   // cull off-screen (bats: by drawn position, not patrol anchor)
     if (mb) drawMb();
     if (boss) drawBoss();
     drawPrincess();
@@ -1598,12 +1611,21 @@
   function scheduleRelayout() { if (relayoutQueued) return; relayoutQueued = true; requestAnimationFrame(relayout); }
 
   /* ===================== loop / state ===================== */
-  let running = false, rafId = 0, lastFrame = 0, _drawnState = '';
+  /* The simulation is tuned per-step (gravity, cooldowns, timers all count in steps), so it
+     runs at a FIXED 60 steps/s regardless of display refresh: a 120Hz phone or 144Hz monitor
+     would otherwise play the whole game twice as fast. rAF time is accumulated and drained in
+     16.67ms steps (a small tolerance keeps 60Hz at exactly one step per frame despite jitter);
+     a stalled tab drains at most 3 steps per frame and drops the rest. */
+  const STEP = 1000 / 60, STEP_SLACK = 4, MAX_STEPS = 3;
+  let running = false, rafId = 0, lastFrame = 0, _drawnState = '', acc = 0;
   function loop(ts) {
     if (!running) return;
     if (!cv || !document.body.contains(cv)) { unmount(); return; }   // navigated away → self-clean
     const dt = Math.min(50, ts - (lastFrame || ts)); lastFrame = ts;
-    update(dt);
+    acc += dt;
+    let steps = 0;
+    while (acc >= STEP - STEP_SLACK && steps < MAX_STEPS) { update(STEP); acc -= STEP; steps++; }
+    if (steps === MAX_STEPS) acc = 0;
     /* the title / game-over / win screens sit behind a near-opaque overlay and pause is a
        static card — paint those once instead of re-rendering the whole animated world at
        60fps while the player sits on a menu (repaints on state change or resize) */
@@ -1614,6 +1636,8 @@
   function startGame(fromCheckpoint) {
     QA.ensure(); QA.start();    // start the SB site track as the soundtrack (user gesture)
     reset(fromCheckpoint === true); state = 'play';
+    K.jumpEdge = K.atkEdge = K.dashEdge = K.rageEdge = false;   // a key tapped on the menu must not fire on frame 1
+    acc = 0; lastFrame = 0;
     ['title', 'over', 'win'].forEach(id => el[id] && el[id].classList.add('hidden'));
     el.cabinet && el.cabinet.classList.add('playing');
     setPlayingChrome(true);
@@ -1633,7 +1657,7 @@
     saveBest();
     shake = 14; flash = 12; burst(boss.x + boss.w / 2, boss.y, C.slime, 48, 5, { glow: 1 });
     if (el.fscore) el.fscore.textContent = 'SLIME COINS: ' + score + '  ·  BEST COMBO: x' + Math.max(bestCombo, combo) + '  ·  KINGDOM RESTORED';
-    setTimeout(() => { el.win && el.win.classList.remove('hidden'); }, 950);
+    setTimeout(() => { if (state === 'win' && el.win) el.win.classList.remove('hidden'); }, 950);
   }
   function showBest() {
     if (!el.best) return; const b = loadBest();
@@ -1735,6 +1759,8 @@
         kills, keysGot, hp, score, checkpoint, mbDead, win, K,
         setKills(n) { kills = n; },
         setCheckpoint(n) { checkpoint = n; },
+        setMbDead(v) { mbDead = !!v; },
+        setKeysGot(n) { keysGot = n; },
       };
     },
   };

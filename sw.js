@@ -7,7 +7,7 @@
    range requests, and the large MP3s (served immutable over HTTP
    already — caching them here would just bloat storage).
    ============================================================ */
-const VERSION = 'sb-cache-v3';   // bumped: perf pass (culling/gradient caches), SW ok-guard, preconnects
+const VERSION = 'sb-cache-v4';   // bumped: js/css now network-first (no one-deploy-stale scripts under fresh html)
 const CORE = [
   '/', '/index.html',
   '/assets/styles.css', '/assets/app.js', '/cms.js', '/assets/analytics.js',
@@ -43,7 +43,11 @@ self.addEventListener('fetch', (e) => {
   if (/\.mp3$/i.test(url.pathname) || req.headers.has('range')) return;  // skip big audio + range requests
 
   const isHTML = req.mode === 'navigate' || url.pathname === '/' || /\.html$/i.test(url.pathname);
-  if (isHTML) {
+  // scripts + styles ride with the html: a fresh shell must never run against a
+  // stale-while-revalidate copy of app.js/cms.js/styles.css from the previous deploy
+  // (that pairing is one deploy behind on every returning visitor's first load).
+  const isCode = /\.(?:js|css)$/i.test(url.pathname);
+  if (isHTML || isCode) {
     // network-first: fresh shell when online (so a redeploy / CMS shell change lands),
     // cached fallback when offline.
     e.respondWith(
@@ -56,7 +60,7 @@ self.addEventListener('fetch', (e) => {
           if (r && r.ok) { const cp = r.clone(); caches.open(VERSION).then((c) => c.put(req, cp)); }
           return r;
         })
-        .catch(() => caches.match(req).then((m) => m || caches.match('/index.html')))
+        .catch(() => caches.match(req).then((m) => m || (isHTML ? caches.match('/index.html') : undefined)))
     );
     return;
   }
