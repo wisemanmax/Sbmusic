@@ -14,7 +14,7 @@ create policy "public read content" on public.site_content
 
 create table if not exists public.admin_config (
   id       integer primary key default 1 check (id = 1),
-  password text
+  password text not null   -- (matches the live database; set row 1 by hand, see README)
 );
 alter table public.admin_config enable row level security;
 -- no policies on purpose: only the service role (admin edge function) can read/write it.

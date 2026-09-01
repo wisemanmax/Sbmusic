@@ -6,9 +6,10 @@
 --    but overflows ::int — so a single anonymous INSERT with such a meta value made the
 --    whole aggregate (and the admin Analytics tab) error for up to a year. Postgres also
 --    doesn't promise to evaluate the guard before the cast.
--- 2. Seed the single-row tables. No migration ever inserted site_content id=1 /
---    admin_config id=1; on a fresh database `save` (an UPDATE matching 0 rows) reported
---    success while publishing nothing. Both rows are inert until filled in.
+-- 2. Seed site_content id=1. No migration ever inserted it; on a fresh database `save`
+--    (an UPDATE matching 0 rows) reported success while publishing nothing. (admin_config
+--    is NOT seeded: its password column is NOT NULL on the live database, and a placeholder
+--    password would be a login — set that row by hand, see supabase/README.md.)
 -- 3. Bound the anon INSERT policies a little further: subscribers.phone gets a length cap
 --    (it had none), and analytics_events.meta must be a JSON object (or null).
 
@@ -262,9 +263,8 @@ revoke all on function public.analytics_summary(integer) from anon;
 revoke all on function public.analytics_summary(integer) from authenticated;
 grant execute on function public.analytics_summary(integer) to service_role;
 
--- ── 2. seed the single-row tables (no-ops where the rows already exist) ──────────
+-- ── 2. seed the content row (no-op where it already exists) ─────────────────────
 insert into public.site_content (id) values (1) on conflict (id) do nothing;
-insert into public.admin_config (id) values (1) on conflict (id) do nothing;
 
 -- ── 3. tighter anon INSERT bounds ──────────────────────────────────────────────
 drop policy if exists "anon can subscribe" on public.subscribers;
