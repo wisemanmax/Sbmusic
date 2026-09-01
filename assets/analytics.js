@@ -44,7 +44,11 @@
   if (/[?&]preview\b/.test(location.search)) return;        // editor preview — don't log
   if (/(^|\/)admin\.html$/i.test(location.pathname)) return; // never track the admin
   // skip local dev / CI / the test server so internal traffic never pollutes the data
-  if (/^(localhost|127\.0\.0\.1|\[?::1\]?)$/.test(location.hostname)) return;
+  // local dev never pollutes the dashboard — unless explicitly asked (?track, or the
+  // sessionStorage flag the e2e suite sets) so the tracker itself can be exercised locally
+  var forceLocal = /[?&]track\b/.test(location.search);
+  try { forceLocal = forceLocal || sessionStorage.getItem('sb_track_local') === '1'; } catch (_) {}
+  if (!forceLocal && /^(localhost|127\.0\.0\.1|\[?::1\]?)$/.test(location.hostname)) return;
 
   var ENDPOINT = CFG.url + '/rest/v1/analytics_events';
   var HEADERS = {
@@ -71,10 +75,29 @@
   var CONSENT_KEY = 'sb_consent';
   var consent = lsGet(CONSENT_KEY);            // 'granted' | 'denied' | null
 
+  /* Live on/off switch. The tracker's listeners are installed once by start() and can't
+     be torn down (the site navigates client-side, so "this page" is the whole visit);
+     every record() checks this flag instead, so a later "decline" really goes silent. */
+  var enabled = false;
+  var queue = [];                               // pending events (shared so a decline can drop them)
+
   if (consent === 'granted') {
     start();
   } else if (consent !== 'denied') {
     showBanner();                              // first visit: ask, track nothing yet
+  }
+
+  function grant() { enabled = true; if (!window.__sbStarted) start(); else ensureVisitor(); }
+  function deny() {
+    enabled = false; queue.length = 0;
+    try { localStorage.removeItem('sb_vid'); } catch (_) {}   // no identifier once declined
+  }
+  /* the anonymous visitor id — minted on first accept, dropped on decline, re-minted on re-accept */
+  var visitorId = null, isNewVisitor = false;
+  function ensureVisitor() {
+    var v = lsGet('sb_vid');
+    if (!v) { v = rid(); lsSet('sb_vid', v); isNewVisitor = true; }
+    visitorId = v;
   }
 
   function showBanner() {
@@ -118,10 +141,10 @@
         '</div>';
       document.body.appendChild(bar);
       document.getElementById('sb-consent-yes').addEventListener('click', function () {
-        lsSet(CONSENT_KEY, 'granted'); removeBanner(); start();
+        lsSet(CONSENT_KEY, 'granted'); removeBanner(); grant();
       });
       document.getElementById('sb-consent-no').addEventListener('click', function () {
-        lsSet(CONSENT_KEY, 'denied'); removeBanner();
+        lsSet(CONSENT_KEY, 'denied'); removeBanner(); deny();
       });
     }
     if (document.body) build();
@@ -136,10 +159,10 @@
   window.sbConsent = function (choice) {
     if (choice === 'granted' || choice === 'denied') {
       lsSet(CONSENT_KEY, choice); removeBanner();
-      if (choice === 'granted' && !window.__sbStarted) start();
+      if (choice === 'granted') grant(); else deny();
     } else if (choice === 'reset') {
       try { localStorage.removeItem(CONSENT_KEY); } catch (_) {}
-      showBanner();
+      deny(); showBanner();
     }
     return lsGet(CONSENT_KEY);
   };
@@ -150,12 +173,11 @@
   function start() {
     if (window.__sbStarted) return;
     window.__sbStarted = true;
+    enabled = true;
 
     var SESSION_GAP = 30 * 60 * 1000;
 
-    var isNewVisitor = false;
-    var visitorId = lsGet('sb_vid');
-    if (!visitorId) { visitorId = rid(); lsSet('sb_vid', visitorId); isNewVisitor = true; }
+    ensureVisitor();
 
     // a session id lives in sessionStorage; the last-activity stamp lives in
     // localStorage so a session that idles past the gap starts fresh, like GA.
@@ -247,8 +269,7 @@
     }
 
     /* ---- queue + flush (keepalive fetch so the unload beacon still sends) ---- */
-    var queue = [];
-    var timer = null;
+    var timer = null, warned = false;
     function flush(keepalive) {
       if (!queue.length) return;
       var batch = queue.splice(0, queue.length);
@@ -260,6 +281,9 @@
           keepalive: !!keepalive,
           mode: 'cors',
           credentials: 'omit',
+        }).then(function (r) {
+          // a rejected batch is silently lost data — say so once so it's not invisible
+          if (r && !r.ok && !warned) { warned = true; try { console.warn('[sb analytics] batch rejected: HTTP ' + r.status); } catch (_) {} }
         }).catch(function () {});
       } catch (_) {}
     }
@@ -268,8 +292,13 @@
       timer = setTimeout(function () { timer = null; flush(false); }, 1500);
     }
     function record(type, fields) {
+      if (!enabled) return;
+      // Every row carries the SAME key set (nulls included): a PostgREST bulk insert
+      // requires uniform keys, so a batch mixing e.g. a click (target) with a pageview
+      // (referrer + meta) would otherwise be rejected wholesale — and dropped.
       var e = {
         visitor_id: visitorId, session_id: sessionId(), type: type, page: PAGE,
+        target: null, referrer: null, meta: null,
         device: ENV.device, browser: ENV.browser, os: ENV.os,
       };
       if (fields) for (var k in fields) if (fields[k] != null) e[k] = fields[k];

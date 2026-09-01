@@ -258,7 +258,7 @@ function glowSprite(c){
 }
 function drawGlow(ctx,x,y,r,c,alpha){ const d=r*2; ctx.globalAlpha=alpha; ctx.drawImage(glowSprite(c),x-r,y-r,d,d); }
 function emit(x,y,n){if(sbReduceMotion)return;for(let i=0;i<n;i++){if(Math.random()<.5)embers.push({x,y,vx:(Math.random()-.5)*.6,vy:-Math.random()*1.2-.3,life:1,c:emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*2.4+.8})}if(embers.length>180)embers.splice(0,embers.length-180);}
-function burst(x,y,n,c){for(let i=0;i<n;i++){const a=Math.random()*7,sp=Math.random()*4+1;embers.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:1,c:c||emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*3+1})}}
+function burst(x,y,n,c){if(sbReduceMotion)return;for(let i=0;i<n;i++){const a=Math.random()*7,sp=Math.random()*4+1;embers.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:1,c:c||emberC[Math.floor(Math.random()*emberC.length)],s:Math.random()*3+1})}}
 function sizeTrail(){tcv.width=innerWidth;tcv.height=innerHeight;}sizeTrail();
 
 /* AUDIO GRAPH */
@@ -330,7 +330,7 @@ function ensureCtx(){if(!actx){try{
     freq=new Uint8Array(analyser.frequencyBinCount);
     noiseBuf=actx.createBuffer(1,actx.sampleRate,actx.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
     rebuildImpulse();applyAudioFx();
-  }catch(e){}}if(actx&&actx.state==='suspended')actx.resume();}
+  }catch(e){}}if(actx&&actx.state==='suspended')actx.resume().catch(()=>{});}
 /* Reverb tail. The convolution runs in real time, so a long stereo impulse is costly on
    phones — cap it on mobile (still a full, roomy tail) so the lab reverb doesn't stutter. */
 function rebuildImpulse(){if(!actx||!conv)return;const sec=Math.min(sbIsMobile?2.0:4.0,0.4+roomP*3.6),rate=actx.sampleRate,len=Math.max(1,Math.floor(sec*rate));const buf=actx.createBuffer(2,len,rate);for(let ch=0;ch<2;ch++){const d=buf.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.5);}conv.buffer=buf;}
@@ -347,9 +347,11 @@ function applyAudioFx(){if(!actx)return;const t=actx.currentTime;
 function applyNormalFx(){userRate=1.0;revAmt=0;try{audio.playbackRate=1.0;}catch(_){}applyAudioFx();}
 function applyLabFx(){userRate=labRate;revAmt=labRev;roomP=labRoom;try{audio.playbackRate=userRate;}catch(_){}if(actx)rebuildImpulse();applyAudioFx();}
 function connectMedia(){if(graphReady)return;ensureCtx();try{srcNode=actx.createMediaElementSource(audio);srcNode.connect(mix);graphReady=true;}catch(e){}}
-function startAudio(){if(bgMode==='yt'&&ytPlayer&&ytReady){try{ytPlayer.pauseVideo();}catch(_){}}bgMode='local';connectMedia();ensureCtx();applyAudioFx();armKick();audio.play().then(()=>setUI(true)).catch(()=>{});updateBgTitle();
-  /* analytics: count a play; dedupe rapid re-entries (button double-fire / kick race) */
-  {const _n=Date.now();if(_n-_lastPlayTrk>1200){_lastPlayTrk=_n;track('play',{track:localTitle()});}}}
+function startAudio(){if(bgMode==='yt'&&ytPlayer&&ytReady){try{ytPlayer.pauseVideo();}catch(_){}}bgMode='local';connectMedia();ensureCtx();applyAudioFx();armKick();
+  audio.play().then(()=>{setUI(true);
+    /* analytics: count a play only once it actually started (a blocked autoplay is not a play); dedupe rapid re-entries (button double-fire / kick race) */
+    const _n=Date.now();if(_n-_lastPlayTrk>1200){_lastPlayTrk=_n;track('play',{track:localTitle()});}
+  }).catch(()=>{});updateBgTitle();}
 let _lastPlayTrk=0;
 function setUI(on){playing=on;const ic=on?'❚❚':'▶';if(pbtn)pbtn.textContent=ic;if(pwplay)pwplay.textContent=ic;if(disc)disc.classList.toggle('spin',on);if(musicbar)musicbar.classList.toggle('open',on);const sp=document.getElementById('srPlay');if(sp)sp.textContent=on?'❚❚ pause':'▶ play';const sa=document.getElementById('srArt');if(sa)sa.classList.toggle('spin',on);const pw=document.querySelector('.playerwin');if(pw)pw.classList.toggle('live',on);updateNowPlaying();}
 /* any manual play/pause means the user has taken control — don't let a later modal
@@ -358,11 +360,11 @@ function toggle(){_duckedRadio=false;if(bgMode==='yt'){if(ytIsPlaying())ytPause(
 if(pbtn)pbtn.onclick=toggle;if(disc)disc.onclick=toggle;
 audio.addEventListener('play',()=>{if(bgMode==='local')setUI(true);});audio.addEventListener('pause',()=>{if(bgMode==='local')setUI(false);});
 /* the <audio> is no longer loop-attributed: advance the playlist when a track finishes. */
-audio.addEventListener('ended',()=>{if(bgMode==='local')bgNext();});
+audio.addEventListener('ended',()=>{if(bgMode==='local')loadTrack(trackIdx+1,true);});   // a natural end is not a "skip" (bgNext logs one)
 /* a track that won't load (e.g. a corrupt/empty upload) is skipped so it never stalls the
    queue — guarded so an all-bad list can't spin forever; the guard resets on a good load. */
 let _skipGuard=0;
-audio.addEventListener('error',()=>{if(bgMode!=='local')return;if(_skipGuard++>=LOCAL_TRACKS.length)return;loadTrack(trackIdx+1,playing||_resumeWanted);});
+audio.addEventListener('error',()=>{if(bgMode!=='local')return;_seekTo=null;/* a resume position belongs to the track that failed, not the one we skip to */if(_skipGuard++>=LOCAL_TRACKS.length)return;loadTrack(trackIdx+1,playing||_resumeWanted);});
 /* only clear the bad-track guard once a track has genuinely played past ~1s. Resetting on
    `canplay` let a flapping source (canplay → error → canplay → error) reset the cap forever. */
 audio.addEventListener('timeupdate',()=>{if(bgMode==='local'&&audio.currentTime>1)_skipGuard=0;});
@@ -474,9 +476,13 @@ function loadTrackDurations(){
     while(i<LOCAL_TRACKS.length&&LOCAL_TRACKS[i].dur)i++;
     if(i>=LOCAL_TRACKS.length){_durBusy=false;return;}
     const idx=i;
-    probe.onloadedmetadata=()=>{if(isFinite(probe.duration)&&probe.duration>0){LOCAL_TRACKS[idx].dur=fmt(probe.duration);fill(idx,LOCAL_TRACKS[idx].dur);}i++;step();};
-    probe.onerror=()=>{i++;step();};
-    try{probe.src=trackUrl(LOCAL_TRACKS[idx]);}catch(_){i++;step();}
+    /* a file that errors or stalls is marked as probed ('–') so it isn't re-requested on every
+       page visit, and a stalled probe can't hold _durBusy for the whole session */
+    let done=false;const next=()=>{if(done)return;done=true;clearTimeout(to);probe.onloadedmetadata=probe.onerror=null;i++;step();};
+    const to=setTimeout(()=>{if(!LOCAL_TRACKS[idx].dur){LOCAL_TRACKS[idx].dur='–';fill(idx,'–');}next();},8000);
+    probe.onloadedmetadata=()=>{if(isFinite(probe.duration)&&probe.duration>0){LOCAL_TRACKS[idx].dur=fmt(probe.duration);fill(idx,LOCAL_TRACKS[idx].dur);}else{LOCAL_TRACKS[idx].dur='–';fill(idx,'–');}next();};
+    probe.onerror=()=>{LOCAL_TRACKS[idx].dur='–';fill(idx,'–');next();};
+    try{probe.src=trackUrl(LOCAL_TRACKS[idx]);}catch(_){LOCAL_TRACKS[idx].dur='–';next();}
   })();
 }
 function listenNow(){startAudio();const v=document.getElementById('visualizer');if(v)v.scrollIntoView({behavior:'smooth'});}
@@ -493,7 +499,11 @@ const SB_TRANSPORT_SEL='.pwplay,.pwnav,.pbtn,.mbtn,.disc,.srplay,.trk';
    user-activation in browsers (so their play() just gets blocked), and worse, a scroll fired as
    the page settles — or as a transport click scrolls the button into view — would start the
    track a beat before the click, which the click then reads as "playing" and pauses. */
-function armKick(){if(kicked||armed)return;armed=true;const evs=['pointerdown','touchstart','keydown'];function kick(e){if(kicked)return;kicked=true;evs.forEach(ev=>removeEventListener(ev,kick));ensureCtx();const tgt=e&&e.target;if(tgt&&tgt.closest&&tgt.closest(SB_TRANSPORT_SEL))return;/* a transport control's own click is about to fire — let it start playback so the two don't cancel out */if(audio.paused)startAudio();else setUI(true);}evs.forEach(e=>addEventListener(e,kick,{once:true,passive:true}));}
+function armKick(){if(kicked||armed)return;armed=true;const evs=['pointerdown','touchstart','keydown'];
+  /* keyboard navigation (Tab to the skip link, arrows, modifiers) must not start the music — only a real "press" counts */
+  const navKey=e=>e.type==='keydown'&&(e.altKey||e.ctrlKey||e.metaKey||/^(Tab|Shift|Control|Alt|Meta|Escape|Arrow|Page|Home|End|CapsLock|F\d)/.test(e.key||''));
+  function kick(e){if(kicked)return;if(navKey(e))return;kicked=true;evs.forEach(ev=>removeEventListener(ev,kick));ensureCtx();const tgt=e&&e.target;if(tgt&&tgt.closest&&tgt.closest(SB_TRANSPORT_SEL))return;/* a transport control's own click is about to fire — let it start playback so the two don't cancel out */if(audio.paused)startAudio();else setUI(true);}
+  evs.forEach(e=>addEventListener(e,kick,{passive:true}));}
 function fmt(s){if(!isFinite(s))return'0:00';const m=Math.floor(s/60),x=Math.floor(s%60);return m+':'+String(x).padStart(2,'0');}
 /* progress / time labels are looked up by id each tick so they always target the
    current page's player (the player UI lives inside <main>, which is swapped on nav). */
@@ -1143,7 +1153,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){resizeAll
    ember bursts, lightning, spark rain, heartbeat vignette) is part of the base vibe and
    runs even with rage off; the rest only ignite while rage is engaged. */
 const flashEl=document.getElementById('flash');
-function flash(c){if(!flashEl)return;flashEl.style.background=c||'var(--slime)';flashEl.style.transition='none';flashEl.style.opacity='.45';requestAnimationFrame(()=>{flashEl.style.transition='opacity .55s ease';flashEl.style.opacity='0';});}
+function flash(c){if(!flashEl)return;flashEl.style.background=c||'var(--slime)';flashEl.style.transition='none';flashEl.style.opacity='.45';void flashEl.offsetWidth;/* flush: rAF runs BEFORE style recalc, so without this the .45 never lands and no transition starts */requestAnimationFrame(()=>{flashEl.style.transition='opacity .55s ease';flashEl.style.opacity='0';});}
 /* merged effect flags: built-in defaults overlaid with whatever's published.
    Cached — this is read every animation frame (spark rain gate), and rebuilding the
    merged object 60×/s was steady GC garbage. applyContent() invalidates it. */
@@ -1219,7 +1229,11 @@ function storeLocal(key,val){try{const a=JSON.parse(localStorage.getItem(key)||'
    retained longer than needed. Requires an explicit consent opt-in. */
 function pendingGet(){try{return JSON.parse(localStorage.getItem('sb_pending')||'[]');}catch(_){return[];}}
 function pendingSet(a){try{if(a.length)localStorage.setItem('sb_pending',JSON.stringify(a.slice(-50)));else localStorage.removeItem('sb_pending');}catch(_){}}
-async function flushPending(){if(typeof sbSubscribe!=='function')return;const a=pendingGet();if(!a.length)return;const keep=[];for(const x of a){let ok=false;try{ok=await sbSubscribe(x.email,x.phone||'');}catch(_){ok=false;}if(!ok)keep.push(x);}pendingSet(keep);}
+async function flushPending(){if(typeof sbSubscribe!=='function')return;const a=pendingGet();if(!a.length)return;const keep=[];for(const x of a){let ok=false;try{ok=await sbSubscribe(x.email,x.phone||'');}catch(_){ok=false;}if(!ok)keep.push(x);}
+  /* a sign-up queued WHILE this flush was in flight must survive it — merge, don't overwrite */
+  const same=(p,q)=>p.email===q.email&&(p.phone||'')===(q.phone||'');
+  const added=pendingGet().filter(x=>!a.some(y=>same(x,y)));
+  pendingSet(keep.concat(added));}
 async function signbook(ids){
   /* ids lets a second form (e.g. the inline homepage capture) reuse this exact flow with
      its own field ids; defaults are the connect-page form. phone is optional. */
@@ -1268,16 +1282,22 @@ function openJoinPopup(){
       <input id="jpPhone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+1 phone — optional, for SMS drops" aria-label="your phone (optional)">
       <button type="button" id="jpGo">join ☠</button>
     </div>
+    <label class="joinconsent" for="jpConsent" style="display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-size:12px;line-height:1.45;text-align:left;opacity:.85;cursor:pointer">
+      <input type="checkbox" id="jpConsent" style="margin-top:2px;flex:none">
+      <span>i agree to get email updates from Slime By — plus SMS alerts if i add my phone. msg &amp; data rates may apply; reply <b>STOP</b> to opt out anytime. we never sell your info.</span>
+    </label>
     <div class="joinnote" id="jpNote" style="text-align:left">drops, merch &amp; shows — email + optional SMS · unsubscribe anytime · we never sell your info</div>
     <button type="button" class="jpskip" id="jpSkip">maybe later</button>
   </div>`);
-  const email=document.getElementById('jpEmail'),phone=document.getElementById('jpPhone'),go=document.getElementById('jpGo'),note=document.getElementById('jpNote'),skip=document.getElementById('jpSkip');
+  const email=document.getElementById('jpEmail'),phone=document.getElementById('jpPhone'),go=document.getElementById('jpGo'),note=document.getElementById('jpNote'),skip=document.getElementById('jpSkip'),consent=document.getElementById('jpConsent');
   if(skip)skip.onclick=closeModal;
   if(go&&email&&note){
     const submit=async()=>{
       const ev=email.value.trim(),pv=phone?phone.value.trim():'',digits=pv.replace(/[^\d]/g,''),gotPhone=digits.length>=10;
       if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ev)){note.textContent='✗ enter a valid email';note.classList.add('bad');email.focus();return;}
       if(pv!==''&&digits.length<10){note.textContent='✗ enter a valid phone, or leave it blank';note.classList.add('bad');phone.focus();return;}
+      /* same explicit opt-in as the page forms — the popup is the busiest capture path and must not skip it */
+      if(consent&&!consent.checked){note.textContent='✗ tick the box to opt in first';note.classList.add('bad');consent.focus();return;}
       note.classList.remove('bad');note.textContent='… adding you to the slime';go.disabled=true;
       let ok=false;try{ if(typeof sbSubscribe==='function') ok=await sbSubscribe(ev,gotPhone?digits:''); }catch(_){ ok=false; }
       if(!ok){ const q=pendingGet();q.push({email:ev,phone:gotPhone?digits:'',t:Date.now()});pendingSet(q); }   // queue + retry, same as the form
@@ -1673,7 +1693,9 @@ function renderRoute(c){
   const link=linkBySlug(c,slug);
   if(link){paintSmart(host,link);return;}
   const pg=(c.pages||[]).find(p=>p&&String(p.slug||'').toLowerCase()===slug);
-  if(pg){location.replace('page.html?p='+encodeURIComponent(pg.slug)+(location.search||'')+(location.hash||''));return;}
+  /* carry the visitor's query (utm_* etc.) over as EXTRA params — appending it raw would
+     glue it onto the slug ("?p=my-page?utm_source=ig") and the page would 404 */
+  if(pg){const extra=location.search?'&'+location.search.replace(/^\?/,''):'';location.replace('page.html?p='+encodeURIComponent(pg.slug)+extra+(location.hash||''));return;}
   paintSmart(host,null);
 }
 /* links.html — the link-in-bio portal hub */
@@ -1723,7 +1745,7 @@ function applyContent(c){
     /* keep the persistent bottom player bar (shown on every page) in sync with the CMS
        cover; the title always comes from the live playlist track that's loaded. */
     bg('#disc',c.music.playerCover);
-    const emb=q('#music .embedwrap iframe');if(emb&&c.music.spotifyArtistId)emb.src=`https://open.spotify.com/embed/artist/${encodeURIComponent(c.music.spotifyArtistId)}?utm_source=generator&theme=0`;
+    const emb=q('#music .embedwrap iframe');if(emb&&c.music.spotifyArtistId){const su=`https://open.spotify.com/embed/artist/${encodeURIComponent(c.music.spotifyArtistId)}?utm_source=generator&theme=0`;if(emb.src!==su)emb.src=su;}   // assigning an identical src still reloads the frame
     renderReleases(c.music.releases);
     if(typeof updateBgTitle==='function')updateBgTitle();}  /* reflect the current track title (or a CMS override) */
 
@@ -1963,7 +1985,7 @@ window.SBPlayer = {
   start(){ try{ if(bgMode==='yt') ytPlay(); else startAudio(); }catch(_){} },
   toggle(){ try{ toggle(); }catch(_){} },
   isPlaying(){ try{ return bgMode==='yt' ? ytIsPlaying() : (!!audio && !audio.paused); }catch(_){ return false; } },
-  analyser(){ return analyser||null; },          // the live AnalyserNode (null until ensureCtx)
+  analyser(){ return (graphReady&&bgMode==='local')?(analyser||null):null; },   // the live AnalyserNode — only once the local track is actually routed through it (a silent analyser would make the game skip its fallback beat clock)
   audio(){ return audio; },
   title(){ try{ return localTitle(); }catch(_){ return ''; } },
 };
@@ -2008,11 +2030,21 @@ function sbInitPage(){
   if(currentPage()==='lab.html') wireLab(); else applyNormalFx();   // lab = slowed+reverb, else normal
   loadContent();          // apply CMS defaults + fetch published content for this page
   deepLinkJoin();
+  wirePrivacyState();     // privacy.html: reflect the current consent choice (works via the router too)
   setUI(bgIsPlaying());   // reflect play state on the new page's transport UI
   updateBgTitle();        // keep the now-playing title in sync (local track or YouTube)
   sbEnsureQuest();        // mount "Slime the Game" when its page is on screen (no-op elsewhere)
 }
 
+/* privacy.html — show the visitor's current analytics choice and refresh it after the buttons
+   (which call window.sbConsent) are used. Lives here rather than in a page <script> because the
+   client-side router never runs scripts inside a swapped-in <main>. */
+function wirePrivacyState(){
+  const el=document.getElementById('privacy-state'); if(!el)return;
+  const show=()=>{let c=null;try{c=localStorage.getItem('sb_consent');}catch(_){}el.textContent='Current setting: '+(c==='granted'?'analytics ON':c==='denied'?'analytics OFF':'not chosen yet');};
+  show();
+  const acts=document.querySelector('.privacy-actions'); if(acts)acts.onclick=()=>setTimeout(show,30);
+}
 /* legacy full-load wipe cleanup (kept for hard navigations / no-JS-router fallbacks) */
 try{ if(sessionStorage.getItem('sb_wipe')){ sessionStorage.removeItem('sb_wipe'); clearWipeArmed(); } else { document.documentElement.classList.remove('wipe-armed'); } }catch(_){}
 

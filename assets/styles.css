@@ -917,3 +917,17 @@ section[id],[id="top"]{scroll-margin-top:84px}
 }
 @keyframes menuDrop{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
 @keyframes menuLink{to{opacity:1;transform:none}}
+
+/* ===== privacy.html (lives here, not in the page head, so the client-side router — which only swaps <main> — styles it too) ===== */
+  .legal{max-width:760px;margin:0 auto;padding:0 4vw 6rem;line-height:1.6}
+  .legal h2{margin:2.2rem 0 .6rem;color:#8dff2b;font-family:Oswald,sans-serif;letter-spacing:.02em}
+  .legal h3{margin:1.4rem 0 .4rem;font-size:1.05rem}
+  .legal p,.legal li{color:#cfe6c8;opacity:.92}
+  .legal ul{padding-left:1.2rem}
+  .legal table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.95rem}
+  .legal th,.legal td{text-align:left;padding:.5rem .6rem;border-bottom:1px solid #1d3b1d;vertical-align:top}
+  .legal th{color:#8dff2b}
+  .legal .muted{opacity:.7;font-size:.9rem}
+  .privacy-actions{display:flex;gap:.6rem;flex-wrap:wrap;margin:1.2rem 0}
+  .privacy-actions button{cursor:pointer;padding:.6rem 1rem;border-radius:10px;border:1px solid #2f5d2f;background:#0c140c;color:#dfeede;font:inherit}
+  .privacy-actions button.primary{background:#3fb53f;color:#06210a;border:0;font-weight:700}

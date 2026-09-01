@@ -43,8 +43,13 @@ const RL_MAX = 8;                       // failures before lockout
 const RL_WINDOW = 15 * 60 * 1000;       // counting window
 const RL_LOCK = 15 * 60 * 1000;         // lockout duration
 function clientIp(req: Request): string {
-  const xf = req.headers.get("x-forwarded-for") || "";
-  return xf.split(",")[0].trim() || req.headers.get("cf-connecting-ip") || "unknown";
+  // Proxies APPEND to X-Forwarded-For, so the first entry is whatever the client chose to
+  // send (a fresh random value per request would defeat the throttle). Prefer the
+  // platform-set header, else the LAST hop — correct whether the proxy appends or overwrites.
+  const direct = req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip");
+  if (direct) return direct.trim();
+  const xf = (req.headers.get("x-forwarded-for") || "").split(",").map((s) => s.trim()).filter(Boolean);
+  return xf[xf.length - 1] || "unknown";
 }
 function rlLocked(ip: string): boolean {
   const e = RL.get(ip);
@@ -148,6 +153,7 @@ async function verifyPassword(pw: string, stored: string | null | undefined): Pr
    The admin UI restricts to images client-side, but a direct API caller with a
    valid token could push arbitrary content/size into the public media bucket. */
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // 8 MB
+const MAX_CONTENT_BYTES = 2 * 1024 * 1024; // 2 MB of JSON — the whole site's content model is ~50 KB
 const UPLOAD_TYPES: Record<string, string> = {
   "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
 };
@@ -195,8 +201,16 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "save") {
+      // the content model is one JSON object; anything else would brick the editor's
+      // next load (sbMerge would return the scalar), so refuse it here
+      if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+        return json({ error: "payload must be a content object" }, 400, cors);
+      }
+      if (JSON.stringify(payload).length > MAX_CONTENT_BYTES) return json({ error: "content too large" }, 413, cors);
+      // upsert: on a fresh database the id=1 row may not exist yet, and an UPDATE that
+      // matches nothing reports success while publishing nothing
       const { error } = await admin.from("site_content")
-        .update({ data: payload, updated_at: new Date().toISOString() }).eq("id", 1);
+        .upsert({ id: 1, data: payload, updated_at: new Date().toISOString() }, { onConflict: "id" });
       if (error) return json({ error: error.message }, 400, cors);
       return json({ ok: true }, 200, cors);
     }
@@ -238,17 +252,28 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "set_password") {
-      const next = String((payload ?? {}).newPassword ?? "");
+      const { currentPassword, newPassword } = (payload ?? {}) as Record<string, unknown>;
+      const next = String(newPassword ?? "");
       if (next.length < 6) return json({ error: "password too short" }, 400, cors);
+      // A session token alone must never be enough to change the password: a leaked token
+      // would otherwise lock the real owner out (it bumps session_version) and mint itself
+      // a fresh one. Re-verify the CURRENT password here, throttled like a login attempt.
+      if (rlLocked(ip)) return json({ error: "too many attempts, try again later" }, 429, cors);
+      if (!(await verifyPassword(String(currentPassword ?? ""), cfg?.password))) {
+        rlFail(ip);
+        return json({ error: "current password is incorrect" }, 403, cors);
+      }
       const nextVer = curVer + 1;   // revoke every existing token
-      const { error } = await admin.from("admin_config")
-        .update({ password: await hashPassword(next), session_version: nextVer }).eq("id", 1);
+      const { error, count } = await admin.from("admin_config")
+        .update({ password: await hashPassword(next), session_version: nextVer }, { count: "exact" }).eq("id", 1);
       if (error) return json({ error: error.message }, 400, cors);
+      if (!count) return json({ error: "admin_config row 1 is missing — seed it first" }, 500, cors);
       return json({ ok: true, token: await makeToken(nextVer) }, 200, cors);
     }
 
     return json({ error: "unknown action" }, 400, cors);
   } catch (e) {
-    return json({ error: String(e) }, 500, corsFor(req));
+    console.error("admin function error:", e);   // internal detail stays in the logs, not the response
+    return json({ error: "internal error" }, 500, corsFor(req));
   }
 });

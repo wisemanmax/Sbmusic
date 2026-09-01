@@ -243,6 +243,47 @@ group('checkpoints + continue');
     'x=' + d2.player.x + ' g1=' + d2.gates[0].open + ' g2=' + d2.gates[1].open + ' keys=' + d2.keysGot);
 }
 
+group('continue after felling DJ STATIC without the key (regression: soft-lock)');
+{
+  // die between the arena and the castle gate: checkpoint 1, mid-boss dead, no key
+  byId.qStart.onclick && byId.qStart.onclick();
+  frames(3);
+  let d = D();
+  d.setCheckpoint(1); d.setMbDead(true); d.setKeysGot(0);
+  byId.qRetry.onclick && byId.qRetry.onclick();
+  frames(3);
+  d = D();
+  check('CONTINUE at checkpoint 1 lets DJ STATIC rise again', d.state === 'play' && d.mbDead === false && d.keysGot === 0 && d.checkpoint === 1,
+    'mbDead=' + d.mbDead + ' keys=' + d.keysGot + ' cp=' + d.checkpoint);
+  d.player.x = 3030; d.player.y = 188; d.player.vy = 0;
+  frames(4);
+  check('walking into the arena spawns him (so the key can drop)', !!D().mb, 'mb=' + !!D().mb);
+  // …and a continue from the castle still skips him (key already banked)
+  d = D(); d.setCheckpoint(2);
+  byId.qRetry.onclick && byId.qRetry.onclick();
+  frames(3);
+  d = D();
+  check('CONTINUE at the castle keeps him dead + the key banked', d.mbDead === true && d.keysGot >= 1, 'mbDead=' + d.mbDead + ' keys=' + d.keysGot);
+}
+
+group('one kill per beast (regression: TRIPLE MIC triple-counting)');
+{
+  byId.qStart.onclick && byId.qStart.onclick();
+  frames(3);
+  const d = D();
+  const mite = d.enemies.find(e => e.type === 'mite' && !e.dead);
+  check('a mite exists to shoot', !!mite);
+  if (mite) {
+    d.player.x = mite.x - 400; d.player.inv = 500;           // well away, invulnerable — the blasts are the test
+    const k0 = d.kills;
+    // three co-located blasts (what TRIPLE MIC fires at point-blank), parked so they sit on the mite after this frame's move
+    for (let i = 0; i < 3; i++) d.blasts.push({ x: mite.x - 6, y: mite.y, w: 30, h: 22, dir: 1, vy: 0, life: 34, big: false, grew: 1 });
+    frames(3);
+    const dd = D();
+    check('three blasts on one mite count ONE kill', mite.dead === true && dd.kills === k0 + 1, 'dead=' + mite.dead + ' kills ' + k0 + '→' + dd.kills);
+  }
+}
+
 group('unmount');
 Q.unmount();
 check('unmount stops the loop', Q._mounted === false);
