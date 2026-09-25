@@ -7,10 +7,10 @@
    range requests, and the large MP3s (served immutable over HTTP
    already — caching them here would just bloat storage).
    ============================================================ */
-const VERSION = 'sb-cache-v4';   // bumped: js/css now network-first (no one-deploy-stale scripts under fresh html)
+const VERSION = 'sb-cache-v5';   // bumped: html keyed without its query (drops the old per-?fbclid entries)
 const CORE = [
   '/', '/index.html',
-  '/assets/styles.css', '/assets/app.js', '/cms.js', '/assets/analytics.js',
+  '/assets/styles.css', '/assets/app.js', '/cms.js', '/assets/analytics.js', '/assets/quest.js',
   '/assets/icon.svg', '/manifest.webmanifest',
   '/assets/fonts/oswald-latin.woff2', '/assets/fonts/pirata-one-latin.woff2',
 ];
@@ -47,6 +47,9 @@ self.addEventListener('fetch', (e) => {
   // stale-while-revalidate copy of app.js/cms.js/styles.css from the previous deploy
   // (that pairing is one deploy behind on every returning visitor's first load).
   const isCode = /\.(?:js|css)$/i.test(url.pathname);
+  // one shell per page: ?fbclid= / ?utm_ / link.html?l=<slug> all serve the same html (the
+  // content comes from the CMS), so keying on the full URL just piled up entries forever
+  const key = isHTML ? url.origin + url.pathname : req;
   if (isHTML || isCode) {
     // network-first: fresh shell when online (so a redeploy / CMS shell change lands),
     // cached fallback when offline.
@@ -57,10 +60,10 @@ self.addEventListener('fetch', (e) => {
           // SERVED as a 404 by GitHub Pages) or a transient 500 must never become the
           // offline copy — and skipping them also stops every visited /slug from
           // piling its own entry into the cache.
-          if (r && r.ok) { const cp = r.clone(); caches.open(VERSION).then((c) => c.put(req, cp)); }
+          if (r && r.ok) { const cp = r.clone(); caches.open(VERSION).then((c) => c.put(key, cp)); }
           return r;
         })
-        .catch(() => caches.match(req).then((m) => m || (isHTML ? caches.match('/index.html') : undefined)))
+        .catch(() => caches.match(key).then((m) => m || (isHTML ? caches.match('/index.html') : null)).then((m) => m || Response.error()))
     );
     return;
   }
@@ -70,7 +73,7 @@ self.addEventListener('fetch', (e) => {
     caches.match(req).then((cached) => {
       const net = fetch(req)
         .then((r) => { if (r && r.status === 200) { const cp = r.clone(); caches.open(VERSION).then((c) => c.put(req, cp)); } return r; })
-        .catch(() => cached);
+        .catch(() => cached || Response.error());   // respondWith(undefined) throws
       return cached || net;
     })
   );

@@ -913,10 +913,12 @@ async function renderAnalytics(root){
     cards.forEach(([n,l])=>{ const c=elt('div','statcard'); c.appendChild(elt('div','big',String(n))); c.appendChild(elt('div','lbl',l)); sg.appendChild(c); });
     return sg;
   }
+  let seq=0;   // switching range mid-load: only the latest request may draw (a slow 365-day answer must not overwrite 7 days)
   async function load(){
+    const my=++seq;
     host.innerHTML='<div class="empty">loading…</div>';
-    try{ const r=await sbAdmin(authCred(),'analytics',{days:+sel.value}); draw((r&&r.summary)||{}); }
-    catch(e){ host.innerHTML='<div class="empty">✗ '+escA(e.message||e)+'</div>'; }
+    try{ const r=await sbAdmin(authCred(),'analytics',{days:+sel.value}); if(my===seq) draw((r&&r.summary)||{}); }
+    catch(e){ if(my===seq) host.innerHTML='<div class="empty">✗ '+escA(e.message||e)+'</div>'; }
   }
   sel.onchange=load; refresh.onclick=load;
   load();

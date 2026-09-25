@@ -194,7 +194,19 @@
       return id;
     }
 
-    var PAGE = (location.pathname + location.search).slice(0, 256);
+    /* page key = path + only the params that pick WHICH page it is (custom page / smart
+       link). utm_* / fbclid / gclid would make every ad click its own "page" and store the
+       raw click id — campaign data is already captured (presence only) in meta.utm. */
+    function pageKey() {
+      var q = '';
+      try {
+        var sp = new URLSearchParams(location.search), keep = [];
+        ['p', 'l'].forEach(function (k) { var v = sp.get(k); if (v) keep.push(k + '=' + encodeURIComponent(v)); });
+        if (keep.length) q = '?' + keep.join('&');
+      } catch (_) {}
+      return (location.pathname + q).slice(0, 256);
+    }
+    var PAGE = pageKey();
     function refHost() {
       try { return document.referrer ? new URL(document.referrer).host : ''; }
       catch (_) { return ''; }
@@ -472,8 +484,9 @@
     }
     // visibilitychange→hidden is the most reliable end-of-visit signal (esp. mobile);
     // pagehide covers the rest. Both are guarded so we only send one exit per page load.
-    addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') exit(); });
-    addEventListener('pagehide', exit);
+    // exit() itself runs once, but anything queued since (a play, a click) must still go out.
+    addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') { exit(); flush(true); } });
+    addEventListener('pagehide', function () { exit(); flush(true); });
 
     /* SPA hook: app.js swaps pages client-side without a full reload, so without this only
        the entry page is ever logged — every in-app navigation, its scroll depth and its
@@ -481,8 +494,9 @@
        client-side navigation: close out the page being left (time + depth), reset the
        per-page counters, then log the new pageview (no referrer — it's an internal hop). */
     window.sbPageview = function () {
-      record('exit', { meta: { seconds: Math.round((Date.now() - t0) / 1000), depth: maxDepth } });
-      PAGE = (location.pathname + location.search).slice(0, 256);
+      // skip if the tab was already hidden once on this page — that exit is already counted
+      if (!sent) record('exit', { meta: { seconds: Math.round((Date.now() - t0) / 1000), depth: maxDepth } });
+      PAGE = pageKey();
       maxDepth = 0; _sdAt = 0; t0 = Date.now(); sent = false;   // new page → re-measure depth denominator
       record('pageview', { meta: pageviewMeta() });
     };

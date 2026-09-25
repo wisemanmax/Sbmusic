@@ -26,7 +26,7 @@ supabase/
 ```
 supabase link --project-ref rccwnyghfiinpoexvtwp
 supabase db push
-supabase functions deploy admin   # once functions/admin/index.ts is added
+supabase functions deploy admin --no-verify-jwt
 ```
 
 ## Edge-function env

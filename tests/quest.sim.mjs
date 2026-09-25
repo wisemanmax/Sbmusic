@@ -211,9 +211,15 @@ group('boss 2: the Red Serpent King is killable');
   frames(6);
   check('stomping the king damages him', D().boss.hp < sh, 'hp=' + D().boss.hp);
   // grind him down ranged; the fight must END in a win
-  let guard = 6000;
+  let guard = 6000, dyingHitTested = false, overDuringDeath = false;
   while (D().state === 'play' && guard-- > 0) {
     dd = D();
+    // regression: a stray hit on 1 HP during his death animation used to end the run (and lose the win)
+    if (!dyingHitTested && dd.boss && dd.boss.dying > 0) {
+      dyingHitTested = true;
+      dd.setHp(1); dd.player.inv = 0; dd.hurt(1);
+      overDuringDeath = D().state === 'over';
+    }
     if (dd.boss && dd.boss.hp > 0) {
       dd.player.x = Math.max(4660, dd.boss.x - 95); dd.player.y = 188; dd.player.vy = 0; dd.player.dir = 1;
       dd.player.inv = 200;                      // survival is not under test here
@@ -222,6 +228,7 @@ group('boss 2: the Red Serpent King is killable');
     frames(18);
   }
   check('the king falls and the quest is WON', D().state === 'win', 'state=' + D().state + ' guard=' + guard);
+  check('a hit during his death animation cannot lose the win', dyingHitTested && !overDuringDeath, 'tested=' + dyingHitTested + ' over=' + overDuringDeath);
   check('win banks the princess rescue', D().win === true);
 }
 
@@ -282,6 +289,35 @@ group('one kill per beast (regression: TRIPLE MIC triple-counting)');
     const dd = D();
     check('three blasts on one mite count ONE kill', mite.dead === true && dd.kills === k0 + 1, 'dead=' + mite.dead + ' kills ' + k0 + '→' + dd.kills);
   }
+}
+
+group('continue restores the checkpoint score (regression: coin farming)');
+{
+  byId.qStart.onclick && byId.qStart.onclick();
+  frames(3);
+  let d = D();
+  d.setScore(7);
+  byId.qRetry.onclick && byId.qRetry.onclick();       // died before any checkpoint → "TRY AGAIN"
+  frames(2);
+  check('TRY AGAIN before a checkpoint starts from 0 coins', D().score === 0 && D().kills === 0, 'score=' + D().score + ' kills=' + D().kills);
+  d = D(); d.setScore(5); d.setKills(5);
+  d.player.x = 1950; d.player.y = 188; d.player.vy = 0; d.player.inv = 500;
+  frames(2);                                          // crosses checkpoint 1 → banks 5 coins
+  check('crossing a checkpoint banks it', D().checkpoint === 1, 'cp=' + D().checkpoint);
+  D().setScore(12);
+  byId.qRetry.onclick && byId.qRetry.onclick();
+  frames(2);
+  check('CONTINUE restores the banked score, not the pre-death one', D().score === 5, 'score=' + D().score);
+}
+
+group('keys: a release with a modifier held still lands (regression: stuck run)');
+{
+  byId.qStart.onclick && byId.qStart.onclick();
+  frames(3);
+  fire('keydown', { code: 'KeyD', key: 'd' });
+  frames(1);
+  fire('keyup', { code: 'KeyD', key: 'd', ctrlKey: true });
+  check('K.r clears on a Ctrl-held release', D().K.r === false, 'K.r=' + D().K.r);
 }
 
 group('unmount');

@@ -1,2 +1,8 @@
 # Supabase config for the SLIME BY CMS backend.
 project_id = "rccwnyghfiinpoexvtwp"
+
+# The admin function does its own auth (password → HMAC session token). The site calls it
+# with the publishable key, which is not a JWT, so gateway JWT checks must stay off —
+# otherwise a plain `supabase functions deploy admin` would 401 every admin call.
+[functions.admin]
+verify_jwt = false
