@@ -78,6 +78,10 @@ function rlReset(ip: string): void { RL.delete(ip); }
    never lock the admin out. */
 const enc = new TextEncoder();
 const TOKEN_TTL_MS = 8 * 60 * 60 * 1000;
+// `login` re-mints from a valid token, so without a hard cap a token used at least every
+// 8h would never expire. `iat` (the original password sign-in) rides along in every
+// re-minted token and is rejected once it's older than this.
+const SESSION_MAX_MS = 7 * 24 * 60 * 60 * 1000;
 let _key: CryptoKey | null = null;
 async function signingKey(): Promise<CryptoKey> {
   if (_key) return _key;
@@ -94,22 +98,26 @@ function unb64url(s: string): Uint8Array {
   while (s.length % 4) s += "=";
   return Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 }
-async function makeToken(ver: number): Promise<string> {
-  const payload = b64url(enc.encode(JSON.stringify({ exp: Date.now() + TOKEN_TTL_MS, ver })));
+async function makeToken(ver: number, iat: number): Promise<string> {
+  const payload = b64url(enc.encode(JSON.stringify({ exp: Date.now() + TOKEN_TTL_MS, ver, iat })));
   const sig = new Uint8Array(await crypto.subtle.sign("HMAC", await signingKey(), enc.encode(payload)));
   return payload + "." + b64url(sig);
 }
-async function verifyToken(token: unknown, curVer: number): Promise<boolean> {
+/* returns the session's original sign-in time when the token is valid, else null */
+async function verifyToken(token: unknown, curVer: number): Promise<number | null> {
   try {
     const [payload, sig] = String(token).split(".");
-    if (!payload || !sig) return false;
+    if (!payload || !sig) return null;
     const ok = await crypto.subtle.verify("HMAC", await signingKey(), unb64url(sig), enc.encode(payload));
-    if (!ok) return false;
+    if (!ok) return null;
     const data = JSON.parse(new TextDecoder().decode(unb64url(payload)));
-    if (typeof data.exp !== "number" || data.exp <= Date.now()) return false;
-    return (data.ver ?? 1) === curVer;   // revoked when the password (version) changes
+    if (typeof data.exp !== "number" || data.exp <= Date.now()) return null;
+    if ((data.ver ?? 1) !== curVer) return null;   // revoked when the password (version) changes
+    const iat = typeof data.iat === "number" ? data.iat : data.exp - TOKEN_TTL_MS;   // pre-iat tokens
+    if (Date.now() - iat > SESSION_MAX_MS) return null;
+    return iat;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -173,13 +181,19 @@ Deno.serve(async (req: Request) => {
     const ip = clientIp(req);
 
     // Single read of the admin config (password hash + current session version).
-    const { data: cfg } = await admin
+    const { data: cfg, error: cfgErr } = await admin
       .from("admin_config").select("password, session_version").eq("id", 1).single();
-    const curVer: number = (cfg?.session_version) ?? 1;
+    // fail closed: without the real session_version, revoked tokens would pass as version 1
+    if (cfgErr || !cfg) return json({ error: "admin config unavailable" }, 503, cors);
+    const curVer: number = cfg.session_version ?? 1;
 
     // Authorize via a valid session token (preferred) or the password (login + fallback).
     let authed = false;
-    if (token) authed = await verifyToken(token, curVer);
+    let iat = Date.now();
+    if (token) {
+      const t = await verifyToken(token, curVer);
+      if (t !== null) { authed = true; iat = t; }
+    }
     if (!authed && password) {
       if (rlLocked(ip)) return json({ error: "too many attempts, try again later" }, 429, cors);
       const ok = await verifyPassword(password, cfg?.password);
@@ -197,7 +211,7 @@ Deno.serve(async (req: Request) => {
     if (!authed) return json({ error: "unauthorized" }, 401, cors);
 
     if (action === "login") {
-      return json({ ok: true, token: await makeToken(curVer) }, 200, cors);
+      return json({ ok: true, token: await makeToken(curVer, iat) }, 200, cors);
     }
 
     if (action === "save") {
@@ -268,7 +282,7 @@ Deno.serve(async (req: Request) => {
         .update({ password: await hashPassword(next), session_version: nextVer }, { count: "exact" }).eq("id", 1);
       if (error) return json({ error: error.message }, 400, cors);
       if (!count) return json({ error: "admin_config row 1 is missing — seed it first" }, 500, cors);
-      return json({ ok: true, token: await makeToken(nextVer) }, 200, cors);
+      return json({ ok: true, token: await makeToken(nextVer, Date.now()) }, 200, cors);
     }
 
     return json({ error: "unknown action" }, 400, cors);

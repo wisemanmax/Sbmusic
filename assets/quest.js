@@ -79,6 +79,7 @@
   let hp, maxHp = 4, score, keysGot, rage, rageOn, rageT, shake, flash, win, timeNow = 0, hitStop = 0;
   let dlgQ = [], dlgT = 0, kills = 0, bossUp = false, mbUp = false, mbDead = false, combo = 0, comboT = 0, bestCombo = 0;
   let beatFlash = 0, zone = 0, checkpoint = 0, tripleT = 0, shieldOn = false, slowMo = 0;
+  let cpScore = 0, cpKills = 0;   // score + kills banked when the last checkpoint was reached
   /* persisted bests (best score / best combo across runs) */
   function loadBest() { try { return JSON.parse(localStorage.getItem('sb_quest_best')) || {}; } catch (_) { return {}; } }
   function saveBest() {
@@ -157,13 +158,21 @@
       case 'KeyK': if (down) { K.dash = true; K.dashEdge = true; } else K.dash = false; break;
       case 'KeyR': if (down) { K.rage = true; K.rageEdge = true; } else K.rage = false; break;
       case 'KeyP': if (down) togglePause(); break;
-      case 'Enter': case 'NumpadEnter': if (down && state !== 'play' && state !== 'paused') { if (state === 'over') continueGame(); else startGame(); } game = false; break;
+      case 'Enter': case 'NumpadEnter': if (down && state !== 'play' && state !== 'paused' && !focusElsewhere()) { if (state === 'over') continueGame(); else startGame(); } game = false; break;
       default: game = false;
     }
-    if (game) { e.preventDefault(); e.stopPropagation(); } // keep the site's space=pause etc. out of the cabinet
+    // keep the site's space=pause etc. out of the cabinet — but only mid-run; on the menus
+    // Space/arrows must still work on focused site buttons and for scrolling
+    if (game && live()) { e.preventDefault(); e.stopPropagation(); }
   }
   /* leave browser shortcuts (Ctrl/Cmd/Alt + key) and typing in any text field to the browser —
      the join popup and site chrome share this window with the cabinet */
+  function live() { return state === 'play' || state === 'paused'; }
+  /* Enter on a focused nav link / button belongs to that element, not the START screen */
+  function focusElsewhere() {
+    const a = document.activeElement;
+    return !!(a && a !== document.body && a !== document.documentElement && !(root && root.contains(a)));
+  }
   function skipKey(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return true;
     const a = document.activeElement;
@@ -179,12 +188,15 @@
       held[e.code] = true; onKey(e, true);
       if (e.key && e.key.length === 1) { typed = (typed + e.key.toLowerCase()).slice(-12); if ((typed.endsWith('princess') || typed.endsWith('slime')) && state === 'title') startGame(); }
     }, { capture: true, signal: sig });
-    addEventListener('keyup', e => { held[e.code] = false; if (skipKey(e)) return; onKey(e, false); }, { capture: true, signal: sig });
-    addEventListener('blur', () => { for (const k in K) if (typeof K[k] === 'boolean') K[k] = false; held = {}; }, { signal: sig });
+    // a release must always land — skipping it (Ctrl held, focus moved to a field) left K.r stuck on
+    addEventListener('keyup', e => { held[e.code] = false; onKey(e, false); }, { capture: true, signal: sig });
+    // window blur (alt-tab to another app while the page stays visible): drop held keys and pause
+    addEventListener('blur', () => { for (const k in K) if (typeof K[k] === 'boolean') K[k] = false; held = {}; if (state === 'play') togglePause(); }, { signal: sig });
     // auto-pause a live run when the tab is hidden (rAF already halts; this stops deaths-while-away)
     document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') togglePause(); }, { signal: sig });
   }
   function onKeySwallow(e) {
+    if (!live()) return;
     const c = e.code;
     if (c === 'ArrowLeft' || c === 'ArrowRight' || c === 'ArrowUp' || c === 'ArrowDown' || c === 'Space' ||
       c === 'KeyA' || c === 'KeyD' || c === 'KeyW' || c === 'KeyJ' || c === 'KeyK' || c === 'KeyR') { e.preventDefault(); e.stopPropagation(); }
@@ -214,7 +226,8 @@
   /* checkpoint respawn points (set as you pass each gate / arena threshold) */
   const CHECKPOINTS = [70, 1900, 3620, 4660];
   function reset(fromCheckpoint) {
-    if (!fromCheckpoint) { checkpoint = 0; score = 0; kills = 0; keysGot = 0; mbDead = false; bestCombo = 0; }
+    if (!fromCheckpoint) { checkpoint = 0; score = 0; kills = 0; keysGot = 0; mbDead = false; bestCombo = 0; cpScore = 0; cpKills = 0; }
+    else { score = cpScore; kills = cpKills; }   // the coins respawn below — so does the score they were worth
     player = {
       x: CHECKPOINTS[checkpoint], y: GY - 44, w: 22, h: 44, vx: 0, vy: 0, onGround: false, dir: 1,
       dashCD: 0, dashT: 0, dashHit: false, atkCD: 0, atkT: 0, inv: 0, bob: 0, walk: 0, squash: 1, land: 0, coyote: 0, jumpBuf: 0,
@@ -422,14 +435,14 @@
       if (e.dead) { e.fade -= 0.1; continue; }
       e.t += 0.09; if (e.kb) { e.x += e.kb; e.kb *= 0.8; if (Math.abs(e.kb) < 0.1) e.kb = 0; }
       if (e.type === 'mite') {
-        e.x += e.vx * (rageOn ? 1.5 : 1); if (e.x < e.rng[0] || e.x > e.rng[1]) e.vx *= -1;
+        e.x += e.vx * (rageOn ? 1.5 : 1); patrolTurn(e);
         e.hop = Math.abs(Math.sin(e.t * 3)); e.y = GY - e.h - e.hop * 5;
       }
       if (e.type === 'bat') { e.flap += 0.4; e.bx += e.vx * (rageOn ? 1.6 : 1); if (e.bx > e.x + 100 || e.bx < e.x - 100) e.vx *= -1; e.cy = e.by + Math.sin(e.t * 1.6) * 26; e.dx = e.bx; e.dy = e.cy; }
       if (e.type === 'serpent') {
         const d = Math.abs(p.x - e.x);
         if (d < 90) e.x += (p.x > e.x ? 1 : -1) * (rageOn ? 2 : 1.4);
-        else { e.x += e.vx * (rageOn ? 1.5 : 1); if (e.x < e.rng[0] || e.x > e.rng[1]) e.vx *= -1; }
+        else { e.x += e.vx * (rageOn ? 1.5 : 1); patrolTurn(e); }
         e.y = GY - e.h;
       }
       if (e.type === 'amp') {
@@ -489,9 +502,9 @@
       burst(g1.x + 7, GY - 40, C.slime, 30, 4, { glow: 1, shape: 'goo' }); ring(g1.x + 7, GY - 40, C.slime, 24);
       queue('vena', 'PRINCESS VENA', 'The barrier melts! The Neon Swamp lies ahead.');
     }
-    if (checkpoint < 1 && p.x > CHECKPOINTS[1]) { checkpoint = 1; floatText(p.x + p.w / 2, p.y - 10, 'CHECKPOINT', C.gold); }
-    if (checkpoint < 2 && p.x > CHECKPOINTS[2]) { checkpoint = 2; floatText(p.x + p.w / 2, p.y - 10, 'CHECKPOINT', C.gold); }
-    if (checkpoint < 3 && p.x > CHECKPOINTS[3]) { checkpoint = 3; floatText(p.x + p.w / 2, p.y - 10, 'CHECKPOINT', C.gold); }
+    if (checkpoint < 1 && p.x > CHECKPOINTS[1]) { checkpoint = 1; cpScore = score; cpKills = kills; floatText(p.x + p.w / 2, p.y - 10, 'CHECKPOINT', C.gold); }
+    if (checkpoint < 2 && p.x > CHECKPOINTS[2]) { checkpoint = 2; cpScore = score; cpKills = kills; floatText(p.x + p.w / 2, p.y - 10, 'CHECKPOINT', C.gold); }
+    if (checkpoint < 3 && p.x > CHECKPOINTS[3]) { checkpoint = 3; cpScore = score; cpKills = kills; floatText(p.x + p.w / 2, p.y - 10, 'CHECKPOINT', C.gold); }
 
     // DJ STATIC — midboss guarding the Slime Key at the end of the swamp
     if (!mbUp && !mbDead && p.x > 3020) {
@@ -738,6 +751,11 @@
     }
     for (const n of notes) { if (n.kind !== 'red') continue; n.y += n.vy; if (p.inv <= 0 && hit(p, { x: n.x - 7, y: n.y - 7, w: 14, h: 14 })) { damage(1); n.hit = true; } }
   }
+  /* face back into the patrol range (a knockback can push an enemy well past its edge;
+     flipping vx each frame there left it jittering in place) */
+  function patrolTurn(e) {
+    if (e.x < e.rng[0]) e.vx = Math.abs(e.vx); else if (e.x > e.rng[1]) e.vx = -Math.abs(e.vx);
+  }
   function kingDown() {
     const b = boss; b.dying = 130; b.hp = 0; b.lunge = 0; b.daze = 0; slowMo = 70; shake = 12; flash = 8;
     notes = notes.filter(n => n.kind !== 'red' && n.kind !== 'shock' && n.kind !== 'wave');
@@ -756,6 +774,7 @@
     /* unavoidable hits (pit falls) always land: they bypass i-frames and can't be
        shield-blocked — a fall isn't a hit the shield can catch */
     const p = player; if (!unavoidable && p.inv > 0) return;
+    if (boss && boss.dying > 0) return;   // the king is falling — the fight is won, nothing can undo it
     if (shieldOn && !unavoidable) {   // slime shield absorbs the hit instead
       shieldOn = false; p.inv = 50; shake = 5;
       burst(p.x + p.w / 2, p.y + p.h / 2, C.sbBlueLite, 18, 3.2, { glow: 1 }); ring(p.x + p.w / 2, p.y + p.h / 2, C.sbBlueLite, 20);
@@ -1663,7 +1682,10 @@
     if (!el.best) return; const b = loadBest();
     el.best.textContent = b.score ? 'BEST RUN — COINS: ' + b.score + ' · COMBO: x' + (b.combo || 0) + (b.won ? ' · ★ KINGDOM SAVED' : '') : '';
   }
-  function togglePause() { if (state === 'play') state = 'paused'; else if (state === 'paused') state = 'play'; }
+  function togglePause() {
+    if (state === 'play') state = 'paused'; else if (state === 'paused') state = 'play';
+    K.jumpEdge = K.atkEdge = K.dashEdge = K.rageEdge = false;   // a tap on the pause screen must not fire on resume
+  }
 
   /* ===================== mount / unmount ===================== */
   function wireScreens() {
@@ -1761,6 +1783,9 @@
         setCheckpoint(n) { checkpoint = n; },
         setMbDead(v) { mbDead = !!v; },
         setKeysGot(n) { keysGot = n; },
+        setScore(n) { score = n; },
+        setHp(n) { hp = n; },
+        hurt(n) { damage(n); },
       };
     },
   };

@@ -15,7 +15,9 @@ const SB_NAV_FALLBACK = [
   { href: 'vault.html', label: 'vault' }, { href: 'shows.html', label: 'shows' },
   { href: 'connect.html', label: 'tap in' }, { href: 'links.html', label: 'links' },
 ];
-function currentPage(){ const p=(location.pathname.split('/').pop()||'').toLowerCase(); return p===''?'index.html':p; }
+function currentPage(){ const p=(location.pathname.split('/').pop()||'').toLowerCase(); return p===''?'index.html':SB_PAGE_EXT(p); }
+/* the host serves /lab as lab.html — normalise so page checks (lab, quest, active nav) still match */
+function SB_PAGE_EXT(p){ return /\.[a-z0-9]+$/.test(p)?p:p+'.html'; }
 function buildChrome(){
   if(document.getElementById('nav')) return;            // double-run / already-present guard
   const NAV=(window.SB_NAV&&window.SB_NAV.length)?window.SB_NAV:SB_NAV_FALLBACK;
@@ -316,6 +318,8 @@ addEventListener('pagehide',saveAudioState);addEventListener('beforeunload',save
 try{audio.preservesPitch=false;audio.mozPreservesPitch=false;audio.webkitPreservesPitch=false;}catch(_){}
 audio.playbackRate=userRate;
 function ensureCtx(){if(!actx){try{
+    /* iOS routes Web Audio through the 'ambient' session (muted by the ringer switch) unless told otherwise */
+    try{if(navigator.audioSession)navigator.audioSession.type='playback';}catch(_){}
     actx=new(window.AudioContext||window.webkitAudioContext)();
     analyser=actx.createAnalyser();analyser.fftSize=128;analyser.smoothingTimeConstant=.82;
     mix=actx.createGain();mix.gain.value=.9;
@@ -330,7 +334,7 @@ function ensureCtx(){if(!actx){try{
     freq=new Uint8Array(analyser.frequencyBinCount);
     noiseBuf=actx.createBuffer(1,actx.sampleRate,actx.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
     rebuildImpulse();applyAudioFx();
-  }catch(e){}}if(actx&&actx.state==='suspended')actx.resume().catch(()=>{});}
+  }catch(e){}}if(actx&&actx.state!=='running'&&actx.state!=='closed')actx.resume().catch(()=>{});}
 /* Reverb tail. The convolution runs in real time, so a long stereo impulse is costly on
    phones — cap it on mobile (still a full, roomy tail) so the lab reverb doesn't stutter. */
 function rebuildImpulse(){if(!actx||!conv)return;const sec=Math.min(sbIsMobile?2.0:4.0,0.4+roomP*3.6),rate=actx.sampleRate,len=Math.max(1,Math.floor(sec*rate));const buf=actx.createBuffer(2,len,rate);for(let ch=0;ch<2;ch++){const d=buf.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.5);}conv.buffer=buf;}
@@ -350,7 +354,7 @@ function connectMedia(){if(graphReady)return;ensureCtx();try{srcNode=actx.create
 function startAudio(){if(bgMode==='yt'&&ytPlayer&&ytReady){try{ytPlayer.pauseVideo();}catch(_){}}bgMode='local';connectMedia();ensureCtx();applyAudioFx();armKick();
   audio.play().then(()=>{setUI(true);
     /* analytics: count a play only once it actually started (a blocked autoplay is not a play); dedupe rapid re-entries (button double-fire / kick race) */
-    const _n=Date.now();if(_n-_lastPlayTrk>1200){_lastPlayTrk=_n;track('play',{track:localTitle()});}
+    const _n=Date.now();if(_n-_lastPlayTrk>1200&&audio.currentTime<1.5){_lastPlayTrk=_n;track('play',{track:localTitle()});}
   }).catch(()=>{});updateBgTitle();}
 let _lastPlayTrk=0;
 function setUI(on){playing=on;const ic=on?'❚❚':'▶';if(pbtn)pbtn.textContent=ic;if(pwplay)pwplay.textContent=ic;if(disc)disc.classList.toggle('spin',on);if(musicbar)musicbar.classList.toggle('open',on);const sp=document.getElementById('srPlay');if(sp)sp.textContent=on?'❚❚ pause':'▶ play';const sa=document.getElementById('srArt');if(sa)sa.classList.toggle('spin',on);const pw=document.querySelector('.playerwin');if(pw)pw.classList.toggle('live',on);updateNowPlaying();}
@@ -379,7 +383,7 @@ audio.addEventListener('timeupdate',()=>{if(bgMode==='local'&&audio.currentTime>
    to a determined user via devtools/network — this raises the bar against casual saving, it
    is not DRM. */
 const PROTECT_SEL='img,audio,video,canvas,picture,.cover,.art,.pwart,.srart,.disc,.playerwin,.srwrap,.musicbar,.mhead,.dropfeat .cover';
-addEventListener('contextmenu',e=>{if(e.target.closest(PROTECT_SEL)){e.preventDefault();toast('☠ downloads are disabled');}});
+addEventListener('contextmenu',e=>{if(e.target.closest(PROTECT_SEL)&&!e.target.closest('a[href]')){e.preventDefault();toast('☠ downloads are disabled');}});
 addEventListener('dragstart',e=>{if(e.target.closest(PROTECT_SEL))e.preventDefault();});
 addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&!e.altKey&&(e.key==='s'||e.key==='S')){e.preventDefault();toast('☠ downloads are disabled');}},{capture:true});
 try{audio.removeAttribute('controls');audio.setAttribute('controlsList','nodownload noplaybackrate noremoteplayback');audio.disableRemotePlayback=true;}catch(_){}
@@ -499,10 +503,10 @@ const SB_TRANSPORT_SEL='.pwplay,.pwnav,.pbtn,.mbtn,.disc,.srplay,.trk';
    user-activation in browsers (so their play() just gets blocked), and worse, a scroll fired as
    the page settles — or as a transport click scrolls the button into view — would start the
    track a beat before the click, which the click then reads as "playing" and pauses. */
-function armKick(){if(kicked||armed)return;armed=true;const evs=['pointerdown','touchstart','keydown'];
+function armKick(){if(kicked||armed)return;armed=true;const evs=['pointerup','touchend','keydown'];
   /* keyboard navigation (Tab to the skip link, arrows, modifiers) must not start the music — only a real "press" counts */
   const navKey=e=>e.type==='keydown'&&(e.altKey||e.ctrlKey||e.metaKey||/^(Tab|Shift|Control|Alt|Meta|Escape|Arrow|Page|Home|End|CapsLock|F\d)/.test(e.key||''));
-  function kick(e){if(kicked)return;if(navKey(e))return;kicked=true;evs.forEach(ev=>removeEventListener(ev,kick));ensureCtx();const tgt=e&&e.target;if(tgt&&tgt.closest&&tgt.closest(SB_TRANSPORT_SEL))return;/* a transport control's own click is about to fire — let it start playback so the two don't cancel out */if(audio.paused)startAudio();else setUI(true);}
+  function kick(e){if(kicked)return;if(navKey(e))return;kicked=true;evs.forEach(ev=>removeEventListener(ev,kick));ensureCtx();const tgt=e&&e.target;if(tgt&&tgt.closest&&tgt.closest(SB_TRANSPORT_SEL))return;/* a transport control's own click is about to fire — let it start playback so the two don't cancel out */if(audio.paused){startAudio();setTimeout(()=>{if(audio.paused&&!playing){kicked=false;armed=false;armKick();}},400);}else setUI(true);}
   evs.forEach(e=>addEventListener(e,kick,{passive:true}));}
 function fmt(s){if(!isFinite(s))return'0:00';const m=Math.floor(s/60),x=Math.floor(s%60);return m+':'+String(x).padStart(2,'0');}
 /* progress / time labels are looked up by id each tick so they always target the
@@ -1145,7 +1149,7 @@ function frame(t){
 requestAnimationFrame(frame);   // next frame is scheduled at the top of frame()
 /* coming back to the tab: resize the canvases and, on mobile especially, resume the audio
    context iOS suspends on background/interruption so the lab + player keep their sound. */
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){resizeAll();sizeSnake();if(actx&&actx.state==='suspended'&&playing){actx.resume().catch(()=>{});}}});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){resizeAll();sizeSnake();if(actx&&actx.state!=='running'&&actx.state!=='closed'&&playing){actx.resume().catch(()=>{});}}});
 
 /* RAGE MODE — distorted audio, red snake pit, and a configurable stack of effects.
    Which effects fire is content-driven (SB.rageFx, edited in the admin) so the artist
@@ -1234,7 +1238,9 @@ async function flushPending(){if(typeof sbSubscribe!=='function')return;const a=
   const same=(p,q)=>p.email===q.email&&(p.phone||'')===(q.phone||'');
   const added=pendingGet().filter(x=>!a.some(y=>same(x,y)));
   pendingSet(keep.concat(added));}
+let _joining=false;
 async function signbook(ids){
+  if(_joining)return;   // a double-tap must not send two inserts
   /* ids lets a second form (e.g. the inline homepage capture) reuse this exact flow with
      its own field ids; defaults are the connect-page form. phone is optional. */
   ids=ids||{};
@@ -1249,8 +1255,9 @@ async function signbook(ids){
   const gotPhone=digits.length>=10;
   note.classList.remove('bad');note.textContent='… adding you to the slime';
   /* report the REAL outcome instead of always claiming success */
-  let ok=false;
+  let ok=false;_joining=true;
   try{ if(typeof sbSubscribe==='function') ok=await sbSubscribe(ev,gotPhone?digits:''); }catch(_){ ok=false; }
+  finally{ _joining=false; }
   e.value='';if(p)p.value='';if(consent)consent.checked=false;
   if(ok){
     track('join',{sms:gotPhone});
@@ -1264,6 +1271,10 @@ async function signbook(ids){
   }
   burst(innerWidth/2,innerHeight*.7,20,'#8dff2b');snakeLunge();
 }
+
+/* the join rows aren't <form>s — let Enter in a field press that row's join button */
+addEventListener('keydown',e=>{if(e.key!=='Enter'||e.isComposing)return;const t=e.target;
+  if(!t||!t.matches||!t.matches('#gemail,#gphone,#lemail'))return;const b=t.parentElement&&t.parentElement.querySelector('button');if(b){e.preventDefault();b.click();}});
 
 /* ===================== JOIN POPUP — first-visit email capture =====================
    A one-time, dismissible modal that asks new visitors onto the slime list to pull in more
@@ -1317,7 +1328,11 @@ function maybeJoinPopup(){
     if(SB_PREVIEW||navigator.webdriver)return;                 // never in the admin preview or under automation/crawlers
     if(localStorage.getItem('sb_joinpop')||localStorage.getItem('sb_joined'))return;   // once per visitor; not if already in
     if(pendingGet().length)return;                             // they already tried to join (queued)
-    const arm=()=>setTimeout(()=>{ if(!modal.classList.contains('open')) openJoinPopup(); },1400);
+    /* not on the join page itself, the link-in-bio / game / legal pages, over the consent banner, or mid-typing */
+    if(/^(connect|link|links|quest|privacy|404|page)\.html$/.test(currentPage())||document.getElementById('routeZone'))return;   // routeZone = a clean-URL smart link
+    const arm=(n)=>setTimeout(()=>{ if(modal.classList.contains('open'))return;
+      if(document.getElementById('sb-consent')||isTyping()){ if((n||0)<20)arm((n||0)+1); return; }
+      openJoinPopup(); },1400);
     if(document.readyState==='complete')arm(); else addEventListener('load',arm,{once:true});
   }catch(_){}
 }
@@ -1351,6 +1366,7 @@ function openModal(html){
 }
 function closeModal(){
   modal.classList.remove('open');modal.setAttribute('aria-hidden','true');
+  modal.querySelectorAll('iframe').forEach(f=>f.remove());   /* a hidden YouTube embed keeps playing otherwise */
   if(_modalOpener&&_modalOpener.focus){try{_modalOpener.focus();}catch(_){}}
   _modalOpener=null;
   /* resume whatever the radio was playing before we ducked it for a video */
@@ -1461,8 +1477,8 @@ let VIDEOS=[];
 function ytThumb(id){return id?'https://i.ytimg.com/vi/'+encodeURIComponent(id)+'/hqdefault.jpg':'';}
 function videoThumb(v){const id=ytId(v&&v.id);return id?ytThumb(id):((v&&v.img)?safeImg(v.img):'');}
 function renderVideos(list){VIDEOS=list||[];const g=document.getElementById('vidgrid');if(!g)return;
-  g.innerHTML=VIDEOS.map((v,i)=>`<div class="vid reveal${i%3?' d'+(i%3):''}" data-i="${i}"><img loading="lazy" decoding="async" src="${esc(videoThumb(v))}" alt="${esc(v.t)}"><div class="pp">▶</div><div class="vmeta"><div class="vmt">${esc(v.t)}</div><div class="vms">${esc(v.s)}</div></div></div>`).join('');
-  g.querySelectorAll('.vid').forEach(c=>{io.observe(c);c.onclick=()=>{const v=VIDEOS[+c.dataset.i];const vid=ytId(v.id);burst(innerWidth/2,innerHeight*.5,10,'#8dff2b');
+  g.innerHTML=VIDEOS.map((v,i)=>`<div class="vid reveal${i%3?' d'+(i%3):''}" data-i="${i}" tabindex="0" role="button" aria-label="play ${esc(v.t)}"><img loading="lazy" decoding="async" src="${esc(videoThumb(v))}" alt="${esc(v.t)}"><div class="pp">▶</div><div class="vmeta"><div class="vmt">${esc(v.t)}</div><div class="vms">${esc(v.s)}</div></div></div>`).join('');
+  g.querySelectorAll('.vid').forEach(c=>{io.observe(c);c.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();c.click();}};c.onclick=()=>{const v=VIDEOS[+c.dataset.i];const vid=ytId(v.id);burst(innerWidth/2,innerHeight*.5,10,'#8dff2b');
     if(vid){openModal(`<div class="mbody"><span class="kicker">${esc(v.s)}</span><h3>${esc(v.t)}</h3><div class="vembed"><iframe src="https://www.youtube.com/embed/${encodeURIComponent(vid)}?autoplay=1&rel=0" title="${esc(v.t)}" allow="autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe></div></div>`);}
     else{openModal(`<div class="mbody"><span class="kicker">${esc(v.s)}</span><h3>${esc(v.t)}</h3><p>Add this clip's YouTube video ID in the admin page to play it right here. For now, catch the full vault on YouTube.</p><div class="mcta"><a class="bigbtn bSlime" href="${esc(safeUrl((window.SB&&SB.vault&&SB.vault.youtube)||'')||'https://youtube.com/@slimeby_')}" target="_blank" rel="noopener noreferrer">▶ watch on youtube</a></div></div>`);}};});
 }
@@ -1628,6 +1644,7 @@ function renderCustomPageHead(c){
   const head=document.getElementById('customHead');if(!head)return;
   const p=(c.pages||[]).find(x=>x&&x.slug===currentSlug());
   const h1=head.querySelector('h1'),kic=head.querySelector('.kicker'),sub=head.querySelector('.psub');
+  if(!p&&!contentSettled())return;   // defaults have no pages — keep "loading…" until the real content answers
   if(p){document.title=(p.label||'SLIME BY')+' — SLIME BY';
     if(kic)kic.textContent=p.kicker||'SB';
     if(h1){h1.textContent=p.label||'';h1.setAttribute('data-t',(p.label||'').toUpperCase());}
@@ -1657,7 +1674,7 @@ function trackingQS(){
   try{new URLSearchParams(location.search).forEach((v,k)=>{ if(/^utm_/i.test(k)||/^(fbclid|gclid|igshid|igsh|ttclid|ref|src|mc_cid|mc_eid|si)$/i.test(k))out.append(k,v); });}catch(_){}
   return out.toString();
 }
-function withTracking(url){const t=trackingQS();return t?url+(url.indexOf('?')>=0?'&':'?')+t:url;}
+function withTracking(url){const t=trackingQS();if(!t)return url;const h=url.indexOf('#'),base=h>=0?url.slice(0,h):url,frag=h>=0?url.slice(h):'';return base+(base.indexOf('?')>=0?'&':'?')+t+frag;}
 function serviceBtnHTML(s){
   if(!s)return'';const u=safeUrl(s.url);if(!u)return'';
   const meta=platMeta(s.platform||'custom'),label=esc(s.label||meta.name);
@@ -1811,7 +1828,7 @@ function pjaxReveal(){ if(!wipeEl||reducedMotion)return;
    rest of the page chrome live OUTSIDE <main>, so we navigate by fetching the target
    page and swapping ONLY its <main> — no full reload, the audio graph keeps playing.
    Falls back to a normal hard navigation if anything looks off. */
-function pageFromUrl(u){const p=(u.split('#')[0].split('?')[0].split('/').pop()||'').toLowerCase();return p===''?'index.html':p;}
+function pageFromUrl(u){const p=(u.split('#')[0].split('?')[0].split('/').pop()||'').toLowerCase();return p===''?'index.html':SB_PAGE_EXT(p);}
 function navKey(u){const p=pageFromUrl(u);let s='';const q=new URLSearchParams(u.split('#')[0].split('?')[1]||'');if(p==='page.html')s=q.get('p')||'';else if(p==='link.html')s=q.get('l')||'';return p+'|'+s;}
 function setActiveNav(){const here=currentPage(),slug=currentSlug();
   document.querySelectorAll('#nav .navlinks a').forEach(a=>{const h=a.getAttribute('href')||'';let on=pageFromUrl(h)===here;
@@ -1834,6 +1851,7 @@ async function sbNavigate(url,push){
     /* always release the router (finally) — if any per-page init throws, the lock must
        still clear or every later in-app navigation would silently no-op for the session. */
     try{
+      if(modal.classList.contains('open'))closeModal();   // Back/links with a modal up: don't leave it over the next page
       try{document.adoptNode(newMain);}catch(_){}
       curMain.replaceWith(newMain);
       if(!document.getElementById('sbBlocks')){const bc=document.createElement('div');bc.id='sbBlocks';newMain.appendChild(bc);}

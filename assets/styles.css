@@ -24,6 +24,8 @@
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{background:var(--bg);color:var(--ink);font-family:var(--ui);font-weight:400;overflow-x:hidden;-webkit-font-smoothing:antialiased;cursor:none}
+input,textarea,select,[contenteditable]{cursor:text}
+#sb-consent{cursor:auto}#sb-consent a,#sb-consent button{cursor:pointer}
 @media(hover:none){body{cursor:auto}}
 img{display:block;width:100%}
 a{color:inherit;text-decoration:none}
@@ -246,7 +248,7 @@ section{padding:clamp(60px,9vw,116px) clamp(18px,5vw,56px);position:relative;z-i
 .pwbar .dots{display:flex;gap:6px}.pwbar .dots i{width:11px;height:11px;border-radius:50%;display:block}
 .pwbar .dots .r{background:var(--blood)}.pwbar .dots .y{background:var(--slime)}.pwbar .dots .g{background:var(--alien)}
 .pwbar .pwt{font-family:var(--disp);font-size:16px;letter-spacing:.5px}.pwbar .pwz{margin-left:auto;font-family:var(--mono);font-size:10px;opacity:.6}
-.pwbody{display:flex;gap:18px;padding:20px;align-items:center}
+.pwbody{display:flex;gap:18px;padding:20px;align-items:flex-start}
 .pwart{position:relative;width:96px;height:96px;flex-shrink:0;background-size:cover;background-position:center;border:1px solid rgba(141,255,43,.3);box-shadow:0 0 20px rgba(141,255,43,.2);transition:box-shadow .3s}
 /* while a track is live the cover breathes + its halo cycles through the slime palette */
 .playerwin.live .pwart{animation:pwpulse 1.7s ease-in-out infinite,pwglow 6s linear infinite}
@@ -495,7 +497,8 @@ footer{padding:48px 22px 40px;text-align:center;position:relative;z-index:1}
 
 #rageOverlay{position:fixed;inset:0;z-index:9995;pointer-events:none;opacity:0;transition:opacity .4s;mix-blend-mode:screen;background:repeating-linear-gradient(0deg,rgba(255,31,46,.05) 0 1px,transparent 1px 3px),radial-gradient(60% 50% at 50% 50%,rgba(255,31,46,.1),transparent 70%)}
 body.rage.rfx-overlay #rageOverlay{opacity:1;background:repeating-linear-gradient(0deg,rgba(255,31,46,.08) 0 1px,transparent 1px 3px),radial-gradient(70% 60% at 50% 50%,rgba(255,31,46,.18),transparent 72%)}
-body.rage.rfx-shake{animation:rageshake .09s steps(2) infinite}
+/* shake the content, never <body>: a transform there re-anchors every position:fixed element (nav, player, cursor) to the document */
+body.rage.rfx-shake:not(.page-quest) #main,body.rage.rfx-shake footer{animation:rageshake .09s steps(2) infinite}
 @keyframes rageshake{0%{transform:translate(0,0)}25%{transform:translate(-2px,2px)}50%{transform:translate(2px,-2px)}75%{transform:translate(-2px,-1px)}100%{transform:translate(2px,1px)}}
 body.rage .blob{filter:blur(80px) hue-rotate(-95deg) saturate(1.4)}
 .rmtag{position:fixed;top:58px;left:50%;transform:translateX(-50%);z-index:2001;font-family:var(--disp);font-size:16px;color:#fff;background:var(--blood);padding:6px 16px;opacity:0;transition:.4s;box-shadow:0 0 24px var(--blood);pointer-events:none;letter-spacing:1px}
@@ -518,7 +521,7 @@ body.rage.rfx-static .fx-static{opacity:.14;mix-blend-mode:overlay;background-im
 body.rage.rfx-drip .fx-drip{opacity:1;background:linear-gradient(180deg,rgba(120,0,0,.85),rgba(120,0,0,.4) 6%,transparent 14%),radial-gradient(8px 38px at 12% 0,rgba(150,0,0,.9),transparent 70%),radial-gradient(7px 60px at 28% 0,rgba(130,0,0,.85),transparent 72%),radial-gradient(9px 30px at 47% 0,rgba(150,0,0,.9),transparent 70%),radial-gradient(6px 72px at 63% 0,rgba(120,0,0,.85),transparent 74%),radial-gradient(8px 44px at 79% 0,rgba(150,0,0,.9),transparent 70%),radial-gradient(7px 54px at 92% 0,rgba(130,0,0,.85),transparent 72%);background-repeat:no-repeat;animation:rfxdrip 6s ease-in forwards}
 @keyframes rfxdrip{from{transform:translateY(-10px)}to{transform:translateY(0)}}
 /* glitch / RGB split — occasional datamosh bursts on the page content */
-body.rage.rfx-glitch #main{animation:rfxglitch 2.8s steps(1) infinite}
+body.rage.rfx-glitch:not(.page-quest) #main{animation:rfxglitch 2.8s steps(1) infinite}
 @keyframes rfxglitch{0%,90%,100%{transform:none;filter:none}92%{transform:translate(-3px,0);filter:drop-shadow(2px 0 rgba(255,0,40,.8)) drop-shadow(-2px 0 rgba(0,230,255,.8))}94%{transform:translate(3px,0);filter:drop-shadow(-3px 0 rgba(255,0,40,.8)) drop-shadow(3px 0 rgba(0,230,255,.8))}96%{transform:translate(-2px,1px)}98%{transform:translate(2px,-1px);filter:drop-shadow(2px 0 rgba(255,0,40,.7)) drop-shadow(-2px 0 rgba(0,230,255,.7))}}
 
 .reveal{opacity:0;transform:translateY(34px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
@@ -931,3 +934,19 @@ section[id],[id="top"]{scroll-margin-top:84px}
   .privacy-actions{display:flex;gap:.6rem;flex-wrap:wrap;margin:1.2rem 0}
   .privacy-actions button{cursor:pointer;padding:.6rem 1rem;border-radius:10px;border:1px solid #2f5d2f;background:#0c140c;color:#dfeede;font:inherit}
   .privacy-actions button.primary{background:#3fb53f;color:#06210a;border:0;font-weight:700}
+
+/* ===================== PHONES / TOUCH =====================
+   - the open music bar must not run off a 375px screen or slide under the round buttons
+   - "?" only lists keyboard shortcuts — useless without a keyboard
+   - tap targets up to ~44px */
+@media(max-width:640px){
+  body:not(.page-quest) .musicbar{max-width:calc(100vw - 88px)}
+  body:not(.page-quest) .musicbar.open .minfo{max-width:calc(100vw - 260px)}
+  .minfo .stitle{overflow:hidden;text-overflow:ellipsis}
+}
+@media(hover:none) and (pointer:coarse){
+  .helpbtn{display:none}
+  .mbtn{width:38px;height:38px}
+  .burger{padding:10px}
+  .modal .x{width:44px;height:44px;top:6px;right:6px}
+}

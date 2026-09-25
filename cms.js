@@ -306,8 +306,8 @@ const SB_SCHEMA = {
   'drop.released':         { label: 'Released', type: 'boolean', hint: 'Tick this the day it actually lands. Only then does the card read “OUT NOW ☠”.' },
 
   'music.playerCover':     { label: 'Player cover art', type: 'image' },
-  'music.spotifyArtistId': { label: 'Spotify artist ID', hint: 'The ID in open.spotify.com/artist/<ID>.' },
-  'music.bgPlaylist':      { label: 'Background YouTube playlist', hint: 'Playlist ID (the list= value in a youtube.com/playlist link). Visitors skip into it with ⏭ on the music bar. Leave blank to disable.' },
+  'music.spotifyArtistId': { label: 'Spotify artist ID', type: 'text', hint: 'The ID in open.spotify.com/artist/<ID>.' },
+  'music.bgPlaylist':      { label: 'Background YouTube playlist', type: 'text', hint: 'Playlist ID (the list= value in a youtube.com/playlist link). Visitors skip into it with ⏭ on the music bar. Leave blank to disable.' },
   'music.releases':        { label: 'Releases', itemLabel: 'release', titleKey: 'title' },
   'music.releases.title':  { label: 'Title' },
   'music.releases.sub':    { label: 'Subtitle', placeholder: 'single · 2025' },
@@ -464,9 +464,14 @@ window.sbClone = sbClone;
 
 /* read merged content (defaults + whatever's published) */
 async function sbGetContent() {
+  // a stalled connection (in-app browsers on bad signal) must not leave link/404 pages on
+  // "loading…" until the browser's own fetch timeout — give up and render the defaults
+  const ac = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = ac ? setTimeout(() => ac.abort(), 8000) : 0;
   try {
     const r = await fetch(SB_CFG.url + '/rest/v1/site_content?id=eq.1&select=data', {
       headers: { apikey: SB_CFG.key, Authorization: 'Bearer ' + SB_CFG.key },
+      signal: ac ? ac.signal : undefined,
     });
     if (!r.ok) throw new Error('read ' + r.status);
     const rows = await r.json();
@@ -474,6 +479,8 @@ async function sbGetContent() {
     return sbMerge(SB_DEFAULTS, remote);
   } catch (e) {
     return SB_DEFAULTS;
+  } finally {
+    clearTimeout(timer);
   }
 }
 window.sbGetContent = sbGetContent;
