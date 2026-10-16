@@ -200,6 +200,7 @@ section{padding:clamp(60px,9vw,116px) clamp(18px,5vw,56px);position:relative;z-i
 /* transport: a prominent play CTA + the labelled vibe presets, set off by a top divider */
 .srtransport{display:flex;flex-wrap:wrap;align-items:center;gap:16px 22px;margin-top:22px;padding-top:20px;border-top:1px solid rgba(255,255,255,.08)}
 .srplay{display:inline-flex;align-items:center;gap:9px;font-family:var(--disp);font-size:18px;letter-spacing:.5px;cursor:pointer;border:1px solid var(--slime);color:#08120a;background:var(--slime);padding:12px 28px;transition:.16s;box-shadow:0 0 22px rgba(141,255,43,.32)}
+.srplay.loading{opacity:.7;cursor:progress}
 .srplay:hover{box-shadow:0 0 32px rgba(141,255,43,.6);transform:translateY(-1px)}
 .srpresetwrap{display:flex;flex-direction:column;gap:8px;flex:1;min-width:210px}
 .srlabel{font-family:var(--ui);font-weight:700;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--muted)}

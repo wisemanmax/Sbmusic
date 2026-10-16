@@ -100,9 +100,37 @@ try {
     check('music: releases rendered', music.rels > 0);
     await page.click('#nav .navlinks a[href="lab.html"]');
     await page.waitForFunction(() => location.pathname.endsWith('lab.html'), null, { timeout: 5000 });
-    await page.waitForTimeout(900);
-    const lab = await page.evaluate(() => ({ rate: audio.playbackRate, paused: audio.paused }));
-    check('lab: playback is slowed (< 0.95)', lab.rate < 0.95 && !lab.paused, 'rate='+lab.rate);
+    // The lab bends a DECODED copy of the song (AudioBufferSourceNode.playbackRate), never the
+    // <audio> element — the element path (playbackRate + preservesPitch through a
+    // MediaElementSource) is what Safari / every iPhone browser doesn't honour. Entering the lab
+    // with the song playing hands it over once the copy is decoded; the element then holds still.
+    await page.waitForFunction(() => labLive && labPlaying, null, { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(600);
+    const lab = await page.evaluate(() => ({ rate: userRate, live: labLive, playing: labPlaying, t: curTime(), elPaused: audio.paused, elRate: audio.playbackRate, srcRate: labSrc ? labSrc.playbackRate.value : null, dur: curDur() }));
+    check('lab: the bent copy is live + slowed (< 0.95), element parked at 1.0', lab.live && lab.playing && lab.rate < 0.95 && Math.abs(lab.srcRate - lab.rate) < 0.001 && lab.elPaused && lab.elRate === 1, JSON.stringify(lab));
+    check('lab: hand-off kept the position (took over near where the song was)', lab.t > music.t - 0.5 && lab.t < music.t + 6, `t ${music.t.toFixed(2)}→${lab.t.toFixed(2)}`);
+    check('lab: decoded duration is the song (> 30s)', isFinite(lab.dur) && lab.dur > 30, 'dur='+lab.dur);
+    // the knobs act on the live copy: speed re-anchors the clock + sets the source rate, reverb opens the wet gain
+    const bend = await page.evaluate(async () => {
+      const t0 = curTime();
+      const sp = document.getElementById('srSpeed'); sp.value = 60; sp.dispatchEvent(new Event('input', { bubbles: true }));
+      const rv = document.getElementById('srReverb'); rv.value = 80; rv.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(s => setTimeout(s, 700));
+      return { t0, t1: curTime(), rate: labSrc && labSrc.playbackRate.value, wet: wet.gain.value, mode: document.getElementById('srMode').textContent };
+    });
+    check('lab: speed knob bends the live copy (0.60×) and the clock keeps running', Math.abs(bend.rate - 0.6) < 0.001 && bend.t1 > bend.t0, JSON.stringify(bend));
+    check('lab: reverb knob opens the wet path', bend.wet > 0.5 && /reverb/.test(bend.mode), JSON.stringify(bend));
+    // pause / resume / seek all go through the engine while the lab is live
+    const tr = await page.evaluate(async () => {
+      document.getElementById('srPlay').click(); await new Promise(s => setTimeout(s, 300));
+      const paused = localPaused(), srcGone = !labSrc, tp = curTime();
+      await new Promise(s => setTimeout(s, 400));
+      const held = curTime();
+      seekLocal(30); document.getElementById('srPlay').click(); await new Promise(s => setTimeout(s, 700));
+      return { paused, srcGone, tp, held, t: curTime(), playing: labPlaying && !!labSrc, elPaused: audio.paused };
+    });
+    check('lab: pause stops the copy + holds the position', tr.paused && tr.srcGone && Math.abs(tr.held - tr.tp) < 0.01, JSON.stringify(tr));
+    check('lab: seek + play resumes the copy from the new spot', tr.playing && tr.t > 30 && tr.t < 32 && tr.elPaused, JSON.stringify(tr));
     // the lab now has its own "load a track" picker — every catalog song selectable, bent
     const labRows = await page.$$eval('#srTracks .trk', els => els.length);
     const catalog = await page.evaluate(() => LOCAL_TRACKS.length);
@@ -110,16 +138,19 @@ try {
     const labPick = await page.evaluate(async () => {
       const row = document.querySelector('#srTracks .trk[data-i="4"]');
       row.click();                                   // load a different song into the bender
-      await new Promise(s => setTimeout(s, 900));
-      return { idx: trackIdx, paused: audio.paused, rate: audio.playbackRate, t: audio.currentTime,
+      const t0 = Date.now(); while (!(labLive && labPlaying && curTime() > 0.2) && Date.now() - t0 < 15000) await new Promise(s => setTimeout(s, 100));
+      await new Promise(s => setTimeout(s, 300));
+      return { idx: trackIdx, paused: localPaused(), rate: userRate, srcRate: labSrc ? labSrc.playbackRate.value : null, t: curTime(), elRate: audio.playbackRate,
                active: !!document.querySelector('#srTracks .trk[data-i="4"].active') };
     });
-    check('lab: picking a track loads + plays it, still slowed', labPick.idx === 4 && !labPick.paused && labPick.t > 0.2 && labPick.rate < 0.95 && labPick.active, JSON.stringify(labPick));
+    check('lab: picking a track loads + plays its bent copy, still slowed', labPick.idx === 4 && !labPick.paused && labPick.t > 0.2 && labPick.rate < 0.95 && Math.abs(labPick.srcRate - labPick.rate) < 0.001 && labPick.elRate === 1 && labPick.active, JSON.stringify(labPick));
+    const beforeLeave = await page.evaluate(() => curTime());
     await page.click('#nav .navlinks a[href="music.html"]');
     await page.waitForFunction(() => location.pathname.endsWith('music.html'), null, { timeout: 5000 });
-    await page.waitForTimeout(600);
-    const back = await page.evaluate(() => audio.playbackRate);
-    check('leaving lab restores normal rate', Math.abs(back-1) < 0.001, 'rate='+back);
+    await page.waitForTimeout(900);
+    const back = await page.evaluate(() => ({ rate: audio.playbackRate, paused: audio.paused, t: audio.currentTime, labOn, labLive, srcGone: !labSrc, bufGone: !labBuf }));
+    check('leaving lab hands the song back to the element at normal rate', Math.abs(back.rate-1) < 0.001 && !back.paused && !back.labOn && !back.labLive && back.srcGone && back.bufGone, JSON.stringify(back));
+    check('leaving lab keeps the position (no restart)', back.t >= beforeLeave - 0.5 && back.t < beforeLeave + 5, `t ${beforeLeave.toFixed(2)}→${back.t.toFixed(2)}`);
     check('player flow: no JS errors', errs.length === 0, errs.join(' | '));
     await page.close();
   }
