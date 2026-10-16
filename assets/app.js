@@ -312,17 +312,21 @@ try{const s=JSON.parse(sessionStorage.getItem(SB_AUDIO_KEY)||'null');if(s){_hadA
 trackIdx=Math.max(0,Math.min(trackIdx|0,LOCAL_TRACKS.length-1));   // keep a restored index in range
 try{audio.src=trackUrl(curTrack());}catch(_){}                      // engage the current track (markup has no src now)
 try{const l=JSON.parse(sessionStorage.getItem(SB_LAB_KEY)||'null');if(l){if(typeof l.rate==='number')labRate=l.rate;if(typeof l.rev==='number')labRev=l.rev;if(typeof l.room==='number')labRoom=l.room;}}catch(_){}
-function saveAudioState(){try{sessionStorage.setItem(SB_AUDIO_KEY,JSON.stringify({t:audio.currentTime||0,vol:audio.volume,playing:!audio.paused,idx:trackIdx}));}catch(_){}}
+function saveAudioState(){try{sessionStorage.setItem(SB_AUDIO_KEY,JSON.stringify({t:curTime()||0,vol:audio.volume,playing:!localPaused(),idx:trackIdx}));}catch(_){}}
 function saveLabState(){try{sessionStorage.setItem(SB_LAB_KEY,JSON.stringify({rate:labRate,rev:labRev,room:labRoom}));}catch(_){}}
 addEventListener('pagehide',saveAudioState);addEventListener('beforeunload',saveAudioState);
-try{audio.preservesPitch=false;audio.mozPreservesPitch=false;audio.webkitPreservesPitch=false;}catch(_){}
-audio.playbackRate=userRate;
+/* The <audio> element itself ALWAYS plays at normal speed. The lab's slow / nightcore bend is
+   applied by the lab engine (below) to a decoded copy of the track, never to the element —
+   element playbackRate + preservesPitch routed through createMediaElementSource is exactly the
+   path WebKit (Safari, and every browser on iPhone) doesn't honour. */
+audio.defaultPlaybackRate=1;audio.playbackRate=1;
 function ensureCtx(){if(!actx){try{
     /* iOS routes Web Audio through the 'ambient' session (muted by the ringer switch) unless told otherwise */
     try{if(navigator.audioSession)navigator.audioSession.type='playback';}catch(_){}
     actx=new(window.AudioContext||window.webkitAudioContext)();
     analyser=actx.createAnalyser();analyser.fftSize=128;analyser.smoothingTimeConstant=.82;
     mix=actx.createGain();mix.gain.value=.9;
+    labGain=actx.createGain();labGain.gain.value=audio.volume;labGain.connect(mix);   // the lab engine's bent copy joins the same chain
     shaper=actx.createWaveShaper();shaper.oversample='2x';/* curve=null => clean passthrough; rage swaps in distortion */
     dry=actx.createGain();dry.gain.value=1;
     conv=actx.createConvolver();
@@ -337,34 +341,137 @@ function ensureCtx(){if(!actx){try{
   }catch(e){}}if(actx&&actx.state!=='running'&&actx.state!=='closed')actx.resume().catch(()=>{});}
 /* Reverb tail. The convolution runs in real time, so a long stereo impulse is costly on
    phones — cap it on mobile (still a full, roomy tail) so the lab reverb doesn't stutter. */
-function rebuildImpulse(){if(!actx||!conv)return;const sec=Math.min(sbIsMobile?2.0:4.0,0.4+roomP*3.6),rate=actx.sampleRate,len=Math.max(1,Math.floor(sec*rate));const buf=actx.createBuffer(2,len,rate);for(let ch=0;ch<2;ch++){const d=buf.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.5);}conv.buffer=buf;}
+function rebuildImpulse(){if(!actx||!conv)return;const sec=Math.min(sbIsMobile?2.0:4.0,0.4+roomP*3.6),rate=actx.sampleRate,len=Math.max(1,Math.floor(sec*rate));const buf=actx.createBuffer(2,len,rate);for(let ch=0;ch<2;ch++){const d=buf.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.5);}
+  try{conv.buffer=buf;}
+  catch(_){/* a WebKit build that refuses to swap the impulse on a live convolver: swap the node instead */
+    try{const c=actx.createConvolver();c.buffer=buf;
+      try{shaper.disconnect(conv);}catch(__){try{shaper.disconnect();shaper.connect(dry);}catch(___){}}
+      try{conv.disconnect();}catch(__){}
+      conv=c;shaper.connect(conv);conv.connect(wet);}catch(__){}}}
 /* Rage mode distorts + drives the track but no longer changes its SPEED — the playback
    rate always follows userRate (1.0 everywhere, the lab's slow on lab.html). */
 function applyAudioFx(){if(!actx)return;const t=actx.currentTime;
   if(dry)dry.gain.setTargetAtTime((rageOn?0.72:1)*(1-revAmt*0.35),t,0.03);
   if(wet)wet.gain.setTargetAtTime(revAmt*0.9,t,0.03);
   if(shaper)shaper.curve=(rageOn&&rageFlags().distortAudio)?distc(7):null;
-  try{audio.preservesPitch=false;audio.mozPreservesPitch=false;audio.webkitPreservesPitch=false;}catch(_){}
-  audio.playbackRate=userRate;}
+  labSetRate(userRate);try{if(audio.playbackRate!==1)audio.playbackRate=1;}catch(_){}}
 /* Switch the live track between the two players. The site plays normal everywhere;
    only the lab page swaps in its slowed + reverb bend. */
-function applyNormalFx(){userRate=1.0;revAmt=0;try{audio.playbackRate=1.0;}catch(_){}applyAudioFx();}
-function applyLabFx(){userRate=labRate;revAmt=labRev;roomP=labRoom;try{audio.playbackRate=userRate;}catch(_){}if(actx)rebuildImpulse();applyAudioFx();}
+function applyNormalFx(){labExit();userRate=1.0;revAmt=0;applyAudioFx();}
 function connectMedia(){if(graphReady)return;ensureCtx();try{srcNode=actx.createMediaElementSource(audio);srcNode.connect(mix);graphReady=true;}catch(e){}}
+/* ===================== LAB ENGINE — slowed + reverb that works in every browser =====================
+   The lab used to bend the shared <audio> element (playbackRate + preservesPitch, routed through
+   createMediaElementSource into the convolver). WebKit — desktop Safari and EVERY browser on an
+   iPhone, Chrome included, since they all run WebKit — doesn't honour that path: the rate/pitch
+   change and the reverb silently fail to apply. So the lab now decodes the current track into an
+   AudioBuffer and plays it through an AudioBufferSourceNode. Its playbackRate resamples the audio
+   (the genuine "slowed" pitch-down — identical on every engine, no preservesPitch involved) and it
+   feeds the SAME shaper → dry / convolver → analyser chain, so reverb, room, rage distortion and the
+   visualizer all keep working. While the lab's copy is live the <audio> element sits paused and just
+   holds the position for the rest of the site; leaving the lab hands playback straight back to it
+   at the same spot, so the "music never stops between pages" promise still holds. */
+let labOn=false,labLive=false,labPlaying=false,labBuf=null,labBufUrl='',labSrc=null,labGain=null;
+let labPos=0,labPos0=0,labT0=0,labRateNow=1,labTok=0,labGen=0,labLoading=null,labLoadUrl='',labTicker=0,_mediaUnlocked=false;
+/* position of the lab's copy: start offset + elapsed context time × rate (re-anchored on every rate change / seek) */
+function labTime(){if(labSrc&&labPlaying){const d=labBuf?labBuf.duration:Infinity;return Math.min(d,labPos0+(actx.currentTime-labT0)*labRateNow);}return labPos;}
+/* the transport helpers every control goes through — the element outside the lab, the engine inside it */
+function curTime(){return labLive?labTime():(audio.currentTime||0);}
+function curDur(){return labLive&&labBuf?labBuf.duration:audio.duration;}
+function localPaused(){return labOn?!(labPlaying||!audio.paused):audio.paused;}
+function pauseLocal(){if(labOn)labPause();try{audio.pause();}catch(_){}setUI(false);}
+function seekLocal(t){t=Math.max(0,t||0);if(labLive){labPos=labBuf?Math.min(t,Math.max(0,labBuf.duration-0.05)):t;if(labPlaying)labStart();else renderTransport(labPos,curDur());}else{try{audio.currentTime=t;}catch(_){}}}
+function syncLabVolume(){if(labGain&&actx)labGain.gain.setTargetAtTime(audio.volume,actx.currentTime,0.02);}
+/* decodeAudioData: promise form where it exists, callback form on older WebKit */
+function labDecode(ab){return new Promise((res,rej)=>{try{const p=actx.decodeAudioData(ab,res,rej);if(p&&p.then)p.then(res,rej);}catch(e){rej(e);}});}
+function labLoad(url){
+  if(labBuf&&labBufUrl===url)return Promise.resolve(labBuf);
+  if(labLoading&&labLoadUrl===url)return labLoading;
+  const tok=++labTok;labLoadUrl=url;
+  labLoading=fetch(url,{credentials:'same-origin'}).then(r=>{if(!r.ok)throw new Error('http '+r.status);return r.arrayBuffer();}).then(labDecode).then(buf=>{
+    if(tok!==labTok)throw new Error('superseded');   // the track changed / the lab was left while decoding
+    labBuf=buf;labBufUrl=url;labLoading=null;return buf;
+  },err=>{if(tok===labTok)labLoading=null;throw err;});
+  return labLoading;
+}
+function labPreload(){if(!actx||!labOn)return;labLoad(trackUrl(curTrack())).catch(()=>{});}
+function labStopSrc(){if(labSrc){const s=labSrc;labSrc=null;s._manual=true;try{s.stop();}catch(_){}try{s.disconnect();}catch(_){}}}
+/* (re)start the bent copy at labPos — play, seek, rate re-anchor and the hand-off all come through here */
+function labStart(){
+  if(!actx||!labBuf||!labGain)return;
+  labStopSrc();
+  const d=labBuf.duration;if(labPos>=d-0.05||!isFinite(labPos))labPos=0;
+  const s=actx.createBufferSource();s.buffer=labBuf;s.playbackRate.value=userRate;labRateNow=userRate;
+  s.connect(labGain);
+  s.onended=()=>{if(s._manual||s!==labSrc)return;labSrc=null;labPos=d;labPlaying=false;labTickStop();if(labOn&&bgMode==='local')loadTrack(trackIdx+1,true);};   // a natural end → next song, like the element's 'ended'
+  try{s.start(0,labPos);}catch(_){return;}
+  labSrc=s;labLive=true;labPlaying=true;labPos0=labPos;labT0=actx.currentTime;
+  syncLabVolume();labTickStart();setUI(true);renderTransport(labPos,d);
+}
+function labPause(){labGen++;if(!labLive){labPlaying=false;return;}labPos=labTime();labPlaying=false;labStopSrc();labTickStop();renderTransport(labPos,curDur());}
+/* a speed change mid-play: re-anchor the position maths, then bend the live source */
+function labSetRate(r){if(!labSrc||!labPlaying)return;labPos=labTime();labPos0=labPos;labT0=actx.currentTime;labRateNow=r;labSrc.playbackRate.value=r;}
+function labTickStart(){labTickStop();labTicker=setInterval(()=>{if(!labSrc||!labPlaying||!labBuf){labTickStop();return;}renderTransport(labTime(),labBuf.duration);},250);}
+function labTickStop(){if(labTicker){clearInterval(labTicker);labTicker=0;}}
+function labPlayBtn(loading){const b=document.getElementById('srPlay');if(b){b.classList.toggle('loading',loading);if(loading)b.textContent='… loading';}}
+/* WebKit only lets play() run outside a gesture on an element that was gesture-started once. The
+   lab's own play gesture does that (muted, paused again at once — nothing is heard) so leaving the
+   lab can hand the song back to the element without asking for another tap. */
+function unlockMedia(){
+  if(_mediaUnlocked)return;if(navigator.userActivation&&!navigator.userActivation.isActive)return;
+  _mediaUnlocked=true;
+  try{const m=audio.muted;audio.muted=true;const p=audio.play();audio.pause();audio.muted=m;if(p&&p.catch)p.catch(()=>{});}catch(_){}
+}
+function labPlay(){
+  if(!actx||!labGain){audio.play().then(()=>setUI(true)).catch(()=>{});return;}   // no Web Audio at all: plain playback
+  const url=trackUrl(curTrack());
+  if(labLive&&labBuf&&labBufUrl===url){labPlaying=true;labStart();notePlay(labPos);return;}   // resume the copy we already have
+  const gen=++labGen;   // only the LATEST play request may act when its decode lands (a stale one must not pause/park a newer start)
+  labPlaying=true;setUI(true);
+  if(audio.paused)unlockMedia();
+  /* the song may already be spinning (came in from another page): keep it going, unbent, until
+     the copy is decoded, then swap at the same instant — no gap in the music */
+  if(!labBuf||labBufUrl!==url)labPlayBtn(true);
+  labLoad(url).then(()=>{
+    if(gen!==labGen)return;labPlayBtn(false);
+    if(!labOn||!labPlaying||trackUrl(curTrack())!==url)return;   // left the lab / paused / changed track meanwhile
+    labPos=!audio.paused?audio.currentTime:(_seekTo!=null?_seekTo:(audio.currentTime||0));
+    try{audio.pause();}catch(_){}
+    labStart();notePlay(labPos);
+  }).catch(()=>{
+    if(gen!==labGen)return;labPlayBtn(false);
+    if(!labOn||trackUrl(curTrack())!==url||!labPlaying)return;
+    labPlaying=false;   // couldn't fetch / decode: at least keep the song playing, unbent
+    audio.play().then(()=>setUI(true)).catch(()=>setUI(false));
+  });
+}
+/* the track changed: the decoded copy is stale */
+function labDrop(){labTok++;labGen++;labLoading=null;labLoadUrl='';labBuf=null;labBufUrl='';labStopSrc();labTickStop();labLive=false;labPlaying=false;labPos=0;labPlayBtn(false);}
+/* lab.html wired: start decoding the current song now so play is instant, and if it's already
+   playing take it over straight away */
+function labEnter(){labOn=true;labPos=0;if(!audio.paused&&bgMode==='local')labPlay();else labPreload();}
+/* leaving the lab: hand the song back to the <audio> element at the same spot (and drop the copy — ~90MB on a phone is not worth keeping for a maybe-return) */
+function labExit(){
+  if(!labOn)return;labOn=false;labTok++;labGen++;labLoading=null;labLoadUrl='';labPlayBtn(false);
+  const was=labPlaying,pos=labLive?labTime():null;
+  labStopSrc();labTickStop();labLive=false;labPlaying=false;labBuf=null;labBufUrl='';
+  if(pos!=null){try{audio.currentTime=pos;}catch(_){}}
+  if(was&&bgMode==='local'){audio.play().then(()=>{_mediaUnlocked=true;setUI(true);}).catch(()=>{setUI(false);kicked=false;armed=false;armKick();});}   // blocked (never gesture-started): the next tap resumes it
+}
 function startAudio(){if(bgMode==='yt'&&ytPlayer&&ytReady){try{ytPlayer.pauseVideo();}catch(_){}}bgMode='local';connectMedia();ensureCtx();applyAudioFx();armKick();
-  audio.play().then(()=>{setUI(true);
-    /* analytics: count a play only once it actually started (a blocked autoplay is not a play); dedupe rapid re-entries (button double-fire / kick race) */
-    const _n=Date.now();if(_n-_lastPlayTrk>1200&&audio.currentTime<1.5){_lastPlayTrk=_n;track('play',{track:localTitle()});}
-  }).catch(()=>{});updateBgTitle();}
+  if(labOn&&actx&&labGain){labPlay();updateBgTitle();return;}   // the lab plays its bent copy of the track
+  audio.play().then(()=>{_mediaUnlocked=true;setUI(true);notePlay(audio.currentTime);}).catch(()=>{});updateBgTitle();}
 let _lastPlayTrk=0;
+/* analytics: count a play only once it actually started (a blocked autoplay is not a play); dedupe rapid re-entries (button double-fire / kick race) */
+function notePlay(pos){const _n=Date.now();if(_n-_lastPlayTrk>1200&&pos<1.5){_lastPlayTrk=_n;track('play',{track:localTitle()});}}
 function setUI(on){playing=on;const ic=on?'❚❚':'▶';if(pbtn)pbtn.textContent=ic;if(pwplay)pwplay.textContent=ic;if(disc)disc.classList.toggle('spin',on);if(musicbar)musicbar.classList.toggle('open',on);const sp=document.getElementById('srPlay');if(sp)sp.textContent=on?'❚❚ pause':'▶ play';const sa=document.getElementById('srArt');if(sa)sa.classList.toggle('spin',on);const pw=document.querySelector('.playerwin');if(pw)pw.classList.toggle('live',on);updateNowPlaying();}
 /* any manual play/pause means the user has taken control — don't let a later modal
    close auto-resume against that choice (clears the video-duck resume intent). */
-function toggle(){_duckedRadio=false;if(bgMode==='yt'){if(ytIsPlaying())ytPause();else ytPlay();return;}if(audio.paused)startAudio();else{audio.pause();setUI(false);}}
+function toggle(){_duckedRadio=false;if(bgMode==='yt'){if(ytIsPlaying())ytPause();else ytPlay();return;}if(localPaused())startAudio();else pauseLocal();}
 if(pbtn)pbtn.onclick=toggle;if(disc)disc.onclick=toggle;
-audio.addEventListener('play',()=>{if(bgMode==='local')setUI(true);});audio.addEventListener('pause',()=>{if(bgMode==='local')setUI(false);});
+/* in the lab the element only holds the position (its play/pause are the engine's business), so its events drive the UI elsewhere only */
+audio.addEventListener('play',()=>{if(bgMode==='local'&&!labOn)setUI(true);});audio.addEventListener('pause',()=>{if(bgMode==='local'&&!labOn)setUI(false);});
 /* the <audio> is no longer loop-attributed: advance the playlist when a track finishes. */
-audio.addEventListener('ended',()=>{if(bgMode==='local')loadTrack(trackIdx+1,true);});   // a natural end is not a "skip" (bgNext logs one)
+audio.addEventListener('ended',()=>{if(bgMode==='local'&&!labLive)loadTrack(trackIdx+1,true);});   // the lab's bent copy reports its own end   // a natural end is not a "skip" (bgNext logs one)
 /* a track that won't load (e.g. a corrupt/empty upload) is skipped so it never stalls the
    queue — guarded so an all-bad list can't spin forever; the guard resets on a good load. */
 let _skipGuard=0;
@@ -400,7 +507,7 @@ const BG_PLAYLIST=(()=>{try{return(window.SB_DEFAULTS&&SB_DEFAULTS.music&&SB_DEF
    "Man Of My Word" regardless of what was spinning). */
 function localTitle(){try{return curTrack().title;}catch(_){return'';}}
 function ytIsPlaying(){try{return!!(ytPlayer&&ytReady&&ytPlayer.getPlayerState&&ytPlayer.getPlayerState()===1);}catch(_){return false;}}
-function bgIsPlaying(){return bgMode==='yt'?ytIsPlaying():!audio.paused;}
+function bgIsPlaying(){return bgMode==='yt'?ytIsPlaying():!localPaused();}
 function updateBgTitle(){const title=localTitle();document.querySelectorAll('#musicbar .stitle').forEach(el=>el.textContent=title);const pwt=document.querySelector('#music .pwtitle');if(pwt)pwt.textContent=title;const sr=document.getElementById('srTitle');if(sr)sr.textContent=title;/* the lab's "now bending" title */updateNowPlaying();}
 /* Sync the music-page player chrome to the live track: preview badge, the per-song Spotify /
    Apple buttons, and which tracklist row is lit. No-ops on pages without the player. */
@@ -423,22 +530,23 @@ function updateNowPlaying(){
 }
 function loadYTApi(){if(window.YT&&window.YT.Player){initYT();return;}if(_ytApiLoading)return;_ytApiLoading=true;const prev=window.onYouTubeIframeAPIReady;window.onYouTubeIframeAPIReady=function(){try{if(prev)prev();}catch(_){}initYT();};const s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';document.head.appendChild(s);}
 function initYT(){if(ytPlayer||!BG_PLAYLIST||!document.getElementById('ytbg'))return;try{ytPlayer=new YT.Player('ytbg',{width:'200',height:'120',host:'https://www.youtube-nocookie.com',playerVars:{listType:'playlist',list:BG_PLAYLIST,autoplay:0,controls:0,disablekb:1,fs:0,modestbranding:1,playsinline:1,rel:0,loop:1},events:{onReady:()=>{ytReady=true;try{ytPlayer.setVolume(Math.round(audio.volume*100));}catch(_){}if(ytWantPlay){ytWantPlay=false;ytPlay();}},onStateChange:onYTState}});}catch(_){}}
-function onYTState(e){const Y=window.YT&&YT.PlayerState;if(!Y)return;if(e.data===Y.PLAYING){if(bgMode!=='yt'){bgMode='yt';try{audio.pause();}catch(_){}}setUI(true);updateBgTitle();}else if(e.data===Y.PAUSED){if(bgMode==='yt')setUI(false);}}
-function ytPlay(){if(!BG_PLAYLIST)return;if(!ytPlayer){ytWantPlay=true;loadYTApi();return;}if(!ytReady){ytWantPlay=true;return;}try{audio.pause();}catch(_){}bgMode='yt';try{ytPlayer.setVolume(Math.round(audio.volume*100));ytPlayer.playVideo();}catch(_){}setUI(true);updateBgTitle();}
+function onYTState(e){const Y=window.YT&&YT.PlayerState;if(!Y)return;if(e.data===Y.PLAYING){if(bgMode!=='yt'){bgMode='yt';if(labOn)labPause();try{audio.pause();}catch(_){}}setUI(true);updateBgTitle();}else if(e.data===Y.PAUSED){if(bgMode==='yt')setUI(false);}}
+function ytPlay(){if(!BG_PLAYLIST)return;if(!ytPlayer){ytWantPlay=true;loadYTApi();return;}if(!ytReady){ytWantPlay=true;return;}if(labOn)labPause();try{audio.pause();}catch(_){}bgMode='yt';try{ytPlayer.setVolume(Math.round(audio.volume*100));ytPlayer.playVideo();}catch(_){}setUI(true);updateBgTitle();}
 function ytPause(){if(ytPlayer&&ytReady){try{ytPlayer.pauseVideo();}catch(_){}}setUI(false);}
 /* Move through the LOCAL playlist (wraps both ends). The signature track + the "My Time"
    catalog ARE the radio now — the prev/next buttons cycle the songs the artist uploaded. */
 function loadTrack(i,autoplay){
   const n=LOCAL_TRACKS.length;trackIdx=((i%n)+n)%n;
-  const wantPlay=(autoplay==null)?(playing||!audio.paused):autoplay;
+  const wantPlay=(autoplay==null)?(playing||!localPaused()):autoplay;
   try{audio.src=trackUrl(curTrack());audio.load();}catch(_){}
+  labDrop();   // the lab's decoded copy (if any) was the old song
   updateBgTitle();saveAudioState();
   if(wantPlay)startAudio();else setUI(false);
 }
 function bgNext(){track('skip',{dir:'next'});loadTrack(trackIdx+1,true);}
 /* prev restarts the current song if you're more than 3s in (the usual transport feel),
    otherwise it steps back a track. */
-function bgPrev(){if(audio.currentTime>3){try{audio.currentTime=0;}catch(_){}return;}track('skip',{dir:'prev'});loadTrack(trackIdx-1,true);}
+function bgPrev(){if(curTime()>3){seekLocal(0);return;}track('skip',{dir:'prev'});loadTrack(trackIdx-1,true);}
 {const pv=document.getElementById('prevbtn'),nx=document.getElementById('nextbtn');if(pv)pv.onclick=bgPrev;if(nx)nx.onclick=bgNext;}
 /* ── TRACK LISTS ──
    The live playlist renders as a selectable list (music.html tracklist + the lab's "load a
@@ -454,7 +562,7 @@ function trackRowHTML(t,i){return `<li class="trk${t.preview?' preview':''}" dat
     `<span class="tgo" aria-hidden="true">▶</span>`+
   `</li>`;}
 function pickTrack(r){if(!r)return;const i=+r.dataset.i;
-  if(i===trackIdx&&bgMode==='local'){if(audio.paused)startAudio();else{audio.pause();setUI(false);}}   // current row → resume / pause
+  if(i===trackIdx&&bgMode==='local'){if(localPaused())startAudio();else pauseLocal();}   // current row → resume / pause
   else loadTrack(i,true);}                                                                            // any other row → load + play
 function wireTrackList(list){
   if(!list)return;
@@ -506,13 +614,14 @@ const SB_TRANSPORT_SEL='.pwplay,.pwnav,.pbtn,.mbtn,.disc,.srplay,.trk';
 function armKick(){if(kicked||armed)return;armed=true;const evs=['pointerup','touchend','keydown'];
   /* keyboard navigation (Tab to the skip link, arrows, modifiers) must not start the music — only a real "press" counts */
   const navKey=e=>e.type==='keydown'&&(e.altKey||e.ctrlKey||e.metaKey||/^(Tab|Shift|Control|Alt|Meta|Escape|Arrow|Page|Home|End|CapsLock|F\d)/.test(e.key||''));
-  function kick(e){if(kicked)return;if(navKey(e))return;kicked=true;evs.forEach(ev=>removeEventListener(ev,kick));ensureCtx();const tgt=e&&e.target;if(tgt&&tgt.closest&&tgt.closest(SB_TRANSPORT_SEL))return;/* a transport control's own click is about to fire — let it start playback so the two don't cancel out */if(audio.paused){startAudio();setTimeout(()=>{if(audio.paused&&!playing){kicked=false;armed=false;armKick();}},400);}else setUI(true);}
+  function kick(e){if(kicked)return;if(navKey(e))return;kicked=true;evs.forEach(ev=>removeEventListener(ev,kick));ensureCtx();const tgt=e&&e.target;if(tgt&&tgt.closest&&tgt.closest(SB_TRANSPORT_SEL))return;/* a transport control's own click is about to fire — let it start playback so the two don't cancel out */if(localPaused()){startAudio();setTimeout(()=>{if(localPaused()&&!playing){kicked=false;armed=false;armKick();}},400);}else setUI(true);}
   evs.forEach(e=>addEventListener(e,kick,{passive:true}));}
 function fmt(s){if(!isFinite(s))return'0:00';const m=Math.floor(s/60),x=Math.floor(s%60);return m+':'+String(x).padStart(2,'0');}
 /* progress / time labels are looked up by id each tick so they always target the
    current page's player (the player UI lives inside <main>, which is swapped on nav). */
 audio.addEventListener('loadedmetadata',()=>{const d=fmt(audio.duration);const pwdur=document.getElementById('pwdur');if(pwdur)pwdur.textContent=d;const sd=document.getElementById('srDur');if(sd)sd.textContent=d;if(_seekTo!=null&&isFinite(audio.duration)){try{audio.currentTime=Math.max(0,Math.min(_seekTo,audio.duration-0.25));}catch(_){}_seekTo=null;}});
-audio.addEventListener('timeupdate',()=>{const c=fmt(audio.currentTime),pct=(audio.currentTime/audio.duration*100||0)+'%';const pwcur=document.getElementById('pwcur'),pwfill=document.getElementById('pwprogfill');if(pwcur)pwcur.textContent=c;if(pwfill)pwfill.style.width=pct;const sc=document.getElementById('srCur'),sf=document.getElementById('srProgFill');if(sc)sc.textContent=c;if(sf)sf.style.width=pct;});
+function renderTransport(cur,dur){const c=fmt(cur),pct=(cur/dur*100||0)+'%';const pwcur=document.getElementById('pwcur'),pwfill=document.getElementById('pwprogfill');if(pwcur)pwcur.textContent=c;if(pwfill)pwfill.style.width=pct;const sc=document.getElementById('srCur'),sf=document.getElementById('srProgFill');if(sc)sc.textContent=c;if(sf)sf.style.width=pct;const sd=document.getElementById('srDur');if(sd&&isFinite(dur)&&dur>0)sd.textContent=fmt(dur);}
+audio.addEventListener('timeupdate',()=>{if(!labLive)renderTransport(audio.currentTime,audio.duration);});   // while the lab's copy is live, its own ticker draws the transport
 /* BACK TO TOP */
 const totop=document.getElementById('totop');totop.onclick=()=>scrollTo({top:0,behavior:'smooth'});
 addEventListener('scroll',()=>totop.classList.toggle('show',scrollY>600),{passive:true});
@@ -998,7 +1107,7 @@ function setupCulling(){
 let _rzT;addEventListener('resize',()=>{clearTimeout(_rzT);_rzT=setTimeout(()=>{sizeTrail();sizeSnake();buildSnakes();resizeAll();refreshScrollMax();},150);});
 function rg(ctx,w){const g=ctx.createLinearGradient(0,0,w,0);g.addColorStop(0,'#ff1f2e');g.addColorStop(.5,'#9b3cff');g.addColorStop(1,'#8dff2b');return g;}
 let levels=new Array(64).fill(0);
-function updateLevels(t){if(graphReady&&playing&&analyser&&bgMode==='local'){analyser.getByteFrequencyData(freq);for(let i=0;i<levels.length;i++)levels[i]+=(freq[i%freq.length]/255-levels[i])*.4;}else{for(let i=0;i<levels.length;i++){const b=.14+.12*Math.sin(t*.0013+i*.35)+.09*Math.sin(t*.0026+i*.7);levels[i]+=(Math.max(0,b)-levels[i])*.08;}}}
+function updateLevels(t){if((graphReady||labLive)&&playing&&analyser&&bgMode==='local'){analyser.getByteFrequencyData(freq);for(let i=0;i<levels.length;i++)levels[i]+=(freq[i%freq.length]/255-levels[i])*.4;}else{for(let i=0;i<levels.length;i++){const b=.14+.12*Math.sin(t*.0013+i*.35)+.09*Math.sin(t*.0026+i*.7);levels[i]+=(Math.max(0,b)-levels[i])*.08;}}}
 /* layered strokes (wide glow → bright line → white thread) instead of ctx.shadowBlur:
    same neon read, none of the per-stroke Gaussian blur that crawled in Chrome */
 function snakeWave(ctx,w,h,t,amp,thick,yc){ctx.save();ctx.lineCap='round';const seg=70;for(let pass=0;pass<3;pass++){ctx.beginPath();const ph=pass===2?1.6:0;for(let i=0;i<=seg;i++){const p=i/seg,x=p*w;const lv=levels[Math.floor(p*(levels.length-1))]||0;const wob=Math.sin(p*7+t*.0022+ph)*amp*(.4+lv*1.6)+Math.sin(p*3-t*.0015)*amp*.4;const y=yc+wob;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.strokeStyle=pass===2?'rgba(255,255,255,.45)':rg(ctx,w);ctx.globalAlpha=pass===0?.18:(pass===1?.95:.3);ctx.lineWidth=thick*(pass===0?2.8:pass===1?1:.4);ctx.stroke();}ctx.restore();}
@@ -1356,7 +1465,7 @@ function openModal(html){
   /* If this modal embeds a video (vault clip), duck the background radio so the two
      don't play over each other; remember it so we can resume on close. */
   _duckedRadio=false;
-  if(modalContent.querySelector('iframe')&&bgIsPlaying()){_duckedRadio=true;if(bgMode==='yt')ytPause();else{audio.pause();setUI(false);}}
+  if(modalContent.querySelector('iframe')&&bgIsPlaying()){_duckedRadio=true;if(bgMode==='yt')ytPause();else pauseLocal();}
   modal.classList.add('open');modal.setAttribute('aria-hidden','false');
   /* the dialog fades in (visibility transition), so the close button isn't focusable
      for a few frames — focus it the moment it actually becomes visible */
@@ -1493,7 +1602,7 @@ function srModeText(){if(rageOn)return'rage';const slow=userRate<0.97,fast=userR
   if(fast)return rev?'nightcore + reverb':'nightcore';
   if(slow&&rev)return'slowed + reverb';if(slow)return'slowed';if(rev)return'reverb';return'original';}
 function srSync(){if(srModeEl)srModeEl.textContent=srModeText();}
-function setSpeed(v){userRate=Math.max(.5,Math.min(1.25,v/100));labRate=userRate;if(srSpeedV)srSpeedV.textContent=userRate.toFixed(2)+'×';audio.playbackRate=userRate;saveLabState();srSync();}
+function setSpeed(v){userRate=Math.max(.5,Math.min(1.25,v/100));labRate=userRate;if(srSpeedV)srSpeedV.textContent=userRate.toFixed(2)+'×';labSetRate(userRate);saveLabState();srSync();}
 function setReverb(v){revAmt=Math.max(0,Math.min(1,v/100));labRev=revAmt;if(srReverbV)srReverbV.textContent=Math.round(revAmt*100)+'%';applyAudioFx();saveLabState();srSync();}
 function setRoom(v){roomP=Math.max(0,Math.min(1,v/100));labRoom=roomP;if(srRoomV)srRoomV.textContent=roomLabel(roomP);saveLabState();}
 const SR_PRESETS={slowrev:[80,30,55],deep:[70,58,80],night:[118,8,26],clean:[100,0,40]};
@@ -1505,7 +1614,7 @@ function matchPreset(){const cur=[Math.round(userRate*100),Math.round(revAmt*100
 function syncLab(){userRate=labRate;revAmt=labRev;roomP=labRoom;
   if(srSpeed)srSpeed.value=Math.round(labRate*100);if(srReverb)srReverb.value=Math.round(labRev*100);if(srRoom)srRoom.value=Math.round(labRoom*100);
   if(srSpeedV)srSpeedV.textContent=labRate.toFixed(2)+'×';if(srReverbV)srReverbV.textContent=Math.round(labRev*100)+'%';if(srRoomV)srRoomV.textContent=roomLabel(labRoom);
-  audio.playbackRate=userRate;if(actx)rebuildImpulse();applyAudioFx();markPreset(matchPreset());srSync();}
+  if(actx)rebuildImpulse();applyAudioFx();markPreset(matchPreset());srSync();}
 /* wire the lab controls + engage the bend — called from sbInitPage() on lab.html only */
 function wireLab(){
   srSpeed=document.getElementById('srSpeed');srSpeedV=document.getElementById('srSpeedV');
@@ -1521,9 +1630,10 @@ function wireLab(){
   if(srRoom){srRoom.oninput=()=>{ensureCtx();setRoom(+srRoom.value);markPreset(null);_labTrk();};srRoom.onchange=()=>rebuildImpulse();}
   document.querySelectorAll('.srpresets button').forEach(b=>b.onclick=()=>{ensureCtx();applyPreset(b.dataset.preset);if(audio.paused)startAudio();});
   if(srPlayBtn)srPlayBtn.onclick=toggle;
-  if(srProgEl)srProgEl.onclick=e=>{if(!isFinite(audio.duration))return;const r=srProgEl.getBoundingClientRect();audio.currentTime=(e.clientX-r.left)/r.width*audio.duration;};
+  if(srProgEl)srProgEl.onclick=e=>{const d=curDur();if(!isFinite(d)||d<=0)return;const r=srProgEl.getBoundingClientRect();seekLocal((e.clientX-r.left)/r.width*d);};
   wireLabTracks();   // the "load a track" picker — pick any catalog song to bend
   syncLab();
+  labEnter();        // engage the lab engine (hands a song that's already spinning over to its bent copy)
   return true;
 }
 
@@ -2002,8 +2112,8 @@ window.SBPlayer = {
   ensureCtx(){ try{ ensureCtx(); }catch(_){} },
   start(){ try{ if(bgMode==='yt') ytPlay(); else startAudio(); }catch(_){} },
   toggle(){ try{ toggle(); }catch(_){} },
-  isPlaying(){ try{ return bgMode==='yt' ? ytIsPlaying() : (!!audio && !audio.paused); }catch(_){ return false; } },
-  analyser(){ return (graphReady&&bgMode==='local')?(analyser||null):null; },   // the live AnalyserNode — only once the local track is actually routed through it (a silent analyser would make the game skip its fallback beat clock)
+  isPlaying(){ try{ return bgIsPlaying(); }catch(_){ return false; } },
+  analyser(){ return ((graphReady||labLive)&&bgMode==='local')?(analyser||null):null; },   // the live AnalyserNode — only once the local track is actually routed through it (a silent analyser would make the game skip its fallback beat clock)
   audio(){ return audio; },
   title(){ try{ return localTitle(); }catch(_){ return ''; } },
 };
@@ -2035,8 +2145,8 @@ function sbInitPage(){
   setupCulling();         // re-observe on-screen sections for render culling
   observeReveals();       // reveal-on-scroll for the new content
   pwplay=document.getElementById('pwplay'); if(pwplay)pwplay.onclick=toggle;
-  const pwprog=document.getElementById('pwprog'); if(pwprog)pwprog.onclick=e=>{if(!isFinite(audio.duration))return;const r=pwprog.getBoundingClientRect();audio.currentTime=(e.clientX-r.left)/r.width*audio.duration;};
-  const pwvol=document.getElementById('pwvol'); if(pwvol){pwvol.value=Math.round(audio.volume*100);pwvol.oninput=()=>{audio.volume=pwvol.value/100;if(ytPlayer&&ytReady){try{ytPlayer.setVolume(+pwvol.value);}catch(_){}}};}
+  const pwprog=document.getElementById('pwprog'); if(pwprog)pwprog.onclick=e=>{const d=curDur();if(!isFinite(d)||d<=0)return;const r=pwprog.getBoundingClientRect();seekLocal((e.clientX-r.left)/r.width*d);};
+  const pwvol=document.getElementById('pwvol'); if(pwvol){pwvol.value=Math.round(audio.volume*100);pwvol.oninput=()=>{audio.volume=pwvol.value/100;syncLabVolume();if(ytPlayer&&ytReady){try{ytPlayer.setVolume(+pwvol.value);}catch(_){}}};}
   const pwprev=document.getElementById('pwprev'); if(pwprev)pwprev.onclick=bgPrev;
   const pwnext=document.getElementById('pwnext'); if(pwnext)pwnext.onclick=bgNext;
   wireTracklist();

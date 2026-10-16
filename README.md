@@ -23,8 +23,12 @@ and publish live.
 - **The Lab** — a **slowed + reverb studio** (in the spirit of slowedandreverb.studio):
   bend the song playing across the site in real time with **speed** (pitches the whole
   track down/up), **reverb**, and **room** sliders, plus one-tap presets — *slowed +
-  reverb*, *deep slow*, *nightcore*, *original*. Built on the site's Web-Audio engine
-  (a `ConvolverNode` for reverb + `playbackRate` with pitch-shift for the slow).
+  reverb*, *deep slow*, *nightcore*, *original*. Built on the site's Web-Audio engine:
+  the lab decodes the current song into an `AudioBuffer` and plays it through an
+  `AudioBufferSourceNode` (its `playbackRate` resamples the audio, so the slow pitches the
+  track down the same way in every browser — Safari and iPhone included) into a
+  `ConvolverNode` for the reverb. The shared `<audio>` element parks while the lab is live
+  and takes the song back at the same spot when you leave.
 - **Auto-play** — the track starts on page load (falls back to the first interaction if
   the browser blocks it).
 - **Rage mode** — a takeover toggle: the snakes turn blood-red and whip faster, the audio
