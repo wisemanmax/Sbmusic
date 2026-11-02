@@ -15,6 +15,10 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm ci
+      - name: 3D vendor bundle is up to date
+        # assets/3d/vendor/ is committed (the site has no build step); rebuild it and fail
+        # if it differs, so a three/gsap bump or a new export can't ship stale
+        run: npm run build:3d -- vendor && git diff --exit-code -- assets/3d/vendor
       - name: Install Playwright browser
         run: npm run test:install
       - name: Syntax check + e2e

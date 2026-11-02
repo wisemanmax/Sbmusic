@@ -1234,7 +1234,9 @@ function frame(t){
   }
   updateLevels(t);const energy=levels.reduce((a,b)=>a+b,0)/levels.length+(rageOn?0.35:0);
   // SNAKE PIT (full page) — throttled; runs much slower under reduced-motion
-  const snakeDt=sbReduceMotion?100:(window.SB_LITE?50:SNAKE_DT);   // lite: snake pit → ~20fps
+  /* lite: snake pit → ~20fps. Same while a three.js scene is on screen (window.SB_3D_BUSY,
+     set by assets/3d/core.js) so two WebGL contexts never both run flat-out on one page. */
+  const snakeDt=sbReduceMotion?100:((window.SB_LITE||window.SB_3D_BUSY)?50:SNAKE_DT);
   if(!SB_PREVIEW && (t-_snakeLast)>=snakeDt){ _snakeLast=t; drawSnakes(t,energy); }
   // Visualizers: under reduced-motion, only animate while audio is actually playing
   const drawViz=!sbReduceMotion||playing;
@@ -1650,6 +1652,7 @@ function renderPowers(list){POWERS=list||[];const wrap=document.querySelector('#
   wrap.querySelectorAll('.upanel').forEach(el=>{io.observe(el);const i=+el.dataset.p;
     el.addEventListener('click',()=>openPower(i));
     el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.code==='Space'){e.preventDefault();openPower(i);}});});
+  try{document.dispatchEvent(new CustomEvent('sb:powers'));}catch(_){}   // the 3D orbit rebuilds from the new list
 }
 
 /* ===================== RELEASES (content-driven) ===================== */
@@ -1971,7 +1974,10 @@ async function sbNavigate(url,push){
       document.body.className=document.body.className.replace(/\bpage-\S+/g,'').trim();
       document.body.classList.add('page-'+currentPage().replace(/\.html$/,''));
       setActiveNav();
-      try{scrollTo(0,0);}catch(_){}
+      /* jump (not glide) to the top: html{scroll-behavior:smooth} would otherwise turn this into
+         a smooth scroll racing the swap, and the new page could land mid-way down. The wipe
+         covers the page at this moment, so an instant reset is invisible. */
+      try{const de=document.documentElement,sb=de.style.scrollBehavior;de.style.scrollBehavior='auto';scrollTo(0,0);de.style.scrollBehavior=sb;}catch(_){}
       sbInitPage();
       /* SPA pageview: the analytics tracker only logs one pageview at full load, so re-log
          (and reset per-page scroll/time) on every in-app navigation. No-op until consent. */
@@ -2044,13 +2050,49 @@ function isWatched(n){ return watchList().indexOf(n)>=0; }
 function setWatched(n){ try{const a=watchList();if(a.indexOf(n)<0){a.push(n);localStorage.setItem('sb_watch',JSON.stringify(a));}}catch(_){} }
 function markWatchedCards(){ document.querySelectorAll('#pgrid .prod').forEach(c=>c.classList.toggle('watched',isWatched(c.dataset.name))); }
 const SIZES=['XS','S','M','L','XL','XXL'];
+/* ---- merch in 3D + AR ----
+   Each product card can carry:
+     data-kind / data-finish  the procedural SB piece the 3D viewer builds (emblem|chain · slime|blood|onyx|ice|venom|alien)
+     data-model               a REAL product .glb — replaces the procedural piece in the viewer and powers Android AR
+     data-ar-glb / data-usdz  AR files (Android Scene Viewer / iOS Quick Look). The baked SB pieces live in
+                              assets/models/ (npm run build:3d); real scans go anywhere same-origin.
+   AR is native OS viewers via plain links — no WebGL needed, so it works even in lite mode. */
+function sbAbs(u){ u=safeImg(u); if(!u)return''; try{ return new URL(u,location.href).href; }catch(_){ return''; } }
+function sbQuickLook(){ try{ return document.createElement('a').relList.supports('ar'); }catch(_){ return false; } }
+function merchAR(card){
+  const usdz=sbAbs(card.dataset.usdz), glb=sbAbs(card.dataset.model||card.dataset.arGlb);
+  if(sbQuickLook()&&usdz) return {os:'ios',url:usdz};
+  if(/android/i.test(navigator.userAgent)&&glb) return {os:'android',url:glb};
+  return (usdz||glb)?{os:'other'}:null;
+}
+function launchAR(ar,name){
+  track('merch_ar',{item:name,os:ar.os});
+  if(ar.os==='ios'){
+    /* Quick Look only opens from an <a rel="ar"> whose single child is an <img> */
+    const a=document.createElement('a'); a.rel='ar'; a.href=ar.url+'#allowsContentScaling=0';
+    const im=document.createElement('img'); im.alt=''; im.src='assets/icon.svg'; im.width=im.height=1; a.appendChild(im);
+    a.style.cssText='position:fixed;left:-9999px;top:0'; document.body.appendChild(a); a.click(); setTimeout(()=>a.remove(),2000);
+  } else if(ar.os==='android'){
+    const fb=encodeURIComponent(location.href.split('#')[0]);
+    location.href='intent://arvr.google.com/scene-viewer/1.0?file='+encodeURIComponent(ar.url)+'&mode=ar_preferred&title='+encodeURIComponent(name)
+      +'#Intent;scheme=https;package=com.google.android.googlequicklook;action=android.intent.action.VIEW;S.browser_fallback_url='+fb+';end;';
+  }
+}
 function openMerch(card){
   const name=card.dataset.name||'SB drop', type=card.dataset.type||'', desc=card.dataset.desc||'';
-  openModal(`<div class="mbody"><span class="kicker">slime shop · coming soon</span><h3>${esc(name)}</h3><div class="dtag">${esc(type)}</div><p>${esc(desc)}</p>
+  const view3d=sb3dAllowed(), ar=merchAR(card);
+  const stage=view3d?`<div class="m3d" id="m3d"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="${SNAKE_PATH}"/></svg><span class="m3dhint">drag to spin</span></div>`:'';
+  const arUI=!ar?'':(ar.os==='other'
+    ?`<div class="arnote">📱 open this on your phone to drop the ${esc(name)} in your room (AR)</div>`
+    :`<button class="bigbtn bAlien arbtn" id="merchAR" type="button">◎ view in your space (AR)</button>`);
+  openModal(`<div class="mbody">${stage}<span class="kicker">slime shop · coming soon</span><h3>${esc(name)}</h3><div class="dtag">${esc(type)}</div><p>${esc(desc)}</p>${arUI}
     <div class="mlabel">pick your size</div>
     <div class="sizes">${SIZES.map(s=>`<button type="button">${s}</button>`).join('')}</div>
     <div class="mcta"><button class="bigbtn bSlime" id="merchNotify" type="button">${isWatched(name)?'✓ on the list ☠':'☠ notify me when it drops'}</button></div>
     <div class="joinnote" style="text-align:left;margin-top:14px">🐍 prices drop when the shop opens — get watching for first access + a launch discount.</div></div>`);
+  const st=document.getElementById('m3d');
+  if(st) sbLoad3D(m=>m.mountMerch(st,{kind:card.dataset.kind||'emblem',finish:card.dataset.finish||'slime',model:card.dataset.model?safeImg(card.dataset.model):''}));
+  const arb=document.getElementById('merchAR'); if(arb&&ar)arb.onclick=()=>launchAR(ar,name);
   const box=document.getElementById('modalContent');
   box.querySelectorAll('.sizes button').forEach(b=>b.onclick=()=>{box.querySelectorAll('.sizes button').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');try{hat(false);}catch(_){}});
   const nb=document.getElementById('merchNotify');
@@ -2116,7 +2158,68 @@ window.SBPlayer = {
   analyser(){ return ((graphReady||labLive)&&bgMode==='local')?(analyser||null):null; },   // the live AnalyserNode — only once the local track is actually routed through it (a silent analyser would make the game skip its fallback beat clock)
   audio(){ return audio; },
   title(){ try{ return localTitle(); }catch(_){ return ''; } },
+  /* — read-mostly hooks for the 3D layer (assets/3d/) — */
+  levels(){ return levels; },                       // the 64 smoothed bands the 2D visualizers draw (idle "breath" when silent)
+  rage(){ return rageOn; },
+  lab(){ return {on:labOn,rate:userRate,rev:revAmt,room:roomP}; },   // the studio knobs, live
+  mode(){ return bgMode; },                         // 'local' (Web Audio, capturable) or 'yt' (cross-origin radio)
+  time(){ try{ return curTime(); }catch(_){ return 0; } },
+  duration(){ try{ return curDur(); }catch(_){ return 0; } },
+  seek(t){ try{ if(bgMode==='local') seekLocal(t); }catch(_){} },
+  /* a MediaStream of exactly what's coming out of the speakers (post rage / reverb / lab
+     bend) for the lab's clip recorder. Caller must release() it. */
+  captureStream(){
+    try{ ensureCtx(); if(!actx||!analyser||!actx.createMediaStreamDestination)return null;
+      const d=actx.createMediaStreamDestination(); analyser.connect(d);
+      return {stream:d.stream,release(){try{analyser.disconnect(d);}catch(_){}}};
+    }catch(_){ return null; }
+  },
 };
+
+/* ===================== 3D LAYER BRIDGE =====================
+   The three.js scenes (assets/3d/*.js — hero mark, lab pool + clip recorder, music
+   deck, SB World orbit, merch turntable) are an ES-module layer on top of this engine.
+   app.js only decides WHEN to load it, and hands it a tiny site surface:
+     · loaded with an injected <script type="module"> (like the quest loader), so a
+       browser that can't run modules — or a failed fetch — leaves the 2D site intact
+     · skipped in lite mode (software GPU / the FPS governor), the admin preview,
+       Save-Data, very-low-memory devices, and ?no3d. If the governor flips to lite
+       mid-visit, the core hears `sb:lite`, tears every scene down, and the 2D returns.
+     · deferred past window load so it never competes with first paint / LCP. */
+window.SBSite = {
+  powers(){ return POWERS; },
+  openPower(i){ openPower(i); },
+  splash(x,y){ slimeSplash(x,y); },
+  toast(m){ toast(m); },
+  track(n,m){ track(n,m); },
+  openModal(h){ openModal(h); },
+  modalOpen(){ return modal.classList.contains('open'); },
+  resizeAll(){ try{ resizeAll(); }catch(_){} },
+};
+function sb3dAllowed(){
+  if(window.SB_LITE||SB_PREVIEW)return false;
+  if(/[?&]no3d\b/.test(location.search))return false;
+  try{ const c=navigator.connection; if(c&&c.saveData)return false; }catch(_){}
+  try{ if(navigator.deviceMemory&&navigator.deviceMemory<=2)return false; }catch(_){}
+  return typeof window.WebGLRenderingContext!=='undefined'&&typeof IntersectionObserver!=='undefined'&&typeof ResizeObserver!=='undefined';
+}
+let _sb3dLoad=0;const _sb3dQ=[];
+function sbLoad3D(cb){
+  if(window.SB3D){ try{cb(window.SB3D);}catch(_){} return; }
+  _sb3dQ.push(cb); if(_sb3dLoad)return; _sb3dLoad=1;
+  const s=document.createElement('script'); s.type='module'; s.src='assets/3d/core.js';
+  s.onload=()=>{ const q=_sb3dQ.splice(0); if(window.SB3D) q.forEach(f=>{try{f(window.SB3D);}catch(_){}}); };
+  s.onerror=()=>{ _sb3dLoad=0; _sb3dQ.length=0; };
+  document.head.appendChild(s);
+}
+const SB3D_TARGETS='main .hero, main #visualizer.viz, main #music .playerwin, main #universe .upanels';
+function sbEnsure3D(){
+  if(!sb3dAllowed()){ if(window.SB3D)window.SB3D.unmountAll(); return; }
+  if(!document.querySelector(SB3D_TARGETS)){ if(window.SB3D)window.SB3D.mountPage(); return; }   // mountPage also drops scenes from the old page
+  const go=()=>sbLoad3D(m=>m.mountPage());
+  if(document.readyState==='complete') go();
+  else addEventListener('load',()=>setTimeout(go,300),{once:true});
+}
 /* Mount the quest engine when its page is on screen. The module is loaded on demand
    (the client-side router never executes scripts inside a swapped-in <main>, and the
    game is dead weight on every other page), then mounted against the freshly-swapped
@@ -2162,6 +2265,7 @@ function sbInitPage(){
   setUI(bgIsPlaying());   // reflect play state on the new page's transport UI
   updateBgTitle();        // keep the now-playing title in sync (local track or YouTube)
   sbEnsureQuest();        // mount "Slime the Game" when its page is on screen (no-op elsewhere)
+  sbEnsure3D();           // three.js layer: hero mark / lab pool / music deck / SB World orbit (skipped in lite)
 }
 
 /* privacy.html — show the visitor's current analytics choice and refresh it after the buttons

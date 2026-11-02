@@ -47,7 +47,7 @@ Serve these from the host. The site's real external dependencies are:
 ### Recommended header set
 
 ```
-Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; media-src 'self' blob:; connect-src 'self' https://rccwnyghfiinpoexvtwp.supabase.co; frame-src 'self' https://open.spotify.com https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests
+Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' blob: https://rccwnyghfiinpoexvtwp.supabase.co; frame-src 'self' https://open.spotify.com https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests
 Referrer-Policy: strict-origin-when-cross-origin
 X-Content-Type-Options: nosniff
 Permissions-Policy: geolocation=(), camera=(), microphone=()
@@ -64,6 +64,13 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains
 > `style-src 'unsafe-inline'` is required: inline `style=""` and CMS-applied
 > `element.style` are pervasive. `img-src https:` is broad on purpose — CMS cover art
 > can point at any HTTPS host.
+>
+> **3D layer:** three.js + GSAP are bundled into `assets/3d/vendor/` and served
+> same-origin, so `script-src` needs **no** CDN host for them. `blob:` was added to
+> `img-src` and `connect-src` only so GLTFLoader can decode the textures embedded in a
+> real merch `.glb` (it reads them back through blob: URLs); `media-src blob:` (already
+> present) lets the Lab's clip recorder preview the video it just made. Product models must
+> live same-origin or on the Supabase project — `connect-src` blocks any other host.
 
 ### Vercel — `vercel.json`
 
@@ -73,7 +80,7 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; media-src 'self' blob:; connect-src 'self' https://rccwnyghfiinpoexvtwp.supabase.co; frame-src 'self' https://open.spotify.com https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests" },
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' blob: https://rccwnyghfiinpoexvtwp.supabase.co; frame-src 'self' https://open.spotify.com https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Permissions-Policy", "value": "geolocation=(), camera=(), microphone=()" },
@@ -88,7 +95,7 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains
 
 ```
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; media-src 'self' blob:; connect-src 'self' https://rccwnyghfiinpoexvtwp.supabase.co; frame-src 'self' https://open.spotify.com https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' blob: https://rccwnyghfiinpoexvtwp.supabase.co; frame-src 'self' https://open.spotify.com https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests
   Referrer-Policy: strict-origin-when-cross-origin
   X-Content-Type-Options: nosniff
   Permissions-Policy: geolocation=(), camera=(), microphone=()

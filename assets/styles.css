@@ -951,3 +951,44 @@ section[id],[id="top"]{scroll-margin-top:84px}
   .burger{padding:10px}
   .modal .x{width:44px;height:44px;top:6px;right:6px}
 }
+
+/* ===================== 3D LAYER (three.js · assets/3d/) =====================
+   Every 3D canvas is added by assets/3d/*.js and only when the perf governor isn't
+   in lite mode — the classes below (.has-3d, .live) are set by those modules, so
+   when a scene isn't mounted (lite / old browser / ?no3d) the 2D site is untouched. */
+/* home hero — the glossy SB mark sits between the 2D ember layer and the title */
+.hero3d{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:2}
+.hero.has-3d .sbmono{display:none}                 /* the 3D mark replaces the small SVG one (and takes over its tap-to-splash) */
+/* the lab — 3D slime pool replaces the 2D frequency canvas */
+.viz3d{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:1}
+.viz.has-3d #vizCanvas{display:none}
+.viz3d.rec{object-fit:cover}                       /* recording renders 9:16 — keep the on-screen view filled */
+.viz .vbtn.has-rec{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;width:max-content;max-width:calc(100vw - 32px)}
+.viz.recording{box-shadow:inset 0 0 0 2px var(--blood)}
+.vrecbtn.on{background:var(--blood);border-color:var(--blood);color:#fff;animation:recpulse 1s ease-in-out infinite}
+@keyframes recpulse{50%{box-shadow:0 0 26px rgba(255,31,46,.7)}}
+.clipvid{display:block;width:auto;max-width:100%;height:min(56vh,520px);aspect-ratio:9/16;margin:14px auto 0;background:#000;border:1px solid rgba(141,255,43,.3)}
+.clipbody h3 em{font-style:normal;color:var(--slime)}
+/* music — the SB deck above the player */
+.deck3d{position:relative;max-width:640px;height:clamp(230px,44vw,330px);margin:0 auto 12px}
+.deck3d canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y}
+.deckhint{position:absolute;left:0;right:0;bottom:2px;text-align:center;font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);pointer-events:none}
+/* sb world — the five powers in orbit */
+.orbit3d{position:relative;height:clamp(300px,46vw,470px);margin:0 0 18px;overflow:hidden}
+.orbit3d canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.olabels{position:absolute;inset:0;pointer-events:none}
+.olabel{position:absolute;left:0;top:0;pointer-events:auto;display:flex;gap:6px;align-items:baseline;white-space:nowrap;font-family:var(--disp);font-size:clamp(14px,1.7vw,19px);line-height:1.1;color:var(--ink);background:rgba(8,5,4,.6);border:1px solid var(--c,var(--slime));padding:4px 10px;cursor:pointer;transition:opacity .25s,background .2s,box-shadow .2s;will-change:transform}
+.olabel .oi{font-family:var(--mono);font-size:10px;color:var(--c,var(--slime))}
+.olabel.hot{background:rgba(8,5,4,.9);box-shadow:0 0 18px var(--c,var(--slime))}
+.ohint{position:absolute;right:6px;bottom:4px;font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);pointer-events:none}
+/* merch — product turntable + AR in the modal */
+.m3d{position:relative;aspect-ratio:4/3;margin:0 0 16px;background:radial-gradient(circle at 50% 40%,#17110c,#070504);border:1px solid rgba(141,255,43,.18);overflow:hidden}
+.m3d svg{position:absolute;inset:0;margin:auto;width:38%;height:38%;filter:drop-shadow(0 0 16px rgba(141,255,43,.4))}
+.m3d svg path{stroke:var(--slime);stroke-width:6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.m3d.live svg{display:none}
+.m3d canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:pan-y}
+.m3dhint{position:absolute;left:10px;bottom:8px;font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);pointer-events:none}
+.m3d:not(.live) .m3dhint{display:none}
+.arbtn{margin:14px 0 2px}
+.arnote{font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--muted);margin-top:12px;letter-spacing:.5px}
+@media(prefers-reduced-motion:reduce){.vrecbtn.on{animation:none}}

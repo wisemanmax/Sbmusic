@@ -7,7 +7,7 @@
    range requests, and the large MP3s (served immutable over HTTP
    already — caching them here would just bloat storage).
    ============================================================ */
-const VERSION = 'sb-cache-v5';   // bumped: html keyed without its query (drops the old per-?fbclid entries)
+const VERSION = 'sb-cache-v6';   // bumped: three.js layer (assets/3d/, assets/models/) + app.js bridge
 const CORE = [
   '/', '/index.html',
   '/assets/styles.css', '/assets/app.js', '/cms.js', '/assets/analytics.js', '/assets/quest.js',
