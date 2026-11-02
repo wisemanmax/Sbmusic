@@ -61,11 +61,13 @@ export function addWobble(material, key = 'sbwobble') {
 
 /* Glow on a TRANSPARENT canvas. Additive blending there leaves "colour with ~no alpha"
    pixels — not valid premultiplied data — and the page compositor turns them into a
-   dark halo around the glow. Plain premultiplied "over" (colour × alpha, alpha kept)
-   is always valid: the glow tints the page under it instead of punching a hole. */
-export function additive(m) {
+   dark halo around the glow. Plain "over" blending is always valid: the glow tints the
+   page under it instead of punching a hole. Straight (non-premultiplied) alpha here,
+   because three's sprite shader never premultiplies its colour — with
+   premultipliedAlpha on, every glow sprite rendered as a solid, hard-edged disc. */
+export function additive(m, premultiplied = false) {
   m.blending = THREE.NormalBlending;
-  m.premultipliedAlpha = true;
+  m.premultipliedAlpha = premultiplied;   // true only for shaders that premultiply their own output (the halo below)
   m.transparent = true; m.depthWrite = false;
   return m;
 }
@@ -101,7 +103,7 @@ export function glowMaterial(color, { thickness = 0.09, power = 2.2, intensity =
         gl_FragColor.rgb *= gl_FragColor.a;                             // premultiply AFTER the sRGB encode
       }`,
     side: THREE.BackSide,
-  }));
+  }), true);
 }
 
 /* soft radial dot for additive sprite glows */
