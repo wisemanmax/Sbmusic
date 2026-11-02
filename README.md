@@ -66,6 +66,52 @@ and publish live.
 - **Accessibility** — skip link, focus outlines, ARIA labels, a `<noscript>` fallback
   nav, and full `prefers-reduced-motion` support.
 
+## 3D layer (three.js + GSAP)
+An optional WebGL layer on top of the 2D site — every scene reacts to the live track,
+rage mode and the Lab's knobs, and every one is skipped cleanly when the device can't
+take it.
+
+| Page | Scene |
+|---|---|
+| **Home** | The SB mark as a wet, glossy 3D sculpture (a tube swept along the logo's own SVG path). Bass wobbles it, beats kick it, slime drips off it, the pointer tilts it, rage bleeds it red, and scrolling out of the hero spins it away (GSAP ScrollTrigger scrub). Tap it for the slime splash. |
+| **The Lab** | A 3D "slime pool" spectrogram: the song's spectrum rolls toward you as a neon grid, with a ring of spectrum bars and a liquid blob behind the wordmark (real bloom). **Speed** slows time itself, **reverb** hazes and blooms the room, **room** pulls the camera back. |
+| **The Lab** | **● rec a clip** — records 15s of the visualizer *with the bent audio* as a branded vertical 9:16 video (mp4 where the browser supports it, else webm), then share (Web Share) or download. Built on `MediaRecorder` + `canvas.captureStream()` + a `MediaStreamDestination` tapped off the site's own audio output — no library. |
+| **Music** | The SB deck: a turntable with the current cover as the label. Spins up to 33⅓ when the player plays, the tonearm tracks the song's progress, **tap the record** to play/pause, **drag it** to scratch (seeks). |
+| **SB World** | The five powers orbit a glowing SB core, coloured from the CMS. Each orb pulses with its own slice of the spectrum; click one and GSAP flies the camera into it, then opens its lore card (and flies back when you close it). |
+| **Shows (merch)** | Each product's modal gets a 3D turntable (drag to spin) and **view in your space (AR)** — iOS Quick Look (`.usdz`) / Android Scene Viewer (`.glb`). AR is plain OS links, so it works even when WebGL is off. |
+
+**How it's wired**
+- `assets/3d/*.js` are plain ES modules (no build). `app.js` injects
+  `<script type="module" src="assets/3d/core.js">` only when the page has a 3D mount point
+  (or a merch modal opens), after `load`, so it never competes with first paint. Browsers
+  that can't run modules never see it.
+- **Skipped** in lite mode (software GPU / the FPS governor), the admin preview, on
+  Save-Data or ≤2 GB-RAM devices, and with `?no3d`. If the governor flips to lite
+  mid-visit, every scene unmounts and the 2D canvases come back. `?full` forces it on.
+- One render loop: scenes pause while off screen or behind a modal, the full-page snake pit
+  drops to ~20fps while a 3D scene is visible (`window.SB_3D_BUSY`), the client-side router
+  tears scenes down on navigation, and reduced-motion visitors get still scenes that only
+  move while music plays.
+- `app.js` exposes a small read-mostly surface to the layer: `window.SBPlayer` (levels,
+  rage, lab knobs, time/seek, `captureStream()` for the recorder) and `window.SBSite`
+  (powers list, `openPower`, splash, toast, track, modal).
+- Analytics (consent-gated, as always): `clip_record`, `clip_share`, `clip_download`,
+  `scratch`, `power_orbit`, `merch_ar`.
+
+**The one (optional) build step — `npm run build:3d`**
+three.js + GSAP are bundled once by [`scripts/build-3d.mjs`](scripts/build-3d.mjs) into
+`assets/3d/vendor/` (tree-shaken, code-split; ~150 KB + ~45 KB gzipped, lazy-loaded), and
+the merch AR files are baked into `assets/models/` from the same procedural builder the
+viewer uses. Both are **committed**, so deploying stays "push the folder" — and they're
+served same-origin, so the strict CSP needs no CDN exception. CI rebuilds the vendor bundle
+and fails if the committed copy is stale. Using a new three.js class in a scene? Add it to
+[`scripts/3d/three.entry.js`](scripts/3d/three.entry.js) and re-run `npm run build:3d`.
+
+**Real merch models** — put a product scan on its card in `shows.html`:
+`data-model="assets/models/hoodie.glb"` (shown in the 3D viewer + Android AR) and
+`data-usdz="assets/models/hoodie.usdz"` (iOS AR). Keep them same-origin (or on the Supabase
+project) — the CSP only allows those for `connect-src`.
+
 ## Admin / live editing (CMS) — "SLIME CONTROL"
 The site's content lives in **Supabase** and is managed from a password-gated, Shopify-style
 admin at `admin.html`.
@@ -154,6 +200,13 @@ assets/
   styles.css                # all site styles (shared by every page)
   app.js                    # site engine — injects shared chrome + wires every feature
   quest.js                  # "Slime the Game" engine — mounted on quest.html, beats off the live player
+  3d/                       # three.js layer (ES modules, loaded on demand — see "3D layer")
+    core.js                 #   loader/runtime: gating, one render loop, culling, teardown
+    kit.js                  #   shared renderer / env / glow / wobble helpers
+    mono.js                 #   the SB logo path → 3D tube geometry
+    hero.js lab.js clip.js vinyl.js powers.js merch.js merch-models.js   # the scenes
+    vendor/                 #   three.js + GSAP bundle (generated by npm run build:3d — committed)
+  models/                   # merch AR files: .glb (Android) + .usdz (iOS), baked by build:3d
   man-of-my-word.mp3        # background track (loops)
   my-time-cover.jpg         # My Time cover art
   sb-portrait.jpg           # artist photo (hero + about)
@@ -186,9 +239,10 @@ python3 -m http.server 8000   # then visit http://localhost:8000
 
 ## Tests
 ```bash
-npm install            # dev deps (Playwright)
+npm install            # dev deps (Playwright, + three / gsap / esbuild for build:3d)
 npm run test:install   # one-time: download the Chromium browser binary
 npm test               # node --check on JS, then the Playwright e2e/security suite
+npm run build:3d       # only when changing three.js/GSAP or the merch AR models
 ```
 `npm test` runs the JS syntax checks first (fast, no browser) and then the end-to-end
 suite in `tests/e2e.mjs`. The e2e run needs the Chromium binary from `test:install`; CI

@@ -7,7 +7,8 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # pinned: ubuntu-latest moved to 26.04, which Playwright 1.60 can't install Chromium deps on
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -15,6 +16,10 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm ci
+      - name: 3D vendor bundle is up to date
+        # assets/3d/vendor/ is committed (the site has no build step); rebuild it and fail
+        # if it differs, so a three/gsap bump or a new export can't ship stale
+        run: npm run build:3d -- vendor && git diff --exit-code -- assets/3d/vendor
       - name: Install Playwright browser
         run: npm run test:install
       - name: Syntax check + e2e

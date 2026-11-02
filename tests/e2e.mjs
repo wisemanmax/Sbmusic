@@ -486,6 +486,56 @@ try {
     check('popup: consent ticked → joins', /you in/i.test(r2.note) && r2.joined === '1', r2.note);
     await page.close();
   }
+
+  // ---------------------------------------------------------------
+  group('3D layer (three.js): optional, never breaks the 2D site');
+  {
+    // ?no3d (and lite mode) must never even fetch the module layer
+    const page = await ctx.newPage();
+    const fetched = [];
+    page.on('request', r => { if (/\/assets\/3d\//.test(r.url())) fetched.push(r.url()); });
+    await page.goto(base + '/lab.html?no3d', { waitUntil: 'load' });
+    await page.waitForTimeout(900);
+    check('3d: ?no3d never loads assets/3d/', fetched.length === 0, fetched.join(', '));
+    await page.goto(base + '/lab.html?lite', { waitUntil: 'load' });
+    await page.waitForTimeout(900);
+    check('3d: lite mode never loads assets/3d/', fetched.length === 0, fetched.join(', '));
+    check('3d: 2D visualizer still drawn without the 3D layer', await page.evaluate(() => getComputedStyle(document.getElementById('vizCanvas')).display !== 'none'));
+    await page.close();
+
+    // ?full forces the full path. Where this CI browser can make a WebGL2 context the
+    // scenes must mount + tear down cleanly; where it can't, the 2D site must be intact.
+    const p2 = await ctx.newPage();
+    const errs = [];
+    p2.on('pageerror', e => errs.push(e.message));
+    await p2.goto(base + '/index.html?full', { waitUntil: 'load' });
+    const gl2 = await p2.evaluate(() => { try { return !!document.createElement('canvas').getContext('webgl2'); } catch (_) { return false; } });
+    const until = (fn) => p2.waitForFunction(fn, null, { timeout: 10000 }).then(() => true, () => false);
+    if (gl2) {
+      check('3d: hero mark mounts (?full)', await until(() => !!document.querySelector('.hero.has-3d canvas.hero3d')));
+      await p2.evaluate(() => sbNavigate('world.html', true));
+      check('3d: router tears the hero down + mounts the SB World orbit', await until(() => !document.querySelector('canvas.hero3d') && document.querySelectorAll('.orbit3d .olabel').length === 5));
+      await p2.evaluate(() => sbLite(true));
+      await p2.waitForTimeout(500);
+      check('3d: governor flip to lite unmounts every scene', await p2.evaluate(() => !document.querySelector('.orbit3d, canvas.hero3d, canvas.viz3d, .deck3d')));
+    } else {
+      await p2.waitForTimeout(1500);
+      console.log('  (no WebGL2 in this browser — mount checks skipped)');
+      check('3d: no WebGL → 2D hero canvas intact', await p2.evaluate(() => !!document.getElementById('heroCanvas') && !document.querySelector('.hero.has-3d')));
+    }
+    check('3d: no page errors', errs.length === 0, errs.join(' | '));
+    await p2.close();
+
+    // merch AR files referenced by shows.html exist + every card is wired for the 3D viewer
+    const p3 = await ctx.newPage();
+    await p3.goto(base + '/shows.html', { waitUntil: 'load' });
+    const cards = await p3.evaluate(() => [...document.querySelectorAll('#pgrid .prod')].map(c => ({ kind: c.dataset.kind, glb: c.dataset.arGlb, usdz: c.dataset.usdz })));
+    check('3d: every merch card has a kind + AR files', cards.length > 0 && cards.every(c => c.kind && c.glb && c.usdz), JSON.stringify(cards));
+    const missing = [];
+    for (const c of cards) for (const u of [c.glb, c.usdz]) { const r = await p3.request.get(base + '/' + u); if (r.status() !== 200) missing.push(u); }
+    check('3d: AR model files are present', missing.length === 0, missing.join(', '));
+    await p3.close();
+  }
 } finally {
   await browser.close();
   server.close();

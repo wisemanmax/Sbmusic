@@ -2,9 +2,10 @@
   "name": "slime-by-site",
   "version": "1.0.0",
   "private": true,
-  "description": "SLIME BY — static, no-build site (HTML + assets/app.js + cms.js).",
+  "description": "SLIME BY \u2014 static, no-build site (HTML + assets/app.js + cms.js). The optional three.js layer's vendor bundle + AR models are pre-built and committed (npm run build:3d).",
   "scripts": {
-    "check:js": "node --check assets/app.js && node --check assets/quest.js && node --check cms.js && node --check assets/analytics.js && node --check sw.js && node --check tests/e2e.mjs && node --check tests/governor.test.mjs && node --check tests/quest.sim.mjs",
+    "check:js": "node --check assets/app.js && node --check assets/quest.js && node --check cms.js && node --check assets/analytics.js && node --check sw.js && node --check assets/3d/core.js && node --check assets/3d/kit.js && node --check assets/3d/mono.js && node --check assets/3d/hero.js && node --check assets/3d/lab.js && node --check assets/3d/clip.js && node --check assets/3d/vinyl.js && node --check assets/3d/powers.js && node --check assets/3d/merch.js && node --check assets/3d/merch-models.js && node --check scripts/build-3d.mjs && node --check tests/e2e.mjs && node --check tests/governor.test.mjs && node --check tests/quest.sim.mjs",
+    "build:3d": "node scripts/build-3d.mjs",
     "serve": "python3 -m http.server 8000",
     "test:install": "playwright install --with-deps chromium",
     "test:governor": "node tests/governor.test.mjs",
@@ -13,6 +14,9 @@
     "test": "npm run check:js && npm run test:governor && npm run test:quest && npm run test:e2e"
   },
   "devDependencies": {
-    "playwright": "^1.56.1"
+    "esbuild": "^0.28.2",
+    "gsap": "^3.15.0",
+    "playwright": "^1.56.1",
+    "three": "^0.187.0"
   }
 }
